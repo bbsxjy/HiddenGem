@@ -124,10 +124,15 @@ function convertNumericFields(data: any): any {
 
 /**
  * Extract data from API response
- * Backend returns data directly, not wrapped in {data: ...}
+ * Backend wraps responses in {success: true, data: ..., timestamp: ...}
  */
-export function extractData<T>(response: T): T {
-  return response;
+export function extractData<T>(response: any): T {
+  // If response has a 'data' field and 'success' field, extract data
+  if (response && typeof response === 'object' && 'data' in response && 'success' in response) {
+    return response.data as T;
+  }
+  // Otherwise return response directly (for endpoints that don't wrap)
+  return response as T;
 }
 
 /**

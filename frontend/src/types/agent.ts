@@ -1,82 +1,98 @@
-// Agent types - aligned with backend API.md
+// Agent types - aligned with backend API_DOCUMENTATION.md
 
+/**
+ * Available Agent names from backend
+ * - technical → TradingAgents internal 'market' agent
+ * - fundamental → TradingAgents internal 'fundamentals' agent
+ * - sentiment → TradingAgents internal 'sentiment' agent
+ * - policy → TradingAgents internal 'news' agent
+ */
 export type AgentName =
   | 'technical'
   | 'fundamental'
-  | 'risk'
-  | 'market'
-  | 'policy'
   | 'sentiment'
-  | 'execution';
+  | 'policy';
 
-export type SignalDirection = 'long' | 'short' | 'hold' | 'close';
+/**
+ * Signal direction
+ * - long: Bullish/Buy
+ * - short: Bearish/Sell
+ * - hold: Hold/Neutral
+ */
+export type SignalDirection = 'long' | 'short' | 'hold';
 
+/**
+ * Agent status configuration
+ */
+export interface AgentStatus {
+  name: AgentName;
+  enabled: boolean;
+  weight: number;
+}
+
+/**
+ * Legacy interface for backward compatibility
+ * @deprecated Use AgentStatus instead
+ */
 export interface AgentConfig {
   name: AgentName;
   enabled: boolean;
   weight: number;
-  timeout: number;
-  cache_ttl: number;
+  timeout?: number;
+  cache_ttl?: number;
 }
 
+/**
+ * Individual agent analysis result
+ */
 export interface AgentAnalysisResult {
-  agent_name: AgentName;
-  symbol: string;
-  score: number;
-  direction: SignalDirection;
-  confidence: number;
-  reasoning: string;
-  analysis: Record<string, unknown>;
-  execution_time_ms: number;
-  timestamp: string;
-  is_error: boolean;
+  agent_name: string;        // Agent name
+  direction: SignalDirection; // Trading direction
+  confidence: number;         // Confidence level (0-1)
+  score: number;              // Score (0-1)
+  reasoning: string;          // Reasoning summary (first 500 characters)
+  is_error: boolean;          // Whether an error occurred
+  full_report: string;        // Full analysis report
 }
 
+/**
+ * LLM comprehensive analysis result
+ */
 export interface LLMAnalysis {
-  recommended_direction: SignalDirection;
-  confidence: number;
-  reasoning: string;
-  risk_assessment: string;
-  key_factors: string[];
-  price_targets: {
-    entry?: number;
-    stop_loss?: number;
-    take_profit?: number;
-  };
-  analysis_timestamp: string;
+  recommended_direction: SignalDirection; // Recommended direction
+  confidence: number;                     // Confidence level
+  reasoning: string;                      // Reasoning process
+  risk_assessment: string;                // Risk assessment
+  key_factors: string[];                  // Key factors
+  analysis_timestamp: string;             // Analysis timestamp (ISO 8601)
 }
 
+/**
+ * Aggregated trading signal from multiple agents
+ */
+export interface AggregatedSignal {
+  direction: SignalDirection;     // Aggregated direction
+  confidence: number;             // Aggregated confidence
+  position_size: number;          // Recommended position size (0-1)
+  num_agreeing_agents: number;    // Number of agreeing agents
+  warnings: string[];             // Warning messages
+  metadata: {
+    analysis_method: string;      // Analysis method (e.g., 'llm')
+    agent_count: number;          // Total number of agents involved
+    agreeing_agents: number;      // Number of agreeing agents
+    total_agents: number;         // Total number of agents
+  };
+}
+
+/**
+ * Complete analysis response from analyze-all endpoint
+ */
 export interface AnalyzeAllResponse {
-  symbol: string;
-  agent_results: Record<AgentName, {
-    direction: SignalDirection;
-    confidence: number;
-    score: number;
-    reasoning: string;
-    is_error: boolean;
-  }>;
-  aggregated_signal: {
-    direction: SignalDirection;
-    confidence: number;
-    position_size: number;
-    num_agreeing_agents: number;
-    warnings?: string[];
-    metadata?: {
-      analysis_method?: 'llm' | 'rule_based';
-      llm_reasoning?: string;
-      risk_assessment?: string;
-      key_factors?: string[];
-      agent_count?: number;
-      agreeing_agents?: number;
-      total_agents?: number;
-      below_threshold?: boolean;
-      below_agreement?: boolean;
-      min_threshold?: number;
-      min_agreement?: number;
-    };
-  } | null;
-  signal_rejection_reason?: string;
-  llm_analysis?: LLMAnalysis;  // 新增：即使信号被拒绝也会返回
+  symbol: string;                                      // Stock symbol
+  agent_results: Record<AgentName, AgentAnalysisResult>; // Individual agent results
+  aggregated_signal: AggregatedSignal;                 // Aggregated signal
+  llm_analysis: LLMAnalysis;                           // LLM comprehensive analysis
+  signal_rejection_reason: string | null;              // Signal rejection reason (if any)
 }
 
 export interface AgentPerformanceResponse {

@@ -28,21 +28,19 @@ export function Agents() {
     }
   };
 
+  // Agent name mapping - aligned with backend API_DOCUMENTATION.md
   const agentNameMap: Record<string, string> = {
-    policy: '政策分析',
-    market: '市场监控',
-    technical: '技术分析',
-    fundamental: '基本面分析',
-    sentiment: '情绪分析',
-    risk: '风险管理',
-    execution: '执行代理',
+    technical: '技术分析',    // TradingAgents internal 'market' agent
+    fundamental: '基本面分析', // TradingAgents internal 'fundamentals' agent
+    sentiment: '情绪分析',     // TradingAgents internal 'sentiment' agent
+    policy: '政策分析',        // TradingAgents internal 'news' agent
   };
 
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-text-primary">个股智能分析</h1>
-        <p className="text-text-secondary mt-1">监控7个AI代理的状态和分析</p>
+        <p className="text-text-secondary mt-1">监控4个AI代理的状态和分析</p>
       </div>
 
       {/* Analysis Form */}
@@ -228,41 +226,6 @@ export function Agents() {
                   </div>
                 )}
 
-                {/* 价格目标 */}
-                {finalResult.llm_analysis.price_targets && (
-                  <div>
-                    <h4 className="text-sm font-semibold text-text-primary mb-2 flex items-center gap-2">
-                      <span className="w-2 h-2 bg-purple-500 rounded-full"></span>
-                      价格目标
-                    </h4>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                      {finalResult.llm_analysis.price_targets.entry && (
-                        <div className="p-3 bg-purple-50 rounded-lg border border-purple-100">
-                          <div className="text-xs text-text-secondary mb-1">建议入场价</div>
-                          <div className="text-lg font-semibold text-text-primary">
-                            ¥{finalResult.llm_analysis.price_targets.entry.toFixed(2)}
-                          </div>
-                        </div>
-                      )}
-                      {finalResult.llm_analysis.price_targets.stop_loss && (
-                        <div className="p-3 bg-red-50 rounded-lg border border-red-100">
-                          <div className="text-xs text-text-secondary mb-1">止损价</div>
-                          <div className="text-lg font-semibold text-loss">
-                            ¥{finalResult.llm_analysis.price_targets.stop_loss.toFixed(2)}
-                          </div>
-                        </div>
-                      )}
-                      {finalResult.llm_analysis.price_targets.take_profit && (
-                        <div className="p-3 bg-green-50 rounded-lg border border-green-100">
-                          <div className="text-xs text-text-secondary mb-1">止盈价</div>
-                          <div className="text-lg font-semibold text-profit">
-                            ¥{finalResult.llm_analysis.price_targets.take_profit.toFixed(2)}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
               </div>
             </Card>
           )}
