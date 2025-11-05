@@ -1,0 +1,978 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>量化交易系统架构设计</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mermaid/10.6.1/mermaid.min.js"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            overflow: hidden;
+        }
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 40px;
+            text-align: center;
+        }
+        h1 {
+            margin: 0;
+            font-size: 2.5em;
+            font-weight: 300;
+            letter-spacing: 2px;
+        }
+        .subtitle {
+            margin-top: 10px;
+            font-size: 1.2em;
+            opacity: 0.9;
+        }
+        .content {
+            padding: 40px;
+        }
+        .section {
+            margin-bottom: 60px;
+            background: #f8f9fa;
+            border-radius: 15px;
+            padding: 30px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.08);
+        }
+        h2 {
+            color: #333;
+            border-bottom: 3px solid #667eea;
+            padding-bottom: 15px;
+            margin-bottom: 30px;
+            font-size: 1.8em;
+        }
+        h3 {
+            color: #555;
+            margin-top: 30px;
+            margin-bottom: 15px;
+            font-size: 1.3em;
+        }
+        .mermaid {
+            text-align: center;
+            margin: 30px 0;
+            padding: 20px;
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 3px 10px rgba(0,0,0,0.1);
+        }
+        .use-case {
+            background: white;
+            border-left: 4px solid #667eea;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+        }
+        .use-case h4 {
+            color: #667eea;
+            margin-top: 0;
+            font-size: 1.1em;
+        }
+        .use-case .given, .use-case .when, .use-case .then, .use-case .expect {
+            margin: 10px 0;
+            padding: 10px;
+            background: #f0f0f0;
+            border-radius: 5px;
+        }
+        .use-case .given::before {
+            content: "Given: ";
+            font-weight: bold;
+            color: #666;
+        }
+        .use-case .when::before {
+            content: "When: ";
+            font-weight: bold;
+            color: #666;
+        }
+        .use-case .then::before {
+            content: "Then: ";
+            font-weight: bold;
+            color: #666;
+        }
+        .use-case .expect::before {
+            content: "Expected: ";
+            font-weight: bold;
+            color: #666;
+        }
+        .architecture-label {
+            display: inline-block;
+            padding: 5px 15px;
+            background: #667eea;
+            color: white;
+            border-radius: 20px;
+            font-size: 0.9em;
+            margin-bottom: 15px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+            background: white;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+        }
+        th {
+            background: #667eea;
+            color: white;
+            padding: 15px;
+            text-align: left;
+        }
+        td {
+            padding: 12px 15px;
+            border-bottom: 1px solid #e0e0e0;
+        }
+        tr:hover {
+            background: #f5f5f5;
+        }
+        .code-block {
+            background: #2d2d2d;
+            color: #f8f8f2;
+            padding: 20px;
+            border-radius: 8px;
+            font-family: 'Courier New', monospace;
+            margin: 20px 0;
+            overflow-x: auto;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>中低频量化交易系统架构设计</h1>
+            <div class="subtitle">MCP Agent 集成架构 | A股市场实现方案</div>
+        </div>
+        
+        <div class="content">
+            <!-- High-Level Design -->
+            <div class="section">
+                <span class="architecture-label">High-Level Architecture</span>
+                <h2>一、高层系统架构设计</h2>
+                
+                <div class="mermaid">
+                    graph TB
+                        subgraph "外部数据源"
+                            DS1[证券交易所<br/>实时行情]
+                            DS2[政策网站<br/>监管动态]
+                            DS3[财经新闻<br/>市场情绪]
+                            DS4[券商接口<br/>交易通道]
+                        end
+                        
+                        subgraph "MCP Agent层"
+                            AG1[政策分析Agent]
+                            AG2[市场监控Agent]
+                            AG3[技术分析Agent]
+                            AG4[基本面Agent]
+                            AG5[情绪分析Agent]
+                            AG6[风险管理Agent]
+                            AG7[执行Agent]
+                        end
+                        
+                        subgraph "核心服务层"
+                            MCP[MCP Orchestrator<br/>协调器]
+                            SE[策略引擎]
+                            RE[风险引擎]
+                            OE[订单引擎]
+                        end
+                        
+                        subgraph "数据存储层"
+                            TS[(TimescaleDB<br/>时序数据)]
+                            RD[(Redis<br/>缓存)]
+                            PG[(PostgreSQL<br/>业务数据)]
+                            MQ[Kafka<br/>消息队列]
+                        end
+                        
+                        subgraph "接口层"
+                            API[REST API]
+                            WS[WebSocket]
+                            GUI[Web界面]
+                        end
+                        
+                        DS1 --> AG2
+                        DS2 --> AG1
+                        DS3 --> AG5
+                        DS4 --> AG7
+                        
+                        AG1 --> MCP
+                        AG2 --> MCP
+                        AG3 --> MCP
+                        AG4 --> MCP
+                        AG5 --> MCP
+                        AG6 --> MCP
+                        AG7 --> MCP
+                        
+                        MCP --> SE
+                        SE --> RE
+                        RE --> OE
+                        
+                        SE --> TS
+                        SE --> RD
+                        OE --> PG
+                        MCP --> MQ
+                        
+                        API --> SE
+                        WS --> OE
+                        GUI --> API
+                        
+                        style MCP fill:#ff9999
+                        style SE fill:#99ccff
+                        style RE fill:#ffcc99
+                        style OE fill:#99ff99
+                </div>
+                
+                <h3>系统层次说明</h3>
+                <table>
+                    <tr>
+                        <th>层次</th>
+                        <th>主要组件</th>
+                        <th>职责</th>
+                        <th>技术选型</th>
+                    </tr>
+                    <tr>
+                        <td>数据源层</td>
+                        <td>交易所、政策网站、新闻源</td>
+                        <td>提供原始数据</td>
+                        <td>API接口、爬虫</td>
+                    </tr>
+                    <tr>
+                        <td>Agent层</td>
+                        <td>7个专业化Agent</td>
+                        <td>智能分析决策</td>
+                        <td>MCP协议、LLM</td>
+                    </tr>
+                    <tr>
+                        <td>服务层</td>
+                        <td>协调器、策略引擎、风险引擎</td>
+                        <td>业务逻辑处理</td>
+                        <td>Python、异步IO</td>
+                    </tr>
+                    <tr>
+                        <td>存储层</td>
+                        <td>时序库、缓存、消息队列</td>
+                        <td>数据持久化</td>
+                        <td>TimescaleDB、Redis、Kafka</td>
+                    </tr>
+                    <tr>
+                        <td>接口层</td>
+                        <td>API、WebSocket、GUI</td>
+                        <td>用户交互</td>
+                        <td>FastAPI、React</td>
+                    </tr>
+                </table>
+            </div>
+
+            <!-- Low-Level Design -->
+            <div class="section">
+                <span class="architecture-label">Low-Level Design</span>
+                <h2>二、低层组件设计</h2>
+                
+                <h3>2.1 MCP Agent 内部架构</h3>
+                <div class="mermaid">
+                    graph LR
+                        subgraph "单个Agent内部结构"
+                            IN[输入接口] --> VAL[数据验证]
+                            VAL --> PRE[预处理器]
+                            PRE --> CORE[核心分析引擎]
+                            
+                            subgraph "核心分析引擎"
+                                LLM[LLM推理]
+                                RULE[规则引擎]
+                                ML[机器学习模型]
+                            end
+                            
+                            CORE --> POST[后处理器]
+                            POST --> CACHE[结果缓存]
+                            CACHE --> OUT[输出接口]
+                            
+                            MON[监控器] --> CORE
+                            LOG[日志记录] --> CORE
+                        end
+                        
+                        style CORE fill:#ffeb3b
+                        style LLM fill:#4caf50
+                        style RULE fill:#2196f3
+                        style ML fill:#ff5722
+                </div>
+                
+                <h3>2.2 策略引擎内部结构</h3>
+                <div class="mermaid">
+                    graph TB
+                        subgraph "策略引擎组件"
+                            SI[信号输入] --> SP[信号处理器]
+                            SP --> SC[信号组合器]
+                            
+                            subgraph "策略池"
+                                ST1[波段策略]
+                                ST2[趋势策略]
+                                ST3[套利策略]
+                                ST4[事件驱动]
+                            end
+                            
+                            SC --> ST1
+                            SC --> ST2
+                            SC --> ST3
+                            SC --> ST4
+                            
+                            ST1 --> SA[信号聚合器]
+                            ST2 --> SA
+                            ST3 --> SA
+                            ST4 --> SA
+                            
+                            SA --> PO[仓位优化器]
+                            PO --> RM[风险模块]
+                            RM --> OG[订单生成器]
+                            
+                            subgraph "执行监控"
+                                EM[执行监控]
+                                PM[性能度量]
+                            end
+                            
+                            OG --> EM
+                            EM --> PM
+                        end
+                        
+                        style SA fill:#e91e63
+                        style PO fill:#9c27b0
+                        style RM fill:#673ab7
+                </div>
+                
+                <h3>2.3 数据流架构</h3>
+                <div class="mermaid">
+                    graph LR
+                        subgraph "数据采集"
+                            RT[实时数据流]
+                            HIS[历史数据]
+                            NEWS[新闻事件]
+                        end
+                        
+                        subgraph "数据处理管道"
+                            INGEST[数据摄入<br/>Kafka Consumer]
+                            CLEAN[数据清洗<br/>异常处理]
+                            NORM[标准化<br/>格式统一]
+                            ENRICH[数据增强<br/>指标计算]
+                        end
+                        
+                        subgraph "存储策略"
+                            HOT[(热数据<br/>Redis)]
+                            WARM[(温数据<br/>PostgreSQL)]
+                            COLD[(冷数据<br/>S3/OSS)]
+                        end
+                        
+                        RT --> INGEST
+                        HIS --> INGEST
+                        NEWS --> INGEST
+                        
+                        INGEST --> CLEAN
+                        CLEAN --> NORM
+                        NORM --> ENRICH
+                        
+                        ENRICH --> HOT
+                        ENRICH --> WARM
+                        WARM --> COLD
+                        
+                        style INGEST fill:#00bcd4
+                        style HOT fill:#ff5722
+                        style WARM fill:#ff9800
+                        style COLD fill:#3f51b5
+                </div>
+            </div>
+
+            <!-- 核心流程图 -->
+            <div class="section">
+                <h2>三、核心业务流程图</h2>
+                
+                <h3>3.1 完整交易决策流程</h3>
+                <div class="mermaid">
+                    graph TD
+                        START([开始：接收市场数据]) --> TRIGGER{触发条件?}
+                        
+                        TRIGGER -->|定时触发| SCHEDULE[定时任务<br/>每5分钟]
+                        TRIGGER -->|事件触发| EVENT[事件监听<br/>价格突破/政策发布]
+                        TRIGGER -->|手动触发| MANUAL[人工干预]
+                        
+                        SCHEDULE --> COLLECT
+                        EVENT --> COLLECT
+                        MANUAL --> COLLECT
+                        
+                        COLLECT[收集多源数据] --> POLICY{政策分析}
+                        
+                        POLICY -->|有重大政策| POLICY_ANALYZE[深度政策分析<br/>- 影响板块识别<br/>- 受益标的筛选<br/>- 时效性评估]
+                        POLICY -->|无重大政策| MARKET
+                        
+                        POLICY_ANALYZE --> MARKET[市场环境评估]
+                        
+                        MARKET --> MARKET_CHECK{市场状态判断}
+                        MARKET_CHECK -->|牛市| AGGRESSIVE[激进策略配置]
+                        MARKET_CHECK -->|震荡| NEUTRAL[中性策略配置]
+                        MARKET_CHECK -->|熊市| DEFENSIVE[防御策略配置]
+                        
+                        AGGRESSIVE --> SCREEN
+                        NEUTRAL --> SCREEN
+                        DEFENSIVE --> SCREEN
+                        
+                        SCREEN[股票池筛选] --> FUNDAMENTAL[基本面分析<br/>PE/PB/ROE]
+                        FUNDAMENTAL --> TECHNICAL[技术面分析<br/>RSI/MACD/成交量]
+                        TECHNICAL --> SENTIMENT[情绪面分析<br/>资金流向/市场热度]
+                        
+                        SENTIMENT --> RISK_CHECK{风险检查}
+                        
+                        RISK_CHECK -->|通过| SCORE[综合评分]
+                        RISK_CHECK -->|不通过| REJECT[拒绝交易]
+                        
+                        SCORE --> SIGNAL{信号强度}
+                        
+                        SIGNAL -->|强信号>0.8| LARGE_POS[大仓位<br/>15-20%]
+                        SIGNAL -->|中信号0.5-0.8| MID_POS[中仓位<br/>8-15%]
+                        SIGNAL -->|弱信号<0.5| SMALL_POS[小仓位<br/>3-8%]
+                        
+                        LARGE_POS --> ORDER
+                        MID_POS --> ORDER
+                        SMALL_POS --> ORDER
+                        
+                        ORDER[生成订单] --> EXECUTE{执行检查}
+                        
+                        EXECUTE -->|市价单| MARKET_ORDER[立即执行]
+                        EXECUTE -->|限价单| LIMIT_ORDER[挂单等待]
+                        EXECUTE -->|算法单| ALGO_ORDER[TWAP/VWAP]
+                        
+                        MARKET_ORDER --> CONFIRM
+                        LIMIT_ORDER --> CONFIRM
+                        ALGO_ORDER --> CONFIRM
+                        
+                        CONFIRM[成交确认] --> UPDATE[更新持仓]
+                        UPDATE --> MONITOR[持续监控]
+                        
+                        MONITOR --> EXIT{退出条件}
+                        EXIT -->|止盈| TAKE_PROFIT[止盈卖出]
+                        EXIT -->|止损| STOP_LOSS[止损卖出]
+                        EXIT -->|时间到期| TIME_EXIT[到期退出]
+                        
+                        TAKE_PROFIT --> END([结束])
+                        STOP_LOSS --> END
+                        TIME_EXIT --> END
+                        REJECT --> END
+                        
+                        style START fill:#4caf50
+                        style END fill:#f44336
+                        style SCORE fill:#ffeb3b
+                        style RISK_CHECK fill:#ff9800
+                </div>
+                
+                <h3>3.2 风险控制流程</h3>
+                <div class="mermaid">
+                    graph TD
+                        START([新交易信号]) --> CHECK1{仓位检查}
+                        
+                        CHECK1 -->|单股超限| REJECT1[拒绝：单股仓位超过10%]
+                        CHECK1 -->|通过| CHECK2{板块检查}
+                        
+                        CHECK2 -->|板块超限| REJECT2[拒绝：板块仓位超过30%]
+                        CHECK2 -->|通过| CHECK3{相关性检查}
+                        
+                        CHECK3 -->|高相关| REJECT3[拒绝：持仓相关性过高]
+                        CHECK3 -->|通过| CHECK4{杠杆检查}
+                        
+                        CHECK4 -->|杠杆超限| REJECT4[拒绝：总杠杆超过1.5倍]
+                        CHECK4 -->|通过| CHECK5{流动性检查}
+                        
+                        CHECK5 -->|流动性差| ADJUST[调整：减小仓位]
+                        CHECK5 -->|流动性好| CHECK6{特殊风险}
+                        
+                        ADJUST --> CHECK6
+                        
+                        CHECK6 -->|质押风险| WARNING1[警告：股权质押>50%]
+                        CHECK6 -->|解禁风险| WARNING2[警告：30天内解禁]
+                        CHECK6 -->|商誉风险| WARNING3[警告：商誉占比>30%]
+                        CHECK6 -->|无风险| APPROVE
+                        
+                        WARNING1 --> MANUAL{人工确认}
+                        WARNING2 --> MANUAL
+                        WARNING3 --> MANUAL
+                        
+                        MANUAL -->|确认| APPROVE[批准交易]
+                        MANUAL -->|否决| REJECT5[人工否决]
+                        
+                        APPROVE --> EXECUTE([执行交易])
+                        
+                        REJECT1 --> LOG[记录日志]
+                        REJECT2 --> LOG
+                        REJECT3 --> LOG
+                        REJECT4 --> LOG
+                        REJECT5 --> LOG
+                        
+                        style START fill:#2196f3
+                        style APPROVE fill:#4caf50
+                        style EXECUTE fill:#8bc34a
+                        style LOG fill:#ff5722
+                </div>
+            </div>
+
+            <!-- 时序图 -->
+            <div class="section">
+                <h2>四、系统时序图</h2>
+                
+                <h3>4.1 交易执行时序</h3>
+                <div class="mermaid">
+                    sequenceDiagram
+                        participant User as 用户
+                        participant API as API网关
+                        participant MCP as MCP协调器
+                        participant PA as 政策Agent
+                        participant MA as 市场Agent
+                        participant TA as 技术Agent
+                        participant SE as 策略引擎
+                        participant RE as 风险引擎
+                        participant OE as 订单引擎
+                        participant Broker as 券商接口
+                        
+                        User->>API: 发起交易请求
+                        API->>MCP: 转发请求
+                        
+                        par 并行分析
+                            MCP->>PA: 请求政策分析
+                            PA-->>MCP: 返回政策影响
+                        and
+                            MCP->>MA: 请求市场分析
+                            MA-->>MCP: 返回市场状态
+                        and
+                            MCP->>TA: 请求技术分析
+                            TA-->>MCP: 返回技术信号
+                        end
+                        
+                        MCP->>SE: 聚合分析结果
+                        SE->>SE: 生成交易信号
+                        SE->>RE: 风险评估请求
+                        
+                        alt 风险通过
+                            RE-->>SE: 批准交易
+                            SE->>OE: 创建订单
+                            OE->>Broker: 发送订单
+                            Broker-->>OE: 订单确认
+                            OE-->>User: 交易成功通知
+                        else 风险拒绝
+                            RE-->>SE: 拒绝交易
+                            SE-->>User: 风险警告
+                        end
+                </div>
+                
+                <h3>4.2 数据同步时序</h3>
+                <div class="mermaid">
+                    sequenceDiagram
+                        participant DS as 数据源
+                        participant Collector as 数据采集器
+                        participant Kafka as Kafka队列
+                        participant Processor as 处理器
+                        participant Cache as Redis缓存
+                        participant DB as 数据库
+                        participant Agent as Agent服务
+                        
+                        loop 每1秒
+                            DS->>Collector: 推送实时数据
+                            Collector->>Kafka: 发布消息
+                            Kafka->>Processor: 消费消息
+                            
+                            Processor->>Processor: 数据清洗&标准化
+                            
+                            par 并行存储
+                                Processor->>Cache: 更新缓存
+                            and
+                                Processor->>DB: 持久化存储
+                            end
+                            
+                            Cache-->>Agent: 实时数据推送
+                        end
+                        
+                        Note over Agent: Agent实时处理数据
+                </div>
+                
+                <h3>4.3 Agent协作时序</h3>
+                <div class="mermaid">
+                    sequenceDiagram
+                        participant Orchestrator as MCP编排器
+                        participant Policy as 政策Agent
+                        participant Market as 市场Agent
+                        participant Fund as 基本面Agent
+                        participant Tech as 技术Agent
+                        participant Risk as 风险Agent
+                        
+                        Orchestrator->>Policy: 1. 请求政策分析
+                        Policy->>Policy: 解析政策文本
+                        Policy-->>Orchestrator: 返回受益板块
+                        
+                        Orchestrator->>Market: 2. 分析市场环境
+                        Market->>Market: 计算市场指标
+                        Market-->>Orchestrator: 返回市场状态
+                        
+                        Orchestrator->>Fund: 3. 筛选标的
+                        Fund->>Fund: 财务分析
+                        Fund-->>Orchestrator: 返回优质标的
+                        
+                        Orchestrator->>Tech: 4. 技术验证
+                        Tech->>Tech: 计算技术指标
+                        Tech-->>Orchestrator: 返回买入信号
+                        
+                        Orchestrator->>Risk: 5. 风险评估
+                        Risk->>Risk: 综合风险分析
+                        Risk-->>Orchestrator: 返回风险等级
+                        
+                        Orchestrator->>Orchestrator: 6. 决策聚合
+                        Note over Orchestrator: 生成最终交易决策
+                </div>
+            </div>
+
+            <!-- Use Cases -->
+            <div class="section">
+                <h2>五、核心用例 (Use Cases)</h2>
+                
+                <h3>5.1 政策驱动交易用例</h3>
+                <div class="use-case">
+                    <h4>UC001: 重大政策发布触发交易</h4>
+                    <div class="given">系统正在运行，政策监控Agent处于活跃状态</div>
+                    <div class="when">国家发布"支持新能源汽车产业发展"的重大政策</div>
+                    <div class="then">
+                        1. 政策Agent在5秒内捕获并解析政策内容<br>
+                        2. 识别受益板块：新能源汽车、锂电池、充电桩<br>
+                        3. 筛选出20-30只相关标的<br>
+                        4. 综合评分后选出5-8只优质标的<br>
+                        5. 根据信号强度分配仓位（总仓位不超过30%）
+                    </div>
+                    <div class="expect">
+                        - 响应时间 < 30秒<br>
+                        - 准确率 > 85%<br>
+                        - 生成3-5个高质量交易信号
+                    </div>
+                </div>
+                
+                <div class="use-case">
+                    <h4>UC002: 监管政策变化风险控制</h4>
+                    <div class="given">持有教育类股票仓位20%</div>
+                    <div class="when">监管部门发布"双减"政策，限制教育培训行业</div>
+                    <div class="then">
+                        1. 政策Agent识别负面政策影响<br>
+                        2. 风险Agent触发紧急风控流程<br>
+                        3. 生成减仓/清仓建议<br>
+                        4. 推送风险警报给用户
+                    </div>
+                    <div class="expect">
+                        - 识别时间 < 10秒<br>
+                        - 风险警报推送 < 30秒<br>
+                        - 提供具体减仓方案
+                    </div>
+                </div>
+                
+                <h3>5.2 市场环境驱动用例</h3>
+                <div class="use-case">
+                    <h4>UC003: 北向资金大幅流入</h4>
+                    <div class="given">市场处于震荡期，北向资金连续3日流出</div>
+                    <div class="when">北向资金单日净流入超过100亿元</div>
+                    <div class="then">
+                        1. 市场Agent检测到资金流向反转<br>
+                        2. 分析资金流入的板块分布<br>
+                        3. 调整市场状态评级为"偏多"<br>
+                        4. 增加权重股和白马股的配置建议<br>
+                        5. 提高整体仓位上限至70%
+                    </div>
+                    <div class="expect">
+                        - 检测延迟 < 1分钟<br>
+                        - 板块分析完成 < 5分钟<br>
+                        - 生成具体调仓建议
+                    </div>
+                </div>
+                
+                <div class="use-case">
+                    <h4>UC004: 市场情绪过热预警</h4>
+                    <div class="given">连续5个交易日上涨，两市成交额突破1.5万亿</div>
+                    <div class="when">换手率超过5%，RSI > 80</div>
+                    <div class="then">
+                        1. 技术Agent发出超买警告<br>
+                        2. 情绪Agent确认市场过热<br>
+                        3. 风险Agent建议降低仓位<br>
+                        4. 暂停新的买入操作<br>
+                        5. 设置更严格的止盈条件
+                    </div>
+                    <div class="expect">
+                        - 预警及时性 < 30秒<br>
+                        - 提供具体仓位调整比例<br>
+                        - 自动调整风控参数
+                    </div>
+                </div>
+                
+                <h3>5.3 技术分析触发用例</h3>
+                <div class="use-case">
+                    <h4>UC005: 技术突破买入信号</h4>
+                    <div class="given">某股票在平台整理60天</div>
+                    <div class="when">股价突破前期高点，成交量放大2倍</div>
+                    <div class="then">
+                        1. 技术Agent识别突破信号<br>
+                        2. 验证成交量配合情况<br>
+                        3. 检查基本面支撑<br>
+                        4. 生成买入信号（强度0.8）<br>
+                        5. 建议仓位5-8%
+                    </div>
+                    <div class="expect">
+                        - 信号识别 < 10秒<br>
+                        - 完整分析 < 1分钟<br>
+                        - 提供入场价格区间
+                    </div>
+                </div>
+                
+                <h3>5.4 风险管理用例</h3>
+                <div class="use-case">
+                    <h4>UC006: 个股风险预警</h4>
+                    <div class="given">持有某股票仓位8%，盈利15%</div>
+                    <div class="when">发现该公司大股东质押率达到80%，且将有大量限售股解禁</div>
+                    <div class="then">
+                        1. 风险Agent识别多重风险叠加<br>
+                        2. 计算风险评分（高风险）<br>
+                        3. 建议减仓50%锁定利润<br>
+                        4. 设置剩余仓位的严格止损<br>
+                        5. 加入风险观察名单
+                    </div>
+                    <div class="expect">
+                        - 风险识别 < 30秒<br>
+                        - 提供详细风险报告<br>
+                        - 明确的操作建议
+                    </div>
+                </div>
+                
+                <div class="use-case">
+                    <h4>UC007: 系统性风险控制</h4>
+                    <div class="given">总仓位80%，分布在5个板块</div>
+                    <div class="when">大盘单日下跌超过3%，触发系统性风险</div>
+                    <div class="then">
+                        1. 风险Agent启动应急预案<br>
+                        2. 全面评估持仓风险<br>
+                        3. 优先卖出高Beta股票<br>
+                        4. 总仓位降至50%以下<br>
+                        5. 暂停所有买入操作24小时
+                    </div>
+                    <div class="expect">
+                        - 应急响应 < 1分钟<br>
+                        - 有序减仓不踩踏<br>
+                        - 保留核心持仓
+                    </div>
+                </div>
+                
+                <h3>5.5 多板块交易用例</h3>
+                <div class="use-case">
+                    <h4>UC008: 科创板新股申购</h4>
+                    <div class="given">账户资产超过50万，已开通科创板权限</div>
+                    <div class="when">优质科创板新股发行</div>
+                    <div class="then">
+                        1. 自动识别新股申购机会<br>
+                        2. 分析新股基本面和估值<br>
+                        3. 计算最优申购策略<br>
+                        4. 自动参与申购<br>
+                        5. 中签后制定卖出策略
+                    </div>
+                    <div class="expect">
+                        - 自动申购成功率 100%<br>
+                        - 首日卖出收益最大化<br>
+                        - 风险控制到位
+                    </div>
+                </div>
+                
+                <h3>5.6 异常处理用例</h3>
+                <div class="use-case">
+                    <h4>UC009: 数据源异常处理</h4>
+                    <div class="given">系统依赖3个数据源</div>
+                    <div class="when">主数据源连接中断</div>
+                    <div class="then">
+                        1. 自动切换到备用数据源<br>
+                        2. 验证数据完整性<br>
+                        3. 记录异常日志<br>
+                        4. 发送告警通知<br>
+                        5. 不影响交易继续进行
+                    </div>
+                    <div class="expect">
+                        - 切换时间 < 5秒<br>
+                        - 数据无缝衔接<br>
+                        - 零交易中断
+                    </div>
+                </div>
+                
+                <div class="use-case">
+                    <h4>UC010: 交易执行失败处理</h4>
+                    <div class="given">生成买入订单，发送至券商</div>
+                    <div class="when">因网络问题订单执行失败</div>
+                    <div class="then">
+                        1. 捕获执行异常<br>
+                        2. 尝试重试（最多3次）<br>
+                        3. 如仍失败，触发备用通道<br>
+                        4. 记录失败原因<br>
+                        5. 通知用户人工介入
+                    </div>
+                    <div class="expect">
+                        - 自动重试机制生效<br>
+                        - 故障转移 < 30秒<br>
+                        - 详细的错误报告
+                    </div>
+                </div>
+            </div>
+
+            <!-- 性能指标 -->
+            <div class="section">
+                <h2>六、系统性能指标</h2>
+                
+                <table>
+                    <tr>
+                        <th>指标类别</th>
+                        <th>指标名称</th>
+                        <th>目标值</th>
+                        <th>监控方式</th>
+                    </tr>
+                    <tr>
+                        <td rowspan="4">延迟指标</td>
+                        <td>数据采集延迟</td>
+                        <td>< 100ms</td>
+                        <td>Prometheus + Grafana</td>
+                    </tr>
+                    <tr>
+                        <td>信号生成延迟</td>
+                        <td>< 1s</td>
+                        <td>应用日志分析</td>
+                    </tr>
+                    <tr>
+                        <td>订单执行延迟</td>
+                        <td>< 500ms</td>
+                        <td>券商API监控</td>
+                    </tr>
+                    <tr>
+                        <td>Agent响应时间</td>
+                        <td>< 2s</td>
+                        <td>MCP协议监控</td>
+                    </tr>
+                    <tr>
+                        <td rowspan="3">可用性指标</td>
+                        <td>系统可用性</td>
+                        <td>> 99.9%</td>
+                        <td>Uptime监控</td>
+                    </tr>
+                    <tr>
+                        <td>数据完整性</td>
+                        <td>> 99.99%</td>
+                        <td>数据质量检查</td>
+                    </tr>
+                    <tr>
+                        <td>故障恢复时间</td>
+                        <td>< 5分钟</td>
+                        <td>告警系统</td>
+                    </tr>
+                    <tr>
+                        <td rowspan="3">容量指标</td>
+                        <td>并发处理能力</td>
+                        <td>1000 req/s</td>
+                        <td>压力测试</td>
+                    </tr>
+                    <tr>
+                        <td>数据处理吞吐量</td>
+                        <td>10000 msg/s</td>
+                        <td>Kafka监控</td>
+                    </tr>
+                    <tr>
+                        <td>最大持仓数量</td>
+                        <td>50只股票</td>
+                        <td>系统配置</td>
+                    </tr>
+                </table>
+            </div>
+
+            <!-- 部署架构 -->
+            <div class="section">
+                <h2>七、部署架构图</h2>
+                
+                <div class="mermaid">
+                    graph TB
+                        subgraph "生产环境"
+                            subgraph "负载均衡层"
+                                LB[Nginx/ALB]
+                            end
+                            
+                            subgraph "应用层 - K8s集群"
+                                subgraph "Pod 1"
+                                    API1[API服务]
+                                    AGENT1[Agent服务]
+                                end
+                                subgraph "Pod 2"
+                                    API2[API服务]
+                                    AGENT2[Agent服务]
+                                end
+                                subgraph "Pod 3"
+                                    SE1[策略引擎]
+                                    RE1[风险引擎]
+                                end
+                            end
+                            
+                            subgraph "中间件层"
+                                KAFKA[Kafka集群]
+                                REDIS[Redis集群]
+                            end
+                            
+                            subgraph "数据层"
+                                PG1[(PostgreSQL主)]
+                                PG2[(PostgreSQL从)]
+                                TS[(TimescaleDB)]
+                            end
+                            
+                            subgraph "监控层"
+                                PROM[Prometheus]
+                                GRAF[Grafana]
+                                ELK[ELK Stack]
+                            end
+                        end
+                        
+                        subgraph "灾备环境"
+                            BACKUP[备份系统]
+                            DR[灾备节点]
+                        end
+                        
+                        LB --> API1
+                        LB --> API2
+                        API1 --> KAFKA
+                        API2 --> KAFKA
+                        AGENT1 --> REDIS
+                        AGENT2 --> REDIS
+                        SE1 --> PG1
+                        RE1 --> PG1
+                        PG1 --> PG2
+                        PG1 --> BACKUP
+                        
+                        style LB fill:#4caf50
+                        style KAFKA fill:#ff9800
+                        style REDIS fill:#f44336
+                        style PG1 fill:#2196f3
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        mermaid.initialize({ 
+            startOnLoad: true,
+            theme: 'default',
+            themeVariables: {
+                primaryColor: '#667eea',
+                primaryTextColor: '#fff',
+                primaryBorderColor: '#7c3aed',
+                lineColor: '#5c6ac4',
+                secondaryColor: '#006100',
+                tertiaryColor: '#fff'
+            }
+        });
+    </script>
+</body>
+</html>

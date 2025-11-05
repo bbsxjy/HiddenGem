@@ -1,0 +1,33 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ls:*)",
+      "Bash(npm create:*)",
+      "Bash(npm install)",
+      "Bash(npm run build)",
+      "Bash(npm install:*)",
+      "Bash(npx tsc --noEmit)",
+      "Bash(curl:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(if [ ! -f .env ])",
+      "Bash(then cp .env.example .env)",
+      "Bash(else echo \".env file already exists\")",
+      "Bash(fi)",
+      "Bash(python scripts/test_llm_integration.py:*)",
+      "Read(//d//**)",
+      "Bash(python scripts/verify_suspension_api.py:*)",
+      "Bash(python scripts/test_suspension_fix.py:*)",
+      "Bash(python:*)",
+      "Bash(dir /s /b)",
+      "Bash(findstr:*)",
+      "Bash(nul)",
+      "Bash(dir:*)",
+      "Bash(git init:*)",
+      "Bash(git rm:*)",
+      "Bash(.gitignore)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}
