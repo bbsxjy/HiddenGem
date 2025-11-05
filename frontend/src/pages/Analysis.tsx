@@ -1,10 +1,12 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import { Card } from '@/components/common/Card';
 import { Input } from '@/components/common/Input';
 import { useStreamingAnalysis } from '@/hooks/useStreamingAnalysis';
 import { Search } from 'lucide-react';
 
-export function Agents() {
+export function Analysis() {
+  const location = useLocation();
   const [selectedSymbol, setSelectedSymbol] = useState('');
   const [searchInput, setSearchInput] = useState('');
 
@@ -19,6 +21,18 @@ export function Agents() {
     startAnalysis,
     stopAnalysis,
   } = useStreamingAnalysis();
+
+  // Handle incoming symbol from navigation state (e.g., from Dashboard)
+  useEffect(() => {
+    if (location.state?.symbol) {
+      const symbol = location.state.symbol;
+      setSearchInput(symbol);
+      setSelectedSymbol(symbol);
+      startAnalysis(symbol);
+      // Clear the state to prevent re-triggering
+      window.history.replaceState({}, document.title);
+    }
+  }, [location.state, startAnalysis]);
 
   const handleAnalyze = (e: React.FormEvent) => {
     e.preventDefault();
@@ -39,8 +53,8 @@ export function Agents() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-text-primary">个股智能分析</h1>
-        <p className="text-text-secondary mt-1">监控4个AI代理的状态和分析</p>
+        <h1 className="text-2xl font-bold text-text-primary">智能分析</h1>
+        <p className="text-text-secondary mt-1">基于4个AI代理的综合股票分析</p>
       </div>
 
       {/* Analysis Form */}

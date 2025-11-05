@@ -5,11 +5,7 @@ import { Layout } from './components/layout/Layout';
 
 // Pages
 import { Dashboard } from './pages/Dashboard';
-import { Market } from './pages/Market';
-import { Portfolio } from './pages/Portfolio';
-import { Trading } from './pages/Trading';
-import { Agents } from './pages/Agents';
-import { Strategy } from './pages/Strategy';
+import { Analysis } from './pages/Analysis';
 import { Settings } from './pages/Settings';
 
 // Create a client
@@ -44,11 +40,7 @@ function App() {
                 <Layout>
                   <Routes>
                     <Route path="/dashboard" element={<Dashboard />} />
-                    <Route path="/market" element={<Market />} />
-                    <Route path="/portfolio" element={<Portfolio />} />
-                    <Route path="/trading" element={<Trading />} />
-                    <Route path="/agents" element={<Agents />} />
-                    <Route path="/strategy" element={<Strategy />} />
+                    <Route path="/analysis" element={<Analysis />} />
                     <Route path="/settings" element={<Settings />} />
                   </Routes>
                 </Layout>

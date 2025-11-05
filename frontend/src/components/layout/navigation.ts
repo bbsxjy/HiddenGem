@@ -1,10 +1,6 @@
 import {
-  // LayoutDashboard,
-  TrendingUp,
-  // Briefcase,
-  // ShoppingCart,
+  LayoutDashboard,
   Activity,
-  Target,
   Settings,
   type LucideIcon,
 } from 'lucide-react';
@@ -16,35 +12,15 @@ export interface NavItem {
 }
 
 export const NAV_ITEMS: NavItem[] = [
-  // {
-  //   label: '仪表盘',
-  //   path: '/dashboard',
-  //   icon: LayoutDashboard,
-  // },
   {
-    label: '个股查询',
-    path: '/market',
-    icon: TrendingUp,
+    label: '仪表盘',
+    path: '/dashboard',
+    icon: LayoutDashboard,
   },
-  // {
-  //   label: '投资组合',
-  //   path: '/portfolio',
-  //   icon: Briefcase,
-  // },
-  // {
-  //   label: '交易',
-  //   path: '/trading',
-  //   icon: ShoppingCart,
-  // },
   {
-    label: '个股智能分析',
-    path: '/agents',
+    label: '智能分析',
+    path: '/analysis',
     icon: Activity,
-  },
-  {
-    label: '策略管理',
-    path: '/strategy',
-    icon: Target,
   },
   {
     label: '设置',
