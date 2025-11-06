@@ -127,61 +127,115 @@ export function Analysis() {
             </form>
           </Card>
 
-          {/* Analysis Results */}
-          {isAnalyzing && (
-            <Card title={`实时分析进度 - ${selectedSymbol}`} padding="md">
+          {/* Real-time Analysis Results */}
+          {(isAnalyzing || Object.keys(agentResults).length > 0) && (
+            <Card title={`实时分析 - ${selectedSymbol}`} padding="md">
               <div className="space-y-4">
                 {/* Progress indicator */}
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-0 p-3 sm:p-4 bg-blue-50 rounded-lg border border-blue-200">
                   <div className="flex items-center gap-3">
-                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-primary-500"></div>
+                    {isAnalyzing && (
+                      <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-primary-500"></div>
+                    )}
                     <span className="text-xs sm:text-sm font-medium text-text-primary">
-                      {isLLMAnalyzing ? 'AI智能分析中...' : `Agent分析进度: ${progress}`}
+                      {isLLMAnalyzing
+                        ? 'AI智能分析中...'
+                        : isAnalyzing
+                        ? `Agent分析进度: ${progress}`
+                        : '分析完成'}
                     </span>
                   </div>
                   <span className="text-xs text-text-secondary pl-8 sm:pl-0">
-                    {Object.keys(agentResults).length} 个Agent已完成
+                    {Object.keys(agentResults).length} / 4 个Agent已完成
                   </span>
                 </div>
 
-                {/* Real-time agent results */}
-                {Object.keys(agentResults).length > 0 && (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                    {Object.entries(agentResults).map(([name, result]) => (
-                      <div
-                        key={name}
-                        className="p-3 border border-gray-200 rounded-lg bg-white"
-                      >
-                        <div className="flex items-center justify-between mb-2">
-                          <h4 className="text-sm font-semibold text-text-primary capitalize">
-                            {agentNameMap[name] || name}
-                          </h4>
-                          {result.is_error && (
-                            <span className="text-xs px-2 py-0.5 bg-red-100 text-red-700 rounded">
-                              错误
-                            </span>
+                {/* Real-time agent results grid */}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+                  {/* Show all 4 agents - completed or waiting */}
+                  {['technical', 'fundamental', 'sentiment', 'policy'].map((agentName) => {
+                    const result = agentResults[agentName];
+                    const isCompleted = !!result;
+                    const isWaiting = isAnalyzing && !isCompleted;
+
+                    return (
+                      <div key={agentName}>
+                        <div
+                          onClick={() => result?.reasoning && setExpandedAgent(agentName)}
+                          className={`p-4 border rounded-lg transition-all ${
+                            isCompleted
+                              ? result.reasoning
+                                ? 'bg-white border-gray-200 cursor-pointer hover:border-primary-300 hover:shadow-md'
+                                : 'bg-white border-gray-200'
+                              : 'bg-gray-50 border-gray-200'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between mb-3">
+                            <h4 className="text-sm font-semibold text-text-primary flex items-center gap-2">
+                              {agentNameMap[agentName] || agentName}
+                              {isWaiting && (
+                                <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-primary-500"></div>
+                              )}
+                              {result?.reasoning && (
+                                <FileText size={12} className="text-primary-500" />
+                              )}
+                            </h4>
+                            {result?.is_error && (
+                              <span className="text-xs px-2 py-0.5 bg-red-100 text-red-700 rounded">
+                                错误
+                              </span>
+                            )}
+                          </div>
+
+                          {isCompleted ? (
+                            // Show result
+                            <div className="space-y-2">
+                              <div className="flex items-center justify-between">
+                                <span className="text-xs text-text-secondary">方向</span>
+                                <span className={`text-sm font-semibold ${
+                                  result.direction === 'long'
+                                    ? 'text-profit'
+                                    : result.direction === 'short'
+                                    ? 'text-loss'
+                                    : 'text-gray-600'
+                                }`}>
+                                  {result.direction === 'long' ? '看多' :
+                                   result.direction === 'short' ? '看空' : '持有'}
+                                </span>
+                              </div>
+                              <div className="flex items-center justify-between">
+                                <span className="text-xs text-text-secondary">置信度</span>
+                                <span className="text-sm font-medium text-text-primary">
+                                  {(result.confidence * 100).toFixed(0)}%
+                                </span>
+                              </div>
+                              <div className="flex items-center justify-between">
+                                <span className="text-xs text-text-secondary">评分</span>
+                                <span className="text-sm font-medium text-text-primary">
+                                  {(result.score * 100).toFixed(0)}
+                                </span>
+                              </div>
+                              {result.reasoning && (
+                                <div className="mt-2 pt-2 border-t border-gray-100">
+                                  <p className="text-xs text-text-secondary line-clamp-2">
+                                    {result.reasoning}
+                                  </p>
+                                </div>
+                              )}
+                            </div>
+                          ) : (
+                            // Show waiting state
+                            <div className="text-center py-4">
+                              <div className="text-xs text-text-secondary">
+                                {isWaiting ? '等待分析...' : '未开始'}
+                              </div>
+                            </div>
                           )}
                         </div>
-                        <div className="flex items-center justify-between">
-                          <div className={`text-xs font-semibold ${
-                            result.direction === 'long'
-                              ? 'text-profit'
-                              : result.direction === 'short'
-                              ? 'text-loss'
-                              : 'text-gray-600'
-                          }`}>
-                            {result.direction === 'long' ? '看多' :
-                             result.direction === 'short' ? '看空' :
-                             result.direction === null ? '分析中' : '持有'}
-                          </div>
-                          <div className="text-xs text-text-secondary">
-                            {result.confidence > 0 ? `${(result.confidence * 100).toFixed(0)}%` : '-'}
-                          </div>
-                        </div>
                       </div>
-                    ))}
-                  </div>
-                )}
+                    );
+                  })}
+                </div>
               </div>
             </Card>
           )}
@@ -482,7 +536,7 @@ export function Analysis() {
       )}
 
       {/* Agent Full Report Modal */}
-      {expandedAgent && finalResult && (
+      {expandedAgent && (agentResults[expandedAgent] || (finalResult && finalResult.agent_results[expandedAgent])) && (
         <div className="fixed inset-0 z-50 overflow-y-auto">
           <div className="flex min-h-screen items-center justify-center p-4">
             {/* Backdrop */}
@@ -497,7 +551,7 @@ export function Analysis() {
               <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between z-10">
                 <h2 className="text-lg font-semibold text-text-primary flex items-center gap-2">
                   <FileText size={20} className="text-primary-500" />
-                  {agentNameMap[expandedAgent] || expandedAgent} - 完整分析报告
+                  {agentNameMap[expandedAgent] || expandedAgent} - 分析详情
                 </h2>
                 <button
                   onClick={() => setExpandedAgent(null)}
@@ -509,13 +563,45 @@ export function Analysis() {
 
               {/* Content */}
               <div className="px-6 py-4 overflow-y-auto max-h-[calc(90vh-80px)]">
-                {finalResult.agent_results[expandedAgent]?.full_report ? (
-                  <Markdown content={finalResult.agent_results[expandedAgent].full_report} />
-                ) : (
-                  <div className="text-center py-12 text-text-secondary">
-                    <p>该Agent未提供完整报告</p>
-                  </div>
-                )}
+                {(() => {
+                  // Try to get full report from finalResult first, fallback to agentResults
+                  const fullReport = finalResult?.agent_results[expandedAgent]?.full_report;
+                  const reasoning = agentResults[expandedAgent]?.reasoning ||
+                                   finalResult?.agent_results[expandedAgent]?.reasoning;
+
+                  if (fullReport) {
+                    // Show full markdown report
+                    return <Markdown content={fullReport} />;
+                  } else if (reasoning) {
+                    // Show reasoning as fallback (during streaming or if full_report not available)
+                    return (
+                      <div className="space-y-4">
+                        <div className="p-4 bg-blue-50 border border-blue-100 rounded-lg">
+                          <p className="text-xs text-blue-700 font-medium mb-2">
+                            ℹ️ 简要分析理由
+                          </p>
+                          <p className="text-sm text-text-primary whitespace-pre-wrap leading-relaxed">
+                            {reasoning}
+                          </p>
+                        </div>
+                        {isAnalyzing && (
+                          <div className="text-center py-4">
+                            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-500 mx-auto mb-3"></div>
+                            <p className="text-sm text-text-secondary">
+                              完整报告生成中，请等待分析完成...
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  } else {
+                    return (
+                      <div className="text-center py-12 text-text-secondary">
+                        <p>该Agent未提供详细分析</p>
+                      </div>
+                    );
+                  }
+                })()}
               </div>
             </div>
           </div>

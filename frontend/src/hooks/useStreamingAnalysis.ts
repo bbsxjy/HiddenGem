@@ -1,15 +1,9 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { API_CONFIG, API_ENDPOINTS } from '@/config/api.config';
-import type { AnalyzeAllResponse, SSEAnalysisEvent } from '@/types/agent';
+import type { AnalyzeAllResponse, SSEAnalysisEvent, AgentAnalysisResult } from '@/types/agent';
 
 interface StreamingAnalysisState {
-  agentResults: Record<string, {
-    direction: string | null;
-    confidence: number;
-    score: number;
-    reasoning: string;
-    is_error: boolean;
-  }>;
+  agentResults: Record<string, AgentAnalysisResult>;
   progress: string;
   isAnalyzing: boolean;
   finalResult: AnalyzeAllResponse | null;
