@@ -95,4 +95,30 @@
     -webkit-box-orient: vertical;
     overflow: hidden;
   }
+
+  /* Markdown content styles */
+  .markdown-content {
+    @apply text-text-primary;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+  }
+
+  .markdown-content table {
+    @apply text-sm;
+    border-collapse: collapse;
+  }
+
+  .markdown-content table th,
+  .markdown-content table td {
+    @apply whitespace-normal;
+    word-break: break-word;
+  }
+
+  /* Line clamp utility */
+  .line-clamp-2 {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
 }

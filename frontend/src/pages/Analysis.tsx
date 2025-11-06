@@ -2,9 +2,10 @@ import { useState, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import { Card } from '@/components/common/Card';
 import { Input } from '@/components/common/Input';
+import { Markdown } from '@/components/common/Markdown';
 import { useStreamingAnalysis } from '@/hooks/useStreamingAnalysis';
 import { PositionAnalysis } from '@/components/agents/PositionAnalysis';
-import { Search, TrendingUp, Briefcase } from 'lucide-react';
+import { Search, TrendingUp, Briefcase, FileText, X } from 'lucide-react';
 
 type AnalysisMode = 'market' | 'position';
 
@@ -13,6 +14,7 @@ export function Analysis() {
   const [mode, setMode] = useState<AnalysisMode>('market');
   const [selectedSymbol, setSelectedSymbol] = useState('');
   const [searchInput, setSearchInput] = useState('');
+  const [expandedAgent, setExpandedAgent] = useState<string | null>(null);
 
   // Use streaming analysis hook
   const {
@@ -352,60 +354,65 @@ export function Analysis() {
                   <div className="border-t border-gray-200 pt-4">
                     <h3 className="text-sm font-semibold text-text-primary mb-3 flex items-center gap-2">
                       各Agent分析
-                      <span className="text-[10px] text-text-secondary font-normal">(悬停查看详细理由)</span>
+                      <span className="text-[10px] text-text-secondary font-normal">(点击查看完整报告)</span>
                     </h3>
                     <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
                       {Object.entries(finalResult.agent_results).map(([name, result]) => (
-                        <div
-                          key={name}
-                          className="group relative p-3 border border-gray-200 rounded-lg hover:border-primary-300 hover:shadow-md transition-all cursor-help"
-                        >
-                          <div className="flex items-center justify-between mb-2">
-                            <h4 className="text-xs font-semibold text-text-primary">
-                              {agentNameMap[name] || name}
-                            </h4>
-                            {result.is_error && (
-                              <span className="text-xs px-1.5 py-0.5 bg-red-100 text-red-700 rounded text-[10px]">
-                                错误
-                              </span>
+                        <div key={name}>
+                          <div
+                            onClick={() => result.full_report && setExpandedAgent(name)}
+                            className={`p-3 border rounded-lg transition-all ${
+                              result.full_report
+                                ? 'cursor-pointer hover:border-primary-300 hover:shadow-md border-gray-200'
+                                : 'border-gray-200 cursor-default'
+                            }`}
+                          >
+                            <div className="flex items-center justify-between mb-2">
+                              <h4 className="text-xs font-semibold text-text-primary flex items-center gap-1">
+                                {agentNameMap[name] || name}
+                                {result.full_report && (
+                                  <FileText size={12} className="text-primary-500" />
+                                )}
+                              </h4>
+                              {result.is_error && (
+                                <span className="text-xs px-1.5 py-0.5 bg-red-100 text-red-700 rounded text-[10px]">
+                                  错误
+                                </span>
+                              )}
+                            </div>
+                            <div className="space-y-1">
+                              <div className="flex items-center justify-between">
+                                <span className="text-[10px] text-text-secondary">方向</span>
+                                <span className={`text-xs font-semibold ${
+                                  result.direction === 'long'
+                                    ? 'text-profit'
+                                    : result.direction === 'short'
+                                    ? 'text-loss'
+                                    : 'text-gray-600'
+                                }`}>
+                                  {result.direction === 'long' ? '看多' :
+                                   result.direction === 'short' ? '看空' : '持有'}
+                                </span>
+                              </div>
+                              <div className="flex items-center justify-between">
+                                <span className="text-[10px] text-text-secondary">置信度</span>
+                                <span className="text-xs font-medium text-text-primary">
+                                  {(result.confidence * 100).toFixed(0)}%
+                                </span>
+                              </div>
+                              <div className="flex items-center justify-between">
+                                <span className="text-[10px] text-text-secondary">评分</span>
+                                <span className="text-xs font-medium text-text-primary">
+                                  {(result.score * 100).toFixed(0)}
+                                </span>
+                              </div>
+                            </div>
+                            {/* 简短理由 */}
+                            {result.reasoning && (
+                              <p className="text-xs text-text-secondary mt-2 line-clamp-2">
+                                {result.reasoning}
+                              </p>
                             )}
-                          </div>
-                          <div className="space-y-1">
-                            <div className="flex items-center justify-between">
-                              <span className="text-[10px] text-text-secondary">方向</span>
-                              <span className={`text-xs font-semibold ${
-                                result.direction === 'long'
-                                  ? 'text-profit'
-                                  : result.direction === 'short'
-                                  ? 'text-loss'
-                                  : 'text-gray-600'
-                              }`}>
-                                {result.direction === 'long' ? '看多' :
-                                 result.direction === 'short' ? '看空' : '持有'}
-                              </span>
-                            </div>
-                            <div className="flex items-center justify-between">
-                              <span className="text-[10px] text-text-secondary">置信度</span>
-                              <span className="text-xs font-medium text-text-primary">
-                                {(result.confidence * 100).toFixed(0)}%
-                              </span>
-                            </div>
-                            <div className="flex items-center justify-between">
-                              <span className="text-[10px] text-text-secondary">评分</span>
-                              <span className="text-xs font-medium text-text-primary">
-                                {(result.score * 100).toFixed(0)}
-                              </span>
-                            </div>
-                          </div>
-
-                          {/* Hover tooltip */}
-                          <div className="absolute left-0 right-0 top-full mt-2 z-10 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 pointer-events-none">
-                            <div className="bg-gray-900 text-white text-xs p-3 rounded-lg shadow-lg max-w-xs">
-                              <div className="font-semibold mb-1 text-gray-300">分析理由：</div>
-                              <div className="leading-relaxed">{result.reasoning || '无详细说明'}</div>
-                              {/* Arrow */}
-                              <div className="absolute bottom-full left-4 w-0 h-0 border-l-4 border-r-4 border-b-4 border-transparent border-b-gray-900"></div>
-                            </div>
                           </div>
                         </div>
                       ))}
@@ -472,6 +479,47 @@ export function Analysis() {
             </Card>
           )}
         </>
+      )}
+
+      {/* Agent Full Report Modal */}
+      {expandedAgent && finalResult && (
+        <div className="fixed inset-0 z-50 overflow-y-auto">
+          <div className="flex min-h-screen items-center justify-center p-4">
+            {/* Backdrop */}
+            <div
+              className="fixed inset-0 bg-black bg-opacity-50 transition-opacity"
+              onClick={() => setExpandedAgent(null)}
+            ></div>
+
+            {/* Modal */}
+            <div className="relative bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-hidden">
+              {/* Header */}
+              <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between z-10">
+                <h2 className="text-lg font-semibold text-text-primary flex items-center gap-2">
+                  <FileText size={20} className="text-primary-500" />
+                  {agentNameMap[expandedAgent] || expandedAgent} - 完整分析报告
+                </h2>
+                <button
+                  onClick={() => setExpandedAgent(null)}
+                  className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                >
+                  <X size={20} className="text-text-secondary" />
+                </button>
+              </div>
+
+              {/* Content */}
+              <div className="px-6 py-4 overflow-y-auto max-h-[calc(90vh-80px)]">
+                {finalResult.agent_results[expandedAgent]?.full_report ? (
+                  <Markdown content={finalResult.agent_results[expandedAgent].full_report} />
+                ) : (
+                  <div className="text-center py-12 text-text-secondary">
+                    <p>该Agent未提供完整报告</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
