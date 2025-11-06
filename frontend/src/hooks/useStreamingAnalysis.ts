@@ -6,12 +6,13 @@ import type { AnalyzeAllResponse, AgentAnalysisResult } from '@/types/agent';
  * SSE Event from backend (actual format from api/main.py)
  */
 interface SSEEvent {
-  type: 'start' | 'progress' | 'complete' | 'error';
+  type: 'start' | 'progress' | 'agent_complete' | 'complete' | 'error';
   symbol?: string;
   agent?: string;           // Agent name: technical, fundamental, sentiment, policy, debate, risk, system
   status?: string;          // analyzing, complete, etc.
   message?: string;         // Progress message
   progress?: number;        // Progress percentage (0-100)
+  result?: AgentAnalysisResult; // Agent result (for agent_complete event)
   data?: AnalyzeAllResponse; // Final result
   error?: string;
   timestamp: string;
@@ -79,6 +80,25 @@ export function useStreamingAnalysis() {
               ...prev,
               currentMessage: '初始化分析系统...',
             }));
+            break;
+
+          case 'agent_complete':
+            // 🆕 Agent完成事件 - 立即显示结果
+            if (data.agent && data.result) {
+              console.log(`[SSE] ✅ Agent完成: ${data.agent}`, data.result);
+
+              setState(prev => ({
+                ...prev,
+                agentResults: {
+                  ...prev.agentResults,
+                  [data.agent!]: data.result!,
+                },
+                progress: `${data.progress || 0}%`,
+                progressPercent: data.progress || 0,
+                currentAgent: data.agent || prev.currentAgent,
+                currentMessage: `${data.agent} 分析完成`,
+              }));
+            }
             break;
 
           case 'progress':

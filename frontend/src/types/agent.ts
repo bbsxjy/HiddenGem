@@ -56,6 +56,15 @@ export interface AgentAnalysisResult {
 }
 
 /**
+ * Risk analyst feedback
+ */
+export interface RiskAnalystFeedback {
+  position: string;        // 立场：激进/中立/保守
+  reasoning: string;       // 推理摘要
+  full_analysis: string;   // 完整分析
+}
+
+/**
  * LLM comprehensive analysis result
  */
 export interface LLMAnalysis {
@@ -64,6 +73,18 @@ export interface LLMAnalysis {
   reasoning: string;                      // Reasoning process
   risk_assessment: string;                // Risk assessment
   key_factors: string[];                  // Key factors
+  risk_score?: number;                    // Risk score (0-1)
+  risk_analysts?: {                       // 🆕 Risk analysts feedback
+    risky?: RiskAnalystFeedback;          // 激进派分析师
+    neutral?: RiskAnalystFeedback;        // 中立派分析师
+    safe?: RiskAnalystFeedback;           // 保守派分析师
+  };
+  risk_manager_decision?: string;         // 🆕 Risk manager final decision
+  price_targets?: {                       // Price targets
+    entry?: number;
+    stop_loss?: number;
+    take_profit?: number;
+  };
   analysis_timestamp: string;             // Analysis timestamp (ISO 8601)
 }
 

@@ -359,6 +359,103 @@ export function Analysis() {
                         </div>
                       </div>
                     )}
+
+                    {/* 🆕 风险分析师意见 (risky/safe/neutral) */}
+                    {finalResult.llm_analysis.risk_analysts &&
+                     Object.keys(finalResult.llm_analysis.risk_analysts).length > 0 && (
+                      <div>
+                        <h4 className="text-sm font-semibold text-text-primary mb-2 flex items-center gap-2">
+                          <span className="w-2 h-2 bg-purple-500 rounded-full"></span>
+                          风险分析师意见
+                        </h4>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                          {finalResult.llm_analysis.risk_analysts.risky && (
+                            <div className="p-4 bg-red-50 rounded-lg border border-red-200">
+                              <div className="flex items-center gap-2 mb-2">
+                                <span className="text-lg">🔴</span>
+                                <h5 className="text-sm font-semibold text-red-700">
+                                  激进派
+                                </h5>
+                              </div>
+                              <p className="text-xs text-text-primary leading-relaxed">
+                                {finalResult.llm_analysis.risk_analysts.risky.reasoning}
+                              </p>
+                              {finalResult.llm_analysis.risk_analysts.risky.full_analysis && (
+                                <details className="mt-2">
+                                  <summary className="text-xs text-red-600 cursor-pointer hover:text-red-700">
+                                    查看完整分析
+                                  </summary>
+                                  <div className="mt-2 p-2 bg-white rounded text-xs">
+                                    <Markdown content={finalResult.llm_analysis.risk_analysts.risky.full_analysis} />
+                                  </div>
+                                </details>
+                              )}
+                            </div>
+                          )}
+
+                          {finalResult.llm_analysis.risk_analysts.neutral && (
+                            <div className="p-4 bg-gray-50 rounded-lg border border-gray-200">
+                              <div className="flex items-center gap-2 mb-2">
+                                <span className="text-lg">⚪</span>
+                                <h5 className="text-sm font-semibold text-gray-700">
+                                  中立派
+                                </h5>
+                              </div>
+                              <p className="text-xs text-text-primary leading-relaxed">
+                                {finalResult.llm_analysis.risk_analysts.neutral.reasoning}
+                              </p>
+                              {finalResult.llm_analysis.risk_analysts.neutral.full_analysis && (
+                                <details className="mt-2">
+                                  <summary className="text-xs text-gray-600 cursor-pointer hover:text-gray-700">
+                                    查看完整分析
+                                  </summary>
+                                  <div className="mt-2 p-2 bg-white rounded text-xs">
+                                    <Markdown content={finalResult.llm_analysis.risk_analysts.neutral.full_analysis} />
+                                  </div>
+                                </details>
+                              )}
+                            </div>
+                          )}
+
+                          {finalResult.llm_analysis.risk_analysts.safe && (
+                            <div className="p-4 bg-green-50 rounded-lg border border-green-200">
+                              <div className="flex items-center gap-2 mb-2">
+                                <span className="text-lg">🟢</span>
+                                <h5 className="text-sm font-semibold text-green-700">
+                                  保守派
+                                </h5>
+                              </div>
+                              <p className="text-xs text-text-primary leading-relaxed">
+                                {finalResult.llm_analysis.risk_analysts.safe.reasoning}
+                              </p>
+                              {finalResult.llm_analysis.risk_analysts.safe.full_analysis && (
+                                <details className="mt-2">
+                                  <summary className="text-xs text-green-600 cursor-pointer hover:text-green-700">
+                                    查看完整分析
+                                  </summary>
+                                  <div className="mt-2 p-2 bg-white rounded text-xs">
+                                    <Markdown content={finalResult.llm_analysis.risk_analysts.safe.full_analysis} />
+                                  </div>
+                                </details>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* 🆕 风险管理器最终决策 */}
+                    {finalResult.llm_analysis.risk_manager_decision && (
+                      <div>
+                        <h4 className="text-sm font-semibold text-text-primary mb-2 flex items-center gap-2">
+                          <span className="w-2 h-2 bg-indigo-500 rounded-full"></span>
+                          风险管理器最终决策
+                        </h4>
+                        <div className="p-4 bg-indigo-50 rounded-lg border border-indigo-100">
+                          <Markdown content={finalResult.llm_analysis.risk_manager_decision} />
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </Card>
               )}
