@@ -185,7 +185,7 @@ export function PositionAnalysis({ symbol }: PositionAnalysisProps) {
       )}
 
       {/* Analysis Results */}
-      {result && (
+      {result?.position_analysis && (
         <div className="space-y-6">
           {/* Decision Card */}
           <Card title="决策建议" padding="md">
@@ -280,7 +280,7 @@ export function PositionAnalysis({ symbol }: PositionAnalysisProps) {
                 <div className="flex items-center gap-2 mb-3">
                   <TrendingDown
                     className={
-                      result.position_analysis.recommendations.sell.should_sell
+                      result.position_analysis.recommendations?.sell?.should_sell
                         ? 'text-loss'
                         : 'text-gray-400'
                     }
@@ -290,16 +290,16 @@ export function PositionAnalysis({ symbol }: PositionAnalysisProps) {
                 <div className="space-y-2">
                   <div
                     className={`text-xs px-2 py-1 rounded font-medium inline-block ${
-                      result.position_analysis.recommendations.sell.should_sell
+                      result.position_analysis.recommendations?.sell?.should_sell
                         ? 'bg-red-100 text-red-700'
                         : 'bg-gray-100 text-gray-600'
                     }`}
                   >
-                    {result.position_analysis.recommendations.sell.should_sell
+                    {result.position_analysis.recommendations?.sell?.should_sell
                       ? '建议卖出'
                       : '不建议卖出'}
                   </div>
-                  {result.position_analysis.recommendations.sell.suggested_price && (
+                  {result.position_analysis.recommendations?.sell?.suggested_price && (
                     <div className="text-sm">
                       <span className="text-text-secondary">建议价格: </span>
                       <span className="font-semibold">
@@ -308,7 +308,7 @@ export function PositionAnalysis({ symbol }: PositionAnalysisProps) {
                     </div>
                   )}
                   <p className="text-xs text-text-secondary leading-relaxed">
-                    {result.position_analysis.recommendations.sell.reason}
+                    {result.position_analysis.recommendations?.sell?.reason || '暂无建议'}
                   </p>
                 </div>
               </div>
@@ -318,7 +318,7 @@ export function PositionAnalysis({ symbol }: PositionAnalysisProps) {
                 <div className="flex items-center gap-2 mb-3">
                   <Minus
                     className={
-                      result.position_analysis.recommendations.hold.should_hold
+                      result.position_analysis.recommendations?.hold?.should_hold
                         ? 'text-primary-500'
                         : 'text-gray-400'
                     }
@@ -328,23 +328,23 @@ export function PositionAnalysis({ symbol }: PositionAnalysisProps) {
                 <div className="space-y-2">
                   <div
                     className={`text-xs px-2 py-1 rounded font-medium inline-block ${
-                      result.position_analysis.recommendations.hold.should_hold
+                      result.position_analysis.recommendations?.hold?.should_hold
                         ? 'bg-blue-100 text-blue-700'
                         : 'bg-gray-100 text-gray-600'
                     }`}
                   >
-                    {result.position_analysis.recommendations.hold.should_hold
+                    {result.position_analysis.recommendations?.hold?.should_hold
                       ? '建议持有'
                       : '不建议持有'}
                   </div>
                   <div className="text-xs">
                     <span className="text-text-secondary">持有至: </span>
                     <span className="font-semibold">
-                      {result.position_analysis.recommendations.hold.hold_until}
+                      {result.position_analysis.recommendations?.hold?.hold_until || '待定'}
                     </span>
                   </div>
                   <p className="text-xs text-text-secondary leading-relaxed">
-                    {result.position_analysis.recommendations.hold.reason}
+                    {result.position_analysis.recommendations?.hold?.reason || '暂无建议'}
                   </p>
                 </div>
               </div>
@@ -354,7 +354,7 @@ export function PositionAnalysis({ symbol }: PositionAnalysisProps) {
                 <div className="flex items-center gap-2 mb-3">
                   <TrendingUp
                     className={
-                      result.position_analysis.recommendations.add.should_add
+                      result.position_analysis.recommendations?.add?.should_add
                         ? 'text-profit'
                         : 'text-gray-400'
                     }
@@ -364,16 +364,16 @@ export function PositionAnalysis({ symbol }: PositionAnalysisProps) {
                 <div className="space-y-2">
                   <div
                     className={`text-xs px-2 py-1 rounded font-medium inline-block ${
-                      result.position_analysis.recommendations.add.should_add
+                      result.position_analysis.recommendations?.add?.should_add
                         ? 'bg-green-100 text-green-700'
                         : 'bg-gray-100 text-gray-600'
                     }`}
                   >
-                    {result.position_analysis.recommendations.add.should_add
+                    {result.position_analysis.recommendations?.add?.should_add
                       ? '建议加仓'
                       : '不建议加仓'}
                   </div>
-                  {result.position_analysis.recommendations.add.suggested_price && (
+                  {result.position_analysis.recommendations?.add?.suggested_price && (
                     <div className="text-sm">
                       <span className="text-text-secondary">建议价格: </span>
                       <span className="font-semibold">
@@ -381,7 +381,7 @@ export function PositionAnalysis({ symbol }: PositionAnalysisProps) {
                       </span>
                     </div>
                   )}
-                  {result.position_analysis.recommendations.add.suggested_quantity && (
+                  {result.position_analysis.recommendations?.add?.suggested_quantity && (
                     <div className="text-sm">
                       <span className="text-text-secondary">建议数量: </span>
                       <span className="font-semibold">
@@ -390,7 +390,7 @@ export function PositionAnalysis({ symbol }: PositionAnalysisProps) {
                     </div>
                   )}
                   <p className="text-xs text-text-secondary leading-relaxed">
-                    {result.position_analysis.recommendations.add.reason}
+                    {result.position_analysis.recommendations?.add?.reason || '暂无建议'}
                   </p>
                 </div>
               </div>
@@ -422,7 +422,7 @@ export function PositionAnalysis({ symbol }: PositionAnalysisProps) {
                   <span>预计天数</span>
                 </div>
                 <div className="text-xl font-bold text-text-primary">
-                  {result.position_analysis.recovery_analysis.estimated_days
+                  {result.position_analysis.recovery_analysis?.estimated_days
                     ? `${result.position_analysis.recovery_analysis.estimated_days} 天`
                     : '不确定'}
                 </div>
@@ -434,7 +434,7 @@ export function PositionAnalysis({ symbol }: PositionAnalysisProps) {
                   <span>回本概率</span>
                 </div>
                 <div className="text-xl font-bold text-text-primary">
-                  {(result.position_analysis.recovery_analysis.probability * 100).toFixed(0)}%
+                  {((result.position_analysis.recovery_analysis?.probability || 0) * 100).toFixed(0)}%
                 </div>
               </div>
             </div>
@@ -442,13 +442,13 @@ export function PositionAnalysis({ symbol }: PositionAnalysisProps) {
             <div className="p-4 bg-yellow-50 rounded-lg border border-yellow-100">
               <p className="text-sm text-text-primary">
                 <span className="font-semibold">回本条件：</span>
-                {result.position_analysis.recovery_analysis.conditions}
+                {result.position_analysis.recovery_analysis?.conditions || '需进一步分析'}
               </p>
             </div>
           </Card>
 
           {/* Risk Warnings */}
-          {result.position_analysis.risk_warnings.length > 0 && (
+          {result.position_analysis.risk_warnings && result.position_analysis.risk_warnings.length > 0 && (
             <Card title="风险警告" padding="md">
               <div className="space-y-2">
                 {result.position_analysis.risk_warnings.map((warning, index) => (
