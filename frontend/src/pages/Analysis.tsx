@@ -244,7 +244,7 @@ export function Analysis() {
           {finalResult && (
             <div className="space-y-6">
               {/* LLM Analysis - AI综合分析  */}
-              {finalResult.llm_analysis && (
+              {finalResult && finalResult.llm_analysis && (
                 <Card title="🤖 AI综合分析" padding="md">
                   <div className="space-y-6">
                     {/* 推荐方向和置信度 */}
@@ -276,20 +276,18 @@ export function Analysis() {
                       </div>
                     </div>
 
-                    {/* 分析推理 */}
+                    {/* 分析推理 - 使用 Markdown 渲染 */}
                     <div>
                       <h4 className="text-sm font-semibold text-text-primary mb-2 flex items-center gap-2">
                         <span className="w-2 h-2 bg-primary-500 rounded-full"></span>
                         决策理由
                       </h4>
                       <div className="p-4 bg-blue-50 rounded-lg border border-blue-100">
-                        <p className="text-sm text-text-primary whitespace-pre-wrap leading-relaxed">
-                          {finalResult.llm_analysis.reasoning}
-                        </p>
+                        <Markdown content={finalResult.llm_analysis.reasoning} />
                       </div>
                     </div>
 
-                    {/* 风险评估 */}
+                    {/* 风险评估 - 使用 Markdown 渲染 */}
                     {finalResult.llm_analysis.risk_assessment && (
                       <div>
                         <h4 className="text-sm font-semibold text-text-primary mb-2 flex items-center gap-2">
@@ -297,9 +295,7 @@ export function Analysis() {
                           风险评估
                         </h4>
                         <div className="p-4 bg-orange-50 rounded-lg border border-orange-100">
-                          <p className="text-sm text-text-primary whitespace-pre-wrap leading-relaxed">
-                            {finalResult.llm_analysis.risk_assessment}
-                          </p>
+                          <Markdown content={finalResult.llm_analysis.risk_assessment} />
                         </div>
                       </div>
                     )}
