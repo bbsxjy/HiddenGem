@@ -191,16 +191,35 @@ export interface RecoveryAnalysis {
 }
 
 /**
- * Position analysis result
+ * Position analysis result (actual API response structure)
  */
 export interface PositionAnalysis {
-  action: PositionAction;               // 主要决策
-  urgency: PositionUrgency;             // 紧急程度
-  reasoning: string;                    // 决策理由
-  profit_loss: ProfitLossInfo;          // 盈亏信息
-  recommendations: PositionRecommendations; // 三个方向的详细建议
-  recovery_analysis: RecoveryAnalysis;  // 回本分析
-  risk_warnings: string[];              // 风险警告
+  // 实际 API 返回的字段
+  sell: {
+    should_sell: boolean;
+    suggested_price: number | null;
+    reason: string;
+  };
+  hold: {
+    should_hold: boolean;
+    hold_until: string;
+    reason: string;
+  };
+  add: {
+    should_add: boolean;
+    suggested_price: number | null;
+    suggested_quantity: number | null;
+    reason: string;
+  };
+  profit_loss: ProfitLossInfo;
+
+  // 可选字段（API 文档中有，但实际返回可能没有）
+  action?: PositionAction;
+  urgency?: PositionUrgency;
+  reasoning?: string;
+  recommendations?: PositionRecommendations;
+  recovery_analysis?: RecoveryAnalysis;
+  risk_warnings?: string[];
 }
 
 /**
