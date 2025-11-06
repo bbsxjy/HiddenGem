@@ -115,3 +115,104 @@ export type SSEAnalysisEvent =
   | { type: 'complete'; data: AnalyzeAllResponse; timestamp: string }
   | { type: 'llm_error'; error: string; timestamp: string }
   | { type: 'error'; error: string; timestamp: string };
+
+// ==================== 持仓分析 API 类型 ====================
+
+/**
+ * Holdings information for position analysis
+ */
+export interface HoldingsInfo {
+  quantity: number;           // 持仓数量（股）
+  avg_price: number;          // 平均买入价（元/美元）
+  purchase_date: string;      // 买入日期 (YYYY-MM-DD)
+  current_price?: number;     // 当前价格（可选，会自动获取）
+}
+
+/**
+ * Position analysis request
+ */
+export interface PositionAnalysisRequest {
+  holdings: HoldingsInfo;
+  analysis_date?: string;     // 分析日期（可选，默认今天）
+}
+
+/**
+ * Position action type
+ */
+export type PositionAction = '卖出' | '持有' | '加仓';
+
+/**
+ * Position urgency type
+ */
+export type PositionUrgency = '立即' | '短期' | '中期' | '长期';
+
+/**
+ * Profit/Loss information
+ */
+export interface ProfitLossInfo {
+  current_pnl: number;        // 浮动盈亏（元）
+  current_pnl_pct: number;    // 浮动盈亏百分比
+  holding_days: number;       // 持仓天数
+  cost_price: number;         // 成本价
+  current_price: number;      // 当前价
+  quantity: number;           // 持仓量
+}
+
+/**
+ * Position recommendations for different actions
+ */
+export interface PositionRecommendations {
+  sell: {
+    should_sell: boolean;
+    suggested_price: number | null;
+    reason: string;
+  };
+  hold: {
+    should_hold: boolean;
+    hold_until: string;
+    reason: string;
+  };
+  add: {
+    should_add: boolean;
+    suggested_price: number | null;
+    suggested_quantity: number | null;
+    reason: string;
+  };
+}
+
+/**
+ * Recovery analysis for losing positions
+ */
+export interface RecoveryAnalysis {
+  can_recover: boolean;       // 是否可能回本
+  estimated_days: number | null; // 预计回本天数
+  probability: number;        // 回本概率（0-1）
+  conditions: string;         // 回本条件
+}
+
+/**
+ * Position analysis result
+ */
+export interface PositionAnalysis {
+  action: PositionAction;               // 主要决策
+  urgency: PositionUrgency;             // 紧急程度
+  reasoning: string;                    // 决策理由
+  profit_loss: ProfitLossInfo;          // 盈亏信息
+  recommendations: PositionRecommendations; // 三个方向的详细建议
+  recovery_analysis: RecoveryAnalysis;  // 回本分析
+  risk_warnings: string[];              // 风险警告
+}
+
+/**
+ * Complete position analysis response
+ */
+export interface PositionAnalysisResponse {
+  symbol: string;
+  analysis_date: string;
+  market_analysis: {
+    agent_results: Record<AgentName, AgentAnalysisResult>;
+    aggregated_signal: AggregatedSignal;
+    llm_analysis: LLMAnalysis;
+  };
+  position_analysis: PositionAnalysis;
+}

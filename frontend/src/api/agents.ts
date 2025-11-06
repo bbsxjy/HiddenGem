@@ -7,6 +7,8 @@ import type {
   AnalyzeAllResponse,
   AgentPerformanceResponse,
   AgentName,
+  PositionAnalysisRequest,
+  PositionAnalysisResponse,
 } from '@/types/agent';
 
 /**
@@ -87,6 +89,41 @@ export async function analyzeWithAllAgents(
 export async function getAgentsPerformance(): Promise<AgentPerformanceResponse> {
   const response = await apiClient.get<ApiResponse<AgentPerformanceResponse>>(
     API_ENDPOINTS.agents.performance
+  );
+  return extractData(response.data);
+}
+
+/**
+ * Analyze position with holdings information
+ * POST /api/v1/agents/analyze-position/{symbol}
+ *
+ * Provides decision recommendations for existing positions:
+ * - Whether to sell/hold/add more
+ * - Suggested price points
+ * - Recovery analysis if position is losing
+ * - Risk assessment considering both market and holdings cost
+ *
+ * @param symbol - Stock symbol (e.g., 'NVDA', '000001.SZ', '600036.SS', '0700.HK')
+ * @param request - Position analysis request including holdings info
+ * @returns Complete position analysis with decision recommendations
+ *
+ * @example
+ * // Analyze position with holdings
+ * const holdings = {
+ *   quantity: 1000,
+ *   avg_price: 45.50,
+ *   purchase_date: "2024-12-01",
+ *   current_price: 42.30
+ * };
+ * const result = await analyzePosition('300502', { holdings });
+ */
+export async function analyzePosition(
+  symbol: string,
+  request: PositionAnalysisRequest
+): Promise<PositionAnalysisResponse> {
+  const response = await apiClient.post<ApiResponse<PositionAnalysisResponse>>(
+    API_ENDPOINTS.agents.analyzePosition(symbol),
+    request
   );
   return extractData(response.data);
 }

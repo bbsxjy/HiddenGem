@@ -15,6 +15,7 @@ export const API_RETRY = {
 // 长时间操作不重试的endpoint列表
 export const NO_RETRY_ENDPOINTS = [
   '/api/v1/agents/analyze-all',  // Agent分析可能需要5分钟
+  '/api/v1/agents/analyze-position',  // 持仓分析可能需要5分钟
   '/api/v1/strategies/backtest',  // 回测可能需要很长时间
 ] as const;
 
@@ -57,7 +58,8 @@ export const API_ENDPOINTS = {
     status: '/api/v1/agents/status',
     analyze: (agentName: string) => `/api/v1/agents/analyze/${agentName}`,
     analyzeAll: (symbol: string) => `/api/v1/agents/analyze-all/${symbol}`,
-    analyzeAllStream: (symbol: string) => `/api/v1/agents/analyze-all-stream/${symbol}`,  // 新增：流式API
+    analyzeAllStream: (symbol: string) => `/api/v1/agents/analyze-all-stream/${symbol}`,  // 流式API
+    analyzePosition: (symbol: string) => `/api/v1/agents/analyze-position/${symbol}`,  // 持仓分析
     performance: '/api/v1/agents/performance',
   },
   // Signal endpoints - aligned with backend API.md
