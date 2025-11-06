@@ -127,3 +127,109 @@ export async function analyzePosition(
   );
   return extractData(response.data);
 }
+
+/**
+ * Streaming API types
+ */
+export type StreamEventType = 'start' | 'progress' | 'complete' | 'error';
+
+export interface StreamEvent {
+  type: StreamEventType;
+  symbol?: string;
+  agent?: string;
+  status?: string;
+  message?: string;
+  progress?: number;
+  data?: AnalyzeAllResponse;
+  error?: string;
+  timestamp: string;
+}
+
+export interface StreamCallbacks {
+  onStart?: (event: StreamEvent) => void;
+  onProgress?: (event: StreamEvent) => void;
+  onComplete?: (data: AnalyzeAllResponse) => void;
+  onError?: (error: string) => void;
+}
+
+/**
+ * Analyze using all agents with streaming updates (Server-Sent Events)
+ * GET /api/v1/agents/analyze-all-stream/{symbol}
+ *
+ * This provides real-time progress updates as each agent completes its analysis.
+ * Much better UX than waiting for the entire analysis to complete (30-60 seconds).
+ *
+ * @param symbol - Stock symbol (e.g., 'NVDA', '000001.SZ', '600036.SS', '0700.HK')
+ * @param callbacks - Event callbacks for different stages
+ * @param analysisDate - Optional analysis date in 'YYYY-MM-DD' format
+ * @returns EventSource instance (can be used to abort the stream)
+ *
+ * @example
+ * ```typescript
+ * const eventSource = analyzeWithAllAgentsStream('NVDA', {
+ *   onStart: (event) => console.log('Analysis started:', event.symbol),
+ *   onProgress: (event) => {
+ *     console.log(`[${event.agent}] ${event.message} - ${event.progress}%`);
+ *   },
+ *   onComplete: (data) => {
+ *     console.log('Analysis complete:', data);
+ *     // Update UI with final results
+ *   },
+ *   onError: (error) => console.error('Analysis failed:', error)
+ * });
+ *
+ * // To abort the stream:
+ * eventSource.close();
+ * ```
+ */
+export function analyzeWithAllAgentsStream(
+  symbol: string,
+  callbacks: StreamCallbacks,
+  analysisDate?: string
+): EventSource {
+  const baseUrl = API_ENDPOINTS.agents.analyzeAllStream(symbol).replace('/api/v1', '');
+  const fullUrl = `${import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'}/api/v1${baseUrl}${
+    analysisDate ? `?analysis_date=${analysisDate}` : ''
+  }`;
+
+  const eventSource = new EventSource(fullUrl);
+
+  eventSource.onmessage = (event) => {
+    try {
+      const data: StreamEvent = JSON.parse(event.data);
+
+      switch (data.type) {
+        case 'start':
+          callbacks.onStart?.(data);
+          break;
+
+        case 'progress':
+          callbacks.onProgress?.(data);
+          break;
+
+        case 'complete':
+          if (data.data) {
+            callbacks.onComplete?.(data.data);
+          }
+          eventSource.close();
+          break;
+
+        case 'error':
+          callbacks.onError?.(data.error || 'Unknown error');
+          eventSource.close();
+          break;
+      }
+    } catch (error) {
+      console.error('Failed to parse SSE event:', error);
+      callbacks.onError?.('Failed to parse server response');
+    }
+  };
+
+  eventSource.onerror = (error) => {
+    console.error('EventSource error:', error);
+    callbacks.onError?.('Connection to server lost');
+    eventSource.close();
+  };
+
+  return eventSource;
+}

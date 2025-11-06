@@ -20,6 +20,9 @@ export function Analysis() {
   const {
     agentResults,
     progress,
+    progressPercent,
+    currentAgent,
+    currentMessage,
     isAnalyzing,
     finalResult,
     error: analysisError,
@@ -131,23 +134,52 @@ export function Analysis() {
           {(isAnalyzing || Object.keys(agentResults).length > 0) && (
             <Card title={`实时分析 - ${selectedSymbol}`} padding="md">
               <div className="space-y-4">
-                {/* Progress indicator */}
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-0 p-3 sm:p-4 bg-blue-50 rounded-lg border border-blue-200">
-                  <div className="flex items-center gap-3">
-                    {isAnalyzing && (
-                      <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-primary-500"></div>
-                    )}
-                    <span className="text-xs sm:text-sm font-medium text-text-primary">
-                      {isLLMAnalyzing
-                        ? 'AI智能分析中...'
-                        : isAnalyzing
-                        ? `Agent分析进度: ${progress}`
-                        : '分析完成'}
-                    </span>
+                {/* Progress indicator with bar */}
+                <div className="space-y-2">
+                  {/* Progress bar */}
+                  <div className="w-full bg-gray-200 rounded-full h-2.5 overflow-hidden">
+                    <div
+                      className="bg-primary-500 h-2.5 rounded-full transition-all duration-300 ease-out"
+                      style={{ width: `${progressPercent}%` }}
+                    ></div>
                   </div>
-                  <span className="text-xs text-text-secondary pl-8 sm:pl-0">
-                    {Object.keys(agentResults).length} / 4 个Agent已完成
-                  </span>
+
+                  {/* Progress info */}
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-0 p-3 sm:p-4 bg-blue-50 rounded-lg border border-blue-200">
+                    <div className="flex items-center gap-3">
+                      {isAnalyzing && (
+                        <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-primary-500"></div>
+                      )}
+                      <div className="flex flex-col">
+                        <span className="text-xs sm:text-sm font-medium text-text-primary">
+                          {isLLMAnalyzing
+                            ? '🤖 AI智能分析中...'
+                            : isAnalyzing
+                            ? currentMessage || `分析进度: ${progress}`
+                            : '✅ 分析完成'}
+                        </span>
+                        {currentAgent && isAnalyzing && (
+                          <span className="text-xs text-text-secondary mt-0.5">
+                            当前: {currentAgent === 'technical' ? '📈 技术分析' :
+                                  currentAgent === 'fundamental' ? '💰 基本面' :
+                                  currentAgent === 'sentiment' ? '💬 情绪分析' :
+                                  currentAgent === 'policy' ? '📰 政策新闻' :
+                                  currentAgent === 'debate' ? '⚖️ 投资辩论' :
+                                  currentAgent === 'risk' ? '🛡️ 风险评估' :
+                                  currentAgent}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-4 pl-8 sm:pl-0">
+                      <span className="text-xs text-text-secondary">
+                        {Object.keys(agentResults).length} / 4 个Agent已完成
+                      </span>
+                      <span className="text-xs font-semibold text-primary-600">
+                        {progressPercent.toFixed(0)}%
+                      </span>
+                    </div>
+                  </div>
                 </div>
 
                 {/* Real-time agent results grid */}

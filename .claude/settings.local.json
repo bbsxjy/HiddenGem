@@ -25,7 +25,9 @@
       "Bash(dir:*)",
       "Bash(git init:*)",
       "Bash(git rm:*)",
-      "Bash(.gitignore)"
+      "Bash(.gitignore)",
+      "Bash(git checkout:*)",
+      "Bash(chmod:*)"
     ],
     "deny": [],
     "ask": []

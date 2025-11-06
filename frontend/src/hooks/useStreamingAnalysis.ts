@@ -1,24 +1,45 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { API_CONFIG, API_ENDPOINTS } from '@/config/api.config';
-import type { AnalyzeAllResponse, SSEAnalysisEvent, AgentAnalysisResult } from '@/types/agent';
+import type { AnalyzeAllResponse, AgentAnalysisResult } from '@/types/agent';
+
+/**
+ * SSE Event from backend (actual format from api/main.py)
+ */
+interface SSEEvent {
+  type: 'start' | 'progress' | 'complete' | 'error';
+  symbol?: string;
+  agent?: string;           // Agent name: technical, fundamental, sentiment, policy, debate, risk, system
+  status?: string;          // analyzing, complete, etc.
+  message?: string;         // Progress message
+  progress?: number;        // Progress percentage (0-100)
+  data?: AnalyzeAllResponse; // Final result
+  error?: string;
+  timestamp: string;
+}
 
 interface StreamingAnalysisState {
   agentResults: Record<string, AgentAnalysisResult>;
-  progress: string;
+  progress: string;         // Display format: "3/4" or "75%"
+  progressPercent: number;  // Numeric progress (0-100)
   isAnalyzing: boolean;
   finalResult: AnalyzeAllResponse | null;
   error: string | null;
   isLLMAnalyzing: boolean;
+  currentAgent: string;     // Currently analyzing agent
+  currentMessage: string;   // Current progress message
 }
 
 export function useStreamingAnalysis() {
   const [state, setState] = useState<StreamingAnalysisState>({
     agentResults: {},
-    progress: '0/0',
+    progress: '0%',
+    progressPercent: 0,
     isAnalyzing: false,
     finalResult: null,
     error: null,
     isLLMAnalyzing: false,
+    currentAgent: '',
+    currentMessage: '',
   });
 
   const eventSourceRef = useRef<EventSource | null>(null);
@@ -27,11 +48,14 @@ export function useStreamingAnalysis() {
     // Reset state
     setState({
       agentResults: {},
-      progress: '0/0',
+      progress: '0%',
+      progressPercent: 0,
       isAnalyzing: true,
       finalResult: null,
       error: null,
       isLLMAnalyzing: false,
+      currentAgent: '',
+      currentMessage: '',
     });
 
     // Close existing connection if any
@@ -46,69 +70,78 @@ export function useStreamingAnalysis() {
 
     eventSource.onmessage = (event) => {
       try {
-        const data: SSEAnalysisEvent = JSON.parse(event.data);
+        const data: SSEEvent = JSON.parse(event.data);
 
         switch (data.type) {
           case 'start':
-            console.log(`[SSE] 分析开始: ${data.symbol}`);
-            break;
-
-          case 'agent_result':
-            // Update agent results
+            console.log(`[SSE] 🚀 分析开始: ${data.symbol}`);
             setState(prev => ({
               ...prev,
-              agentResults: {
-                ...prev.agentResults,
-                [data.agent_name]: data.result
-              },
-              progress: data.progress
+              currentMessage: '初始化分析系统...',
             }));
-            console.log(`[SSE] Agent完成: ${data.agent_name} - ${data.progress}`);
             break;
 
-          case 'agent_error':
-            console.error(`[SSE] Agent错误 ${data.agent_name}:`, data.error);
-            break;
+          case 'progress':
+            // Update progress based on agent and message
+            const progressPercent = data.progress || 0;
+            const progressDisplay = `${progressPercent}%`;
 
-          case 'llm_start':
-            setState(prev => ({ ...prev, isLLMAnalyzing: true }));
-            console.log('[SSE] LLM分析开始...');
+            // Detect if LLM is analyzing (debate, risk, or high progress)
+            const isLLMPhase =
+              data.agent === 'debate' ||
+              data.agent === 'risk' ||
+              data.agent === 'system' && progressPercent > 80;
+
+            console.log(`[SSE] 📊 进度更新: [${data.agent}] ${data.message} - ${progressPercent}%`);
+
+            setState(prev => ({
+              ...prev,
+              progress: progressDisplay,
+              progressPercent,
+              currentAgent: data.agent || prev.currentAgent,
+              currentMessage: data.message || prev.currentMessage,
+              isLLMAnalyzing: isLLMPhase,
+            }));
             break;
 
           case 'complete':
             // Final result received
-            setState(prev => ({
-              ...prev,
-              finalResult: data.data,
-              isAnalyzing: false,
-              isLLMAnalyzing: false
-            }));
-            console.log('[SSE] 分析完成');
-            eventSource.close();
-            break;
+            console.log('[SSE] ✅ 分析完成', data.data);
 
-          case 'llm_error':
+            // Extract agent results from final data
+            const agentResults: Record<string, AgentAnalysisResult> = {};
+            if (data.data?.agent_results) {
+              Object.entries(data.data.agent_results).forEach(([name, result]) => {
+                agentResults[name] = result;
+              });
+            }
+
             setState(prev => ({
               ...prev,
-              error: `LLM分析错误: ${data.error}`,
+              agentResults,
+              finalResult: data.data || null,
               isAnalyzing: false,
-              isLLMAnalyzing: false
+              isLLMAnalyzing: false,
+              progress: '100%',
+              progressPercent: 100,
+              currentMessage: '分析完成',
             }));
             eventSource.close();
             break;
 
           case 'error':
+            console.error('[SSE] ❌ 错误:', data.error);
             setState(prev => ({
               ...prev,
-              error: data.error,
+              error: data.error || 'Unknown error',
               isAnalyzing: false,
-              isLLMAnalyzing: false
+              isLLMAnalyzing: false,
             }));
             eventSource.close();
             break;
         }
       } catch (err) {
-        console.error('[SSE] 解析事件失败:', err);
+        console.error('[SSE] 解析事件失败:', err, event.data);
       }
     };
 
@@ -116,9 +149,9 @@ export function useStreamingAnalysis() {
       console.error('[SSE] 连接错误:', err);
       setState(prev => ({
         ...prev,
-        error: 'SSE连接断开',
+        error: 'SSE连接断开或服务器错误',
         isAnalyzing: false,
-        isLLMAnalyzing: false
+        isLLMAnalyzing: false,
       }));
       eventSource.close();
     };
