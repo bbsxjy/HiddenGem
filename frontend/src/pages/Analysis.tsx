@@ -303,37 +303,47 @@ export function Analysis() {
                           </div>
 
                           {isCompleted ? (
-                            // Show result
-                            <div className="space-y-2">
-                              <div className="flex items-center justify-between">
-                                <span className="text-xs text-text-secondary">方向</span>
-                                <span className={`text-sm font-semibold ${
-                                  getDirectionColor(result.direction as 'long' | 'short' | 'hold', selectedSymbol)
-                                }`}>
-                                  {result.direction === 'long' ? '看多' :
-                                   result.direction === 'short' ? '看空' : '持有'}
-                                </span>
+                            result.is_error ? (
+                              // Show error state - don't show invalid data
+                              <div className="text-center py-4">
+                                <p className="text-xs text-red-600 mb-2">分析失败</p>
+                                <p className="text-xs text-text-secondary">
+                                  该 Agent 未能返回有效结果
+                                </p>
                               </div>
-                              <div className="flex items-center justify-between">
-                                <span className="text-xs text-text-secondary">置信度</span>
-                                <span className="text-sm font-medium text-text-primary">
-                                  {(result.confidence * 100).toFixed(0)}%
-                                </span>
-                              </div>
-                              <div className="flex items-center justify-between">
-                                <span className="text-xs text-text-secondary">评分</span>
-                                <span className="text-sm font-medium text-text-primary">
-                                  {(result.score * 100).toFixed(0)}
-                                </span>
-                              </div>
-                              {result.reasoning && (
-                                <div className="mt-2 pt-2 border-t border-gray-100">
-                                  <p className="text-xs text-text-secondary line-clamp-2">
-                                    {result.reasoning}
-                                  </p>
+                            ) : (
+                              // Show result - only for successful agents
+                              <div className="space-y-2">
+                                <div className="flex items-center justify-between">
+                                  <span className="text-xs text-text-secondary">方向</span>
+                                  <span className={`text-sm font-semibold ${
+                                    getDirectionColor(result.direction as 'long' | 'short' | 'hold', selectedSymbol)
+                                  }`}>
+                                    {result.direction === 'long' ? '看多' :
+                                     result.direction === 'short' ? '看空' : '持有'}
+                                  </span>
                                 </div>
-                              )}
-                            </div>
+                                <div className="flex items-center justify-between">
+                                  <span className="text-xs text-text-secondary">置信度</span>
+                                  <span className="text-sm font-medium text-text-primary">
+                                    {(result.confidence * 100).toFixed(0)}%
+                                  </span>
+                                </div>
+                                <div className="flex items-center justify-between">
+                                  <span className="text-xs text-text-secondary">评分</span>
+                                  <span className="text-sm font-medium text-text-primary">
+                                    {(result.score * 100).toFixed(0)}
+                                  </span>
+                                </div>
+                                {result.reasoning && (
+                                  <div className="mt-2 pt-2 border-t border-gray-100">
+                                    <p className="text-xs text-text-secondary line-clamp-2">
+                                      {result.reasoning}
+                                    </p>
+                                  </div>
+                                )}
+                              </div>
+                            )
                           ) : (
                             // Show waiting state
                             <div className="text-center py-4">
