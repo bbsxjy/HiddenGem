@@ -174,7 +174,7 @@ export function Analysis() {
                     </div>
                     <div className="flex items-center gap-4 pl-8 sm:pl-0">
                       <span className="text-xs text-text-secondary">
-                        {Object.keys(agentResults).length} / 4 个Agent已完成
+                        {Object.values(agentResults).filter(r => !r.is_error).length} / 4 个Agent已完成
                       </span>
                       <span className="text-xs font-semibold text-primary-600">
                         {progressPercent.toFixed(0)}%
@@ -250,7 +250,7 @@ export function Analysis() {
                 ) : (
                     <Card title="综合分析结果" padding="md">
                       <div className="text-center py-6 text-text-secondary">
-                        <p className="text-lg font-medium mb-2">综合信号暂时无法生成</p>
+                        <p className="text-lg font-medium mb-2">暂无综合信号</p>
                         {finalResult?.signal_rejection_reason ? (
                             <div className="mt-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg max-w-2xl mx-auto">
                               <p className="text-sm text-yellow-800 font-medium mb-1">原因:</p>
@@ -259,7 +259,7 @@ export function Analysis() {
                               </p>
                             </div>
                         ) : (
-                            <p className="text-sm mt-2">可能是由于Agent响应不足或置信度过低</p>
+                            <p className="text-sm mt-2"></p>
                         )}
                       </div>
                     </Card>

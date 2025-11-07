@@ -87,17 +87,46 @@ export function useStreamingAnalysis() {
             if (data.agent && data.result) {
               console.log(`[SSE] ✅ Agent完成: ${data.agent}`, data.result);
 
-              setState(prev => ({
-                ...prev,
-                agentResults: {
+              setState(prev => {
+                // 更新 agent 结果
+                const updatedAgentResults = {
                   ...prev.agentResults,
                   [data.agent!]: data.result!,
-                },
-                progress: `${data.progress || 0}%`,
-                progressPercent: data.progress || 0,
-                currentAgent: data.agent || prev.currentAgent,
-                currentMessage: `${data.agent} 分析完成`,
-              }));
+                };
+
+                // 计算实际进度：只统计成功的 agents（4个主要agent）
+                const mainAgents = ['technical', 'fundamental', 'sentiment', 'policy'];
+                const completedAgents = mainAgents.filter(
+                  name => updatedAgentResults[name] && !updatedAgentResults[name].is_error
+                );
+                const totalAgents = mainAgents.length;
+
+                // 进度计算：
+                // - 0-75%: 4个主要agent完成 (每个18.75%)
+                // - 75-85%: debate 阶段
+                // - 85-95%: risk 阶段
+                // - 95-100%: 最终聚合
+                let calculatedProgress = 0;
+
+                if (data.agent && mainAgents.includes(data.agent)) {
+                  // 主要 agent 阶段 (0-75%)
+                  calculatedProgress = (completedAgents.length / totalAgents) * 75;
+                } else if (data.progress) {
+                  // 后续阶段使用后端提供的进度
+                  calculatedProgress = data.progress;
+                }
+
+                return {
+                  ...prev,
+                  agentResults: updatedAgentResults,
+                  progress: `${Math.round(calculatedProgress)}%`,
+                  progressPercent: calculatedProgress,
+                  currentAgent: data.agent || prev.currentAgent,
+                  currentMessage: data.result!.is_error
+                    ? `${data.agent} 分析失败`
+                    : `${data.agent} 分析完成`,
+                };
+              });
             }
             break;
 
