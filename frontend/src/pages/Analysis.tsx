@@ -250,7 +250,7 @@ export function Analysis() {
                 ) : (
                     <Card title="综合分析结果" padding="md">
                       <div className="text-center py-6 text-text-secondary">
-                        <p className="text-lg font-medium mb-2">暂无综合信号</p>
+                        <p className="text-lg font-medium mb-2">分析中……需要5-10分钟左右完成，请耐心等待。</p>
                         {finalResult?.signal_rejection_reason ? (
                             <div className="mt-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg max-w-2xl mx-auto">
                               <p className="text-sm text-yellow-800 font-medium mb-1">原因:</p>
@@ -577,8 +577,9 @@ export function Analysis() {
               {/* Content */}
               <div className="px-6 py-4 overflow-y-auto max-h-[calc(90vh-80px)]">
                 {(() => {
-                  // Try to get full report from finalResult first, fallback to agentResults
-                  const fullReport = finalResult?.agent_results[expandedAgent]?.full_report;
+                  // Try to get full report from agentResults (streaming) or finalResult
+                  const fullReport = agentResults[expandedAgent]?.full_report ||
+                                    finalResult?.agent_results[expandedAgent]?.full_report;
                   const reasoning = agentResults[expandedAgent]?.reasoning ||
                                    finalResult?.agent_results[expandedAgent]?.reasoning;
 
@@ -597,7 +598,7 @@ export function Analysis() {
                             {reasoning}
                           </p>
                         </div>
-                        {isAnalyzing && (
+                        {isAnalyzing && !fullReport && (
                           <div className="text-center py-4">
                             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-500 mx-auto mb-3"></div>
                             <p className="text-sm text-text-secondary">
