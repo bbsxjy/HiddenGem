@@ -181,6 +181,92 @@ export function Analysis() {
                     </div>
                   </div>
                 </div>
+                {/* Aggregated Signal */}
+                {finalResult.aggregated_signal ? (
+                    <Card title="综合分析结果" padding="md">
+                      {/* 综合信号指标 */}
+                      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+                        <div className="p-4 bg-gray-50 rounded-lg">
+                          <div className="text-xs text-text-secondary mb-1">方向</div>
+                          <div className={`text-xl font-semibold ${
+                              finalResult.aggregated_signal.direction === 'long'
+                                  ? 'text-profit'
+                                  : finalResult.aggregated_signal.direction === 'short'
+                                      ? 'text-loss'
+                                      : 'text-gray-600'
+                          }`}>
+                            {finalResult.aggregated_signal.direction === 'long' ? '看多' :
+                                finalResult.aggregated_signal.direction === 'short' ? '看空' : '持有'}
+                          </div>
+                        </div>
+                        <div className="p-4 bg-gray-50 rounded-lg">
+                          <div className="text-xs text-text-secondary mb-1">置信度</div>
+                          <div className="text-xl font-semibold text-text-primary">
+                            {(finalResult.aggregated_signal.confidence * 100).toFixed(0)}%
+                          </div>
+                        </div>
+                        <div className="p-4 bg-gray-50 rounded-lg">
+                          <div className="text-xs text-text-secondary mb-1">建议仓位</div>
+                          <div className="text-xl font-semibold text-text-primary">
+                            {(finalResult.aggregated_signal.position_size * 100).toFixed(0)}%
+                          </div>
+                        </div>
+                        <div className="p-4 bg-gray-50 rounded-lg">
+                          <div className="text-xs text-text-secondary mb-1">一致Agent数</div>
+                          <div className="text-xl font-semibold text-text-primary">
+                            {finalResult.aggregated_signal.num_agreeing_agents}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Analysis Method Badge */}
+                      <div className="mb-6 flex items-center gap-2">
+                        <span className="text-xs text-text-secondary">分析方法:</span>
+                        <span className={`text-xs px-2 py-1 rounded-full font-medium ${
+                            finalResult.aggregated_signal.metadata?.analysis_method === 'llm'
+                                ? 'bg-primary-100 text-primary-700'
+                                : 'bg-gray-100 text-gray-700'
+                        }`}>
+                      {finalResult.aggregated_signal.metadata?.analysis_method === 'llm'
+                          ? 'AI智能分析'
+                          : '规则聚合'}
+                    </span>
+                      </div>
+
+                      {/* Warnings */}
+                      {finalResult.aggregated_signal.warnings && finalResult.aggregated_signal.warnings.length > 0 && (
+                          <div className="mb-6 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                            <div className="flex items-start gap-2">
+                              <span className="text-yellow-600 mt-0.5">⚠️</span>
+                              <div className="flex-1">
+                                <p className="text-xs font-semibold text-yellow-800 mb-1">注意事项</p>
+                                <ul className="text-xs text-yellow-700 space-y-0.5">
+                                  {finalResult.aggregated_signal.warnings.map((warning: string, idx: number) => (
+                                      <li key={idx}>• {warning}</li>
+                                  ))}
+                                </ul>
+                              </div>
+                            </div>
+                          </div>
+                      )}
+                    </Card>
+                ) : (
+                    <Card title="综合分析结果" padding="md">
+                      <div className="text-center py-6 text-text-secondary">
+                        <p className="text-lg font-medium mb-2">综合信号暂时无法生成</p>
+                        {finalResult.signal_rejection_reason ? (
+                            <div className="mt-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg max-w-2xl mx-auto">
+                              <p className="text-sm text-yellow-800 font-medium mb-1">原因:</p>
+                              <p className="text-sm text-yellow-700">
+                                {finalResult.signal_rejection_reason}
+                              </p>
+                            </div>
+                        ) : (
+                            <p className="text-sm mt-2">可能是由于Agent响应不足或置信度过低</p>
+                        )}
+                      </div>
+                    </Card>
+                )}
 
                 {/* Real-time agent results grid */}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
@@ -319,47 +405,6 @@ export function Analysis() {
                       </div>
                     </div>
 
-                    {/* 风险评估 - 使用 Markdown 渲染 */}
-                    {finalResult.llm_analysis.risk_assessment && (
-                      <div>
-                        <h4 className="text-sm font-semibold text-text-primary mb-2 flex items-center gap-2">
-                          <span className="w-2 h-2 bg-orange-500 rounded-full"></span>
-                          风险评估
-                        </h4>
-                        <div className="p-4 bg-orange-50 rounded-lg border border-orange-100">
-                          <Markdown content={finalResult.llm_analysis.risk_assessment} />
-                        </div>
-                      </div>
-                    )}
-
-                    {/* 关键决策因素 */}
-                    {finalResult.llm_analysis.key_factors &&
-                     finalResult.llm_analysis.key_factors.length > 0 && (
-                      <div>
-                        <h4 className="text-sm font-semibold text-text-primary mb-2 flex items-center gap-2">
-                          <span className="w-2 h-2 bg-green-500 rounded-full"></span>
-                          关键决策因素
-                        </h4>
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                          {finalResult.llm_analysis.key_factors.map((factor, index) => (
-                            <div
-                              key={index}
-                              className="p-3 bg-green-50 rounded-lg border border-green-100"
-                            >
-                              <div className="flex items-start gap-2">
-                                <span className="text-xs font-bold text-green-700 mt-0.5">
-                                  {index + 1}
-                                </span>
-                                <span className="text-sm text-text-primary flex-1">
-                                  {factor}
-                                </span>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
                     {/* 🆕 风险分析师意见 (risky/safe/neutral) */}
                     {finalResult.llm_analysis.risk_analysts &&
                      Object.keys(finalResult.llm_analysis.risk_analysts).length > 0 && (
@@ -455,162 +500,6 @@ export function Analysis() {
                           <Markdown content={finalResult.llm_analysis.risk_manager_decision} />
                         </div>
                       </div>
-                    )}
-                  </div>
-                </Card>
-              )}
-
-              {/* Aggregated Signal */}
-              {finalResult.aggregated_signal ? (
-                <Card title="综合分析结果" padding="md">
-                  {/* 综合信号指标 */}
-                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-                    <div className="p-4 bg-gray-50 rounded-lg">
-                      <div className="text-xs text-text-secondary mb-1">方向</div>
-                      <div className={`text-xl font-semibold ${
-                        finalResult.aggregated_signal.direction === 'long'
-                          ? 'text-profit'
-                          : finalResult.aggregated_signal.direction === 'short'
-                          ? 'text-loss'
-                          : 'text-gray-600'
-                      }`}>
-                        {finalResult.aggregated_signal.direction === 'long' ? '看多' :
-                         finalResult.aggregated_signal.direction === 'short' ? '看空' : '持有'}
-                      </div>
-                    </div>
-                    <div className="p-4 bg-gray-50 rounded-lg">
-                      <div className="text-xs text-text-secondary mb-1">置信度</div>
-                      <div className="text-xl font-semibold text-text-primary">
-                        {(finalResult.aggregated_signal.confidence * 100).toFixed(0)}%
-                      </div>
-                    </div>
-                    <div className="p-4 bg-gray-50 rounded-lg">
-                      <div className="text-xs text-text-secondary mb-1">建议仓位</div>
-                      <div className="text-xl font-semibold text-text-primary">
-                        {(finalResult.aggregated_signal.position_size * 100).toFixed(0)}%
-                      </div>
-                    </div>
-                    <div className="p-4 bg-gray-50 rounded-lg">
-                      <div className="text-xs text-text-secondary mb-1">一致Agent数</div>
-                      <div className="text-xl font-semibold text-text-primary">
-                        {finalResult.aggregated_signal.num_agreeing_agents}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Analysis Method Badge */}
-                  <div className="mb-6 flex items-center gap-2">
-                    <span className="text-xs text-text-secondary">分析方法:</span>
-                    <span className={`text-xs px-2 py-1 rounded-full font-medium ${
-                      finalResult.aggregated_signal.metadata?.analysis_method === 'llm'
-                        ? 'bg-primary-100 text-primary-700'
-                        : 'bg-gray-100 text-gray-700'
-                    }`}>
-                      {finalResult.aggregated_signal.metadata?.analysis_method === 'llm'
-                        ? 'AI智能分析'
-                        : '规则聚合'}
-                    </span>
-                  </div>
-
-                  {/* Warnings */}
-                  {finalResult.aggregated_signal.warnings && finalResult.aggregated_signal.warnings.length > 0 && (
-                    <div className="mb-6 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-                      <div className="flex items-start gap-2">
-                        <span className="text-yellow-600 mt-0.5">⚠️</span>
-                        <div className="flex-1">
-                          <p className="text-xs font-semibold text-yellow-800 mb-1">注意事项</p>
-                          <ul className="text-xs text-yellow-700 space-y-0.5">
-                            {finalResult.aggregated_signal.warnings.map((warning: string, idx: number) => (
-                              <li key={idx}>• {warning}</li>
-                            ))}
-                          </ul>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* 各Agent分析结果 - 精简显示 */}
-                  <div className="border-t border-gray-200 pt-4">
-                    <h3 className="text-sm font-semibold text-text-primary mb-3 flex items-center gap-2">
-                      各Agent分析
-                      <span className="text-[10px] text-text-secondary font-normal">(点击查看完整报告)</span>
-                    </h3>
-                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-                      {Object.entries(finalResult.agent_results).map(([name, result]) => (
-                        <div key={name}>
-                          <div
-                            onClick={() => result.full_report && setExpandedAgent(name)}
-                            className={`p-3 border rounded-lg transition-all ${
-                              result.full_report
-                                ? 'cursor-pointer hover:border-primary-300 hover:shadow-md border-gray-200'
-                                : 'border-gray-200 cursor-default'
-                            }`}
-                          >
-                            <div className="flex items-center justify-between mb-2">
-                              <h4 className="text-xs font-semibold text-text-primary flex items-center gap-1">
-                                {agentNameMap[name] || name}
-                                {result.full_report && (
-                                  <FileText size={12} className="text-primary-500" />
-                                )}
-                              </h4>
-                              {result.is_error && (
-                                <span className="text-xs px-1.5 py-0.5 bg-red-100 text-red-700 rounded text-[10px]">
-                                  错误
-                                </span>
-                              )}
-                            </div>
-                            <div className="space-y-1">
-                              <div className="flex items-center justify-between">
-                                <span className="text-[10px] text-text-secondary">方向</span>
-                                <span className={`text-xs font-semibold ${
-                                  result.direction === 'long'
-                                    ? 'text-profit'
-                                    : result.direction === 'short'
-                                    ? 'text-loss'
-                                    : 'text-gray-600'
-                                }`}>
-                                  {result.direction === 'long' ? '看多' :
-                                   result.direction === 'short' ? '看空' : '持有'}
-                                </span>
-                              </div>
-                              <div className="flex items-center justify-between">
-                                <span className="text-[10px] text-text-secondary">置信度</span>
-                                <span className="text-xs font-medium text-text-primary">
-                                  {(result.confidence * 100).toFixed(0)}%
-                                </span>
-                              </div>
-                              <div className="flex items-center justify-between">
-                                <span className="text-[10px] text-text-secondary">评分</span>
-                                <span className="text-xs font-medium text-text-primary">
-                                  {(result.score * 100).toFixed(0)}
-                                </span>
-                              </div>
-                            </div>
-                            {/* 简短理由 */}
-                            {result.reasoning && (
-                              <p className="text-xs text-text-secondary mt-2 line-clamp-2">
-                                {result.reasoning}
-                              </p>
-                            )}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </Card>
-              ) : (
-                <Card title="综合分析结果" padding="md">
-                  <div className="text-center py-6 text-text-secondary">
-                    <p className="text-lg font-medium mb-2">综合信号暂时无法生成</p>
-                    {finalResult.signal_rejection_reason ? (
-                      <div className="mt-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg max-w-2xl mx-auto">
-                        <p className="text-sm text-yellow-800 font-medium mb-1">原因:</p>
-                        <p className="text-sm text-yellow-700">
-                          {finalResult.signal_rejection_reason}
-                        </p>
-                      </div>
-                    ) : (
-                      <p className="text-sm mt-2">可能是由于Agent响应不足或置信度过低</p>
                     )}
                   </div>
                 </Card>
