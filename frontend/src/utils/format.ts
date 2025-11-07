@@ -186,9 +186,9 @@ export function detectMarketType(symbol?: string): MarketType {
  * @returns Tailwind color class
  *
  * @example
- * getDirectionColor('long', '000001.SZ') // 'text-a-share-up' (red)
- * getDirectionColor('long', 'AAPL') // 'text-us-market-up' (green)
- * getDirectionColor('short', '000001.SZ') // 'text-a-share-down' (green)
+ * getDirectionColor('long', '000001.SZ') // 'text-red-500' (red)
+ * getDirectionColor('long', 'AAPL') // 'text-green-600' (green)
+ * getDirectionColor('short', '000001.SZ') // 'text-green-600' (green)
  */
 export function getDirectionColor(direction: SignalDirection, symbol?: string): string {
   const marketType = detectMarketType(symbol);
@@ -199,10 +199,10 @@ export function getDirectionColor(direction: SignalDirection, symbol?: string): 
 
   if (marketType === 'a-share' || marketType === 'hk-market') {
     // A-share & HK: long=red (up), short=green (down)
-    return direction === 'long' ? 'text-a-share-up' : 'text-a-share-down';
+    return direction === 'long' ? 'text-red-500' : 'text-green-600';
   } else {
     // US/Global: long=green (up), short=red (down)
-    return direction === 'long' ? 'text-us-market-up' : 'text-us-market-down';
+    return direction === 'long' ? 'text-green-600' : 'text-red-500';
   }
 }
 
@@ -217,8 +217,8 @@ export function getDirectionColor(direction: SignalDirection, symbol?: string): 
  * @returns Tailwind color class
  *
  * @example
- * getChangeColor(5.2, '000001.SZ') // 'text-a-share-up' (red for positive)
- * getChangeColor(-3.1, 'AAPL') // 'text-us-market-down' (red for negative)
+ * getChangeColor(5.2, '000001.SZ') // 'text-red-500' (red for positive)
+ * getChangeColor(-3.1, 'AAPL') // 'text-red-500' (red for negative)
  */
 export function getChangeColor(value: number, symbol?: string): string {
   if (value === 0) {
@@ -230,10 +230,10 @@ export function getChangeColor(value: number, symbol?: string): string {
 
   if (marketType === 'a-share' || marketType === 'hk-market') {
     // A-share & HK: positive=red, negative=green
-    return isPositive ? 'text-a-share-up' : 'text-a-share-down';
+    return isPositive ? 'text-red-500' : 'text-green-600';
   } else {
     // US/Global: positive=green, negative=red
-    return isPositive ? 'text-us-market-up' : 'text-us-market-down';
+    return isPositive ? 'text-green-600' : 'text-red-500';
   }
 }
 
@@ -290,19 +290,19 @@ export function formatProfitLossPercentMarket(
  * @returns Tailwind color class
  *
  * @example
- * getSideColor('buy', '000001.SZ') // 'text-a-share-up' (red)
- * getSideColor('buy', 'AAPL') // 'text-us-market-up' (green)
- * getSideColor('sell', '000001.SZ') // 'text-a-share-down' (green)
+ * getSideColor('buy', '000001.SZ') // 'text-red-500' (red)
+ * getSideColor('buy', 'AAPL') // 'text-green-600' (green)
+ * getSideColor('sell', '000001.SZ') // 'text-green-600' (green)
  */
 export function getSideColor(side: 'buy' | 'sell', symbol?: string): string {
   const marketType = detectMarketType(symbol);
 
   if (marketType === 'a-share' || marketType === 'hk-market') {
     // A-share & HK: buy=red, sell=green
-    return side === 'buy' ? 'text-a-share-up' : 'text-a-share-down';
+    return side === 'buy' ? 'text-red-500' : 'text-green-600';
   } else {
     // US/Global: buy=green, sell=red
-    return side === 'buy' ? 'text-us-market-up' : 'text-us-market-down';
+    return side === 'buy' ? 'text-green-600' : 'text-red-500';
   }
 }
 
