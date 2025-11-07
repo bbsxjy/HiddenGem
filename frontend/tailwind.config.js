@@ -21,6 +21,7 @@ export default {
           900: '#0c4a6e',
         },
         // Trading specific colors
+        // Note: Default to A-share convention (up=red, down=green)
         profit: {
           light: '#22c55e',
           DEFAULT: '#16a34a',
@@ -30,6 +31,32 @@ export default {
           light: '#ef4444',
           DEFAULT: '#dc2626',
           dark: '#b91c1c',
+        },
+        // A-Share market colors (China): up/long=red, down/short=green
+        'a-share': {
+          up: {
+            light: '#fca5a5',    // red-300
+            DEFAULT: '#ef4444',  // red-500
+            dark: '#dc2626',     // red-600
+          },
+          down: {
+            light: '#86efac',    // green-300
+            DEFAULT: '#22c55e',  // green-500
+            dark: '#16a34a',     // green-600
+          },
+        },
+        // US/Global market colors: up/long=green, down/short=red
+        'us-market': {
+          up: {
+            light: '#86efac',    // green-300
+            DEFAULT: '#22c55e',  // green-500
+            dark: '#16a34a',     // green-600
+          },
+          down: {
+            light: '#fca5a5',    // red-300
+            DEFAULT: '#ef4444',  // red-500
+            dark: '#dc2626',     // red-600
+          },
         },
         // A-Share board colors
         board: {

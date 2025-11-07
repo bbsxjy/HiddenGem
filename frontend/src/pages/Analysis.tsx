@@ -5,6 +5,7 @@ import { Input } from '@/components/common/Input';
 import { Markdown } from '@/components/common/Markdown';
 import { useStreamingAnalysis } from '@/hooks/useStreamingAnalysis';
 import { PositionAnalysis } from '@/components/agents/PositionAnalysis';
+import { getDirectionColor } from '@/utils/format';
 import { Search, TrendingUp, Briefcase, FileText, X } from 'lucide-react';
 
 type AnalysisMode = 'market' | 'position';
@@ -189,11 +190,7 @@ export function Analysis() {
                         <div className="p-4 bg-gray-50 rounded-lg">
                           <div className="text-xs text-text-secondary mb-1">方向</div>
                           <div className={`text-xl font-semibold ${
-                              finalResult.aggregated_signal.direction === 'long'
-                                  ? 'text-profit'
-                                  : finalResult.aggregated_signal.direction === 'short'
-                                      ? 'text-loss'
-                                      : 'text-gray-600'
+                            getDirectionColor(finalResult.aggregated_signal.direction as 'long' | 'short' | 'hold', selectedSymbol)
                           }`}>
                             {finalResult.aggregated_signal.direction === 'long' ? '看多' :
                                 finalResult.aggregated_signal.direction === 'short' ? '看空' : '持有'}
@@ -311,11 +308,7 @@ export function Analysis() {
                               <div className="flex items-center justify-between">
                                 <span className="text-xs text-text-secondary">方向</span>
                                 <span className={`text-sm font-semibold ${
-                                  result.direction === 'long'
-                                    ? 'text-profit'
-                                    : result.direction === 'short'
-                                    ? 'text-loss'
-                                    : 'text-gray-600'
+                                  getDirectionColor(result.direction as 'long' | 'short' | 'hold', selectedSymbol)
                                 }`}>
                                   {result.direction === 'long' ? '看多' :
                                    result.direction === 'short' ? '看空' : '持有'}
@@ -370,11 +363,7 @@ export function Analysis() {
                       <div className="p-4 bg-gray-50 rounded-lg">
                         <div className="text-xs text-text-secondary mb-1">推荐方向</div>
                         <div className={`text-xl font-semibold ${
-                          finalResult.llm_analysis.recommended_direction === 'long'
-                            ? 'text-profit'
-                            : finalResult.llm_analysis.recommended_direction === 'short'
-                            ? 'text-loss'
-                            : 'text-gray-600'
+                          getDirectionColor(finalResult.llm_analysis.recommended_direction as 'long' | 'short' | 'hold', selectedSymbol)
                         }`}>
                           {finalResult.llm_analysis.recommended_direction === 'long' ? '看多' :
                            finalResult.llm_analysis.recommended_direction === 'short' ? '看空' : '持有'}

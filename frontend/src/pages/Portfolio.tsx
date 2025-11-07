@@ -3,9 +3,10 @@ import { Card } from '@/components/common/Card';
 import { Loading } from '@/components/common/Loading';
 import { Table } from '@/components/common/Table';
 import { getPortfolioSummary, getCurrentPositions, getPortfolioHistory } from '@/api/portfolio';
-import { formatCurrency, formatProfitLoss, formatPercentage } from '@/utils/format';
+import { formatCurrency, formatProfitLoss, formatPercentage, getChangeColor } from '@/utils/format';
 import { TrendingUp, DollarSign, PieChart, Activity } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import type { Position } from '@/types/portfolio';
 
 export function Portfolio() {
   // Fetch portfolio summary
@@ -68,8 +69,8 @@ export function Portfolio() {
     {
       header: '盈亏',
       accessor: 'unrealized_pnl' as const,
-      cell: (value: number) => (
-        <span className={formatProfitLoss(value).className}>
+      cell: (value: number, row: Position) => (
+        <span className={getChangeColor(value, row.symbol)}>
           {formatCurrency(value)}
         </span>
       ),
@@ -77,8 +78,8 @@ export function Portfolio() {
     {
       header: '收益率',
       accessor: 'unrealized_pnl_pct' as const,
-      cell: (value: number) => (
-        <span className={formatProfitLoss(value).className}>
+      cell: (value: number, row: Position) => (
+        <span className={getChangeColor(value, row.symbol)}>
           {formatPercentage(value)}
         </span>
       ),

@@ -6,6 +6,7 @@ import { Input } from '@/components/common/Input';
 import { Select } from '@/components/common/Select';
 import { Table } from '@/components/common/Table';
 import { createOrder, getOrders, cancelOrder, getRecentOrders, getCurrentSignals } from '@/api/orders';
+import { getSideBadgeColor } from '@/utils/format';
 import type { CreateOrderRequest, Order } from '@/types/order';
 
 export function Trading() {
@@ -116,9 +117,9 @@ export function Trading() {
     {
       header: '方向',
       accessor: 'side' as const,
-      cell: (value: string) => (
+      cell: (value: string, row: Order) => (
         <span className={`px-2 py-1 rounded text-xs font-medium ${
-          value === 'buy' ? 'bg-profit-light text-profit' : 'bg-loss-light text-loss'
+          getSideBadgeColor(value as 'buy' | 'sell', row.symbol)
         }`}>
           {value === 'buy' ? '买入' : '卖出'}
         </span>
@@ -292,9 +293,9 @@ export function Trading() {
                       </span>
                       <span className={`px-2 py-1 rounded text-xs font-medium ${
                         signal.direction === 'buy'
-                          ? 'bg-profit-light text-profit'
+                          ? getSideBadgeColor('buy', signal.symbol)
                           : signal.direction === 'sell'
-                          ? 'bg-loss-light text-loss'
+                          ? getSideBadgeColor('sell', signal.symbol)
                           : 'bg-gray-100 text-gray-600'
                       }`}>
                         {signal.direction === 'buy' ? '买入' : signal.direction === 'sell' ? '卖出' : '持有'}

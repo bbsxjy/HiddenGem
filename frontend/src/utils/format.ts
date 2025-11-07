@@ -134,3 +134,197 @@ export function truncateText(text: string, maxLength: number): string {
   if (text.length <= maxLength) return text;
   return `${text.substring(0, maxLength)}...`;
 }
+
+/**
+ * Market types
+ */
+export type MarketType = 'a-share' | 'us-market' | 'hk-market';
+
+/**
+ * Signal direction
+ */
+export type SignalDirection = 'long' | 'short' | 'hold';
+
+/**
+ * Detect market type from stock symbol
+ *
+ * @param symbol - Stock symbol (e.g., "000001.SZ", "AAPL", "0700.HK")
+ * @returns Market type
+ *
+ * @example
+ * detectMarketType("000001.SZ") // 'a-share'
+ * detectMarketType("AAPL") // 'us-market'
+ * detectMarketType("0700.HK") // 'hk-market'
+ */
+export function detectMarketType(symbol?: string): MarketType {
+  if (!symbol) return 'a-share'; // Default to A-share
+
+  const upperSymbol = symbol.toUpperCase();
+
+  // A-share: ends with .SZ (Shenzhen) or .SS (Shanghai), or 6-digit numbers
+  if (upperSymbol.endsWith('.SZ') || upperSymbol.endsWith('.SS') || /^\d{6}$/.test(symbol)) {
+    return 'a-share';
+  }
+
+  // Hong Kong: ends with .HK
+  if (upperSymbol.endsWith('.HK')) {
+    return 'hk-market'; // HK follows A-share convention
+  }
+
+  // Default to US market for others (AAPL, NVDA, etc.)
+  return 'us-market';
+}
+
+/**
+ * Get color class for signal direction based on market type
+ *
+ * A-share (China): long=red, short=green
+ * US/Global: long=green, short=red
+ *
+ * @param direction - Signal direction ('long', 'short', 'hold')
+ * @param symbol - Stock symbol to detect market type
+ * @returns Tailwind color class
+ *
+ * @example
+ * getDirectionColor('long', '000001.SZ') // 'text-a-share-up' (red)
+ * getDirectionColor('long', 'AAPL') // 'text-us-market-up' (green)
+ * getDirectionColor('short', '000001.SZ') // 'text-a-share-down' (green)
+ */
+export function getDirectionColor(direction: SignalDirection, symbol?: string): string {
+  const marketType = detectMarketType(symbol);
+
+  if (direction === 'hold') {
+    return 'text-gray-600';
+  }
+
+  if (marketType === 'a-share' || marketType === 'hk-market') {
+    // A-share & HK: long=red (up), short=green (down)
+    return direction === 'long' ? 'text-a-share-up' : 'text-a-share-down';
+  } else {
+    // US/Global: long=green (up), short=red (down)
+    return direction === 'long' ? 'text-us-market-up' : 'text-us-market-down';
+  }
+}
+
+/**
+ * Get color class for change value based on market type
+ *
+ * A-share (China): positive=red, negative=green
+ * US/Global: positive=green, negative=red
+ *
+ * @param value - Change value (positive or negative)
+ * @param symbol - Stock symbol to detect market type
+ * @returns Tailwind color class
+ *
+ * @example
+ * getChangeColor(5.2, '000001.SZ') // 'text-a-share-up' (red for positive)
+ * getChangeColor(-3.1, 'AAPL') // 'text-us-market-down' (red for negative)
+ */
+export function getChangeColor(value: number, symbol?: string): string {
+  if (value === 0) {
+    return 'text-gray-600';
+  }
+
+  const marketType = detectMarketType(symbol);
+  const isPositive = value > 0;
+
+  if (marketType === 'a-share' || marketType === 'hk-market') {
+    // A-share & HK: positive=red, negative=green
+    return isPositive ? 'text-a-share-up' : 'text-a-share-down';
+  } else {
+    // US/Global: positive=green, negative=red
+    return isPositive ? 'text-us-market-up' : 'text-us-market-down';
+  }
+}
+
+/**
+ * Format profit/loss with market-aware color indicator
+ *
+ * @param value - Profit/loss value
+ * @param showSign - Whether to show +/- sign
+ * @param symbol - Stock symbol to detect market type
+ */
+export function formatProfitLossMarket(
+  value: number,
+  showSign: boolean = true,
+  symbol?: string
+): {
+  text: string;
+  className: string;
+} {
+  const sign = value >= 0 ? '+' : '';
+  const text = showSign ? `${sign}${formatCurrency(value)}` : formatCurrency(Math.abs(value));
+  const className = getChangeColor(value, symbol);
+
+  return { text, className };
+}
+
+/**
+ * Format profit/loss percentage with market-aware color indicator
+ *
+ * @param value - Profit/loss percentage (0.05 = 5%)
+ * @param symbol - Stock symbol to detect market type
+ */
+export function formatProfitLossPercentMarket(
+  value: number,
+  symbol?: string
+): {
+  text: string;
+  className: string;
+} {
+  const sign = value >= 0 ? '+' : '';
+  const text = `${sign}${formatPercent(value)}`;
+  const className = getChangeColor(value, symbol);
+
+  return { text, className };
+}
+
+/**
+ * Get color class for buy/sell direction based on market type
+ *
+ * A-share (China): buy=red, sell=green
+ * US/Global: buy=green, sell=red
+ *
+ * @param side - Trade side ('buy' or 'sell')
+ * @param symbol - Stock symbol to detect market type
+ * @returns Tailwind color class
+ *
+ * @example
+ * getSideColor('buy', '000001.SZ') // 'text-a-share-up' (red)
+ * getSideColor('buy', 'AAPL') // 'text-us-market-up' (green)
+ * getSideColor('sell', '000001.SZ') // 'text-a-share-down' (green)
+ */
+export function getSideColor(side: 'buy' | 'sell', symbol?: string): string {
+  const marketType = detectMarketType(symbol);
+
+  if (marketType === 'a-share' || marketType === 'hk-market') {
+    // A-share & HK: buy=red, sell=green
+    return side === 'buy' ? 'text-a-share-up' : 'text-a-share-down';
+  } else {
+    // US/Global: buy=green, sell=red
+    return side === 'buy' ? 'text-us-market-up' : 'text-us-market-down';
+  }
+}
+
+/**
+ * Get background color class for buy/sell badges based on market type
+ *
+ * @param side - Trade side ('buy' or 'sell')
+ * @param symbol - Stock symbol to detect market type
+ * @returns Tailwind background and text color classes
+ *
+ * @example
+ * getSideBadgeColor('buy', '000001.SZ') // 'bg-red-50 text-red-700'
+ * getSideBadgeColor('buy', 'AAPL') // 'bg-green-50 text-green-700'
+ */
+export function getSideBadgeColor(side: 'buy' | 'sell', symbol?: string): string {
+  const marketType = detectMarketType(symbol);
+
+  if (marketType === 'a-share' || marketType === 'hk-market') {
+    // A-share & HK: buy=red, sell=green
+    return side === 'buy' ? 'bg-red-50 text-red-700' : 'bg-green-50 text-green-700';
+  } else {
+    // US/Global: buy=green, sell=red
+    return side === 'buy' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700';
+  }
+}

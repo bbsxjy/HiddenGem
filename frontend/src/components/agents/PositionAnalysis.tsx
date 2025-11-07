@@ -4,6 +4,7 @@ import { Card } from '@/components/common/Card';
 import { Input } from '@/components/common/Input';
 import { Loading } from '@/components/common/Loading';
 import { analyzePosition } from '@/api/agents';
+import { getChangeColor } from '@/utils/format';
 import type { HoldingsInfo, PositionAnalysisResponse } from '@/types/agent';
 import {
   TrendingUp,
@@ -239,18 +240,14 @@ export function PositionAnalysis({ symbol }: PositionAnalysisProps) {
                 </div>
                 <div
                   className={`text-xl font-bold ${
-                    result.position_analysis.profit_loss.current_pnl >= 0
-                      ? 'text-profit'
-                      : 'text-loss'
+                    getChangeColor(result.position_analysis.profit_loss.current_pnl, symbol)
                   }`}
                 >
                   ¥{result.position_analysis.profit_loss.current_pnl.toFixed(2)}
                 </div>
                 <div
                   className={`text-sm ${
-                    result.position_analysis.profit_loss.current_pnl_pct >= 0
-                      ? 'text-profit'
-                      : 'text-loss'
+                    getChangeColor(result.position_analysis.profit_loss.current_pnl_pct, symbol)
                   }`}
                 >
                   {result.position_analysis.profit_loss.current_pnl_pct >= 0 ? '+' : ''}

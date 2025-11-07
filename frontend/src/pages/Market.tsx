@@ -5,7 +5,7 @@ import { Loading } from '@/components/common/Loading';
 import { Input } from '@/components/common/Input';
 import { CandlestickChart } from '@/components/market/CandlestickChart';
 import { getQuote, getBars, getTechnicalIndicators, getStockInfo } from '@/api/market';
-import { formatProfitLoss, formatPercentage } from '@/utils/format';
+import { formatProfitLoss, formatPercentage, getChangeColor, detectMarketType } from '@/utils/format';
 import { Search, TrendingUp, TrendingDown, Building2, MapPin, Calendar, AlertCircle, RefreshCw } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
@@ -60,6 +60,7 @@ export function Market() {
   };
 
   const isUp = (quote?.change_pct || 0) >= 0;
+  const marketType = detectMarketType(selectedSymbol);
 
   // 判断板块
   const getBoardType = (symbol: string) => {
@@ -238,12 +239,12 @@ export function Market() {
                         ¥{quote.price.toFixed(2)}
                       </span>
                       {isUp ? (
-                        <TrendingUp className="h-6 w-6 sm:h-7 sm:w-7 md:h-8 md:w-8 text-profit" />
+                        <TrendingUp className={`h-6 w-6 sm:h-7 sm:w-7 md:h-8 md:w-8 ${getChangeColor(quote.change_pct, selectedSymbol)}`} />
                       ) : (
-                        <TrendingDown className="h-6 w-6 sm:h-7 sm:w-7 md:h-8 md:w-8 text-loss" />
+                        <TrendingDown className={`h-6 w-6 sm:h-7 sm:w-7 md:h-8 md:w-8 ${getChangeColor(quote.change_pct, selectedSymbol)}`} />
                       )}
                     </div>
-                    <div className={`text-lg sm:text-xl font-semibold mt-2 ${formatProfitLoss(quote.change_pct).className}`}>
+                    <div className={`text-lg sm:text-xl font-semibold mt-2 ${getChangeColor(quote.change_pct, selectedSymbol)}`}>
                       {formatPercentage(quote.change_pct)}
                     </div>
                     <div className="text-xs text-text-secondary mt-2">
@@ -271,7 +272,7 @@ export function Market() {
                   </Card>
 
                   <Card title="最高价" padding="md">
-                    <div className="text-lg sm:text-xl md:text-2xl font-semibold text-profit">
+                    <div className={`text-lg sm:text-xl md:text-2xl font-semibold ${getChangeColor(quote.high - quote.open, selectedSymbol)}`}>
                       ¥{quote.high.toFixed(2)}
                     </div>
                     <div className="text-[10px] sm:text-xs text-text-secondary mt-1">
@@ -280,7 +281,7 @@ export function Market() {
                   </Card>
 
                   <Card title="最低价" padding="md">
-                    <div className="text-lg sm:text-xl md:text-2xl font-semibold text-loss">
+                    <div className={`text-lg sm:text-xl md:text-2xl font-semibold ${getChangeColor(quote.low - quote.open, selectedSymbol)}`}>
                       ¥{quote.low.toFixed(2)}
                     </div>
                     <div className="text-[10px] sm:text-xs text-text-secondary mt-1">
