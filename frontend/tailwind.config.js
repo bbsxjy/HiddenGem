@@ -4,6 +4,25 @@ export default {
     "./index.html",
     "./src/**/*.{js,ts,jsx,tsx}",
   ],
+  safelist: [
+    // Market-aware color classes - these are dynamically generated, so we need to safelist them
+    'text-a-share-up',
+    'text-a-share-up-light',
+    'text-a-share-up-dark',
+    'text-a-share-down',
+    'text-a-share-down-light',
+    'text-a-share-down-dark',
+    'text-us-market-up',
+    'text-us-market-up-light',
+    'text-us-market-up-dark',
+    'text-us-market-down',
+    'text-us-market-down-light',
+    'text-us-market-down-dark',
+    'bg-red-50',
+    'text-red-700',
+    'bg-green-50',
+    'text-green-700',
+  ],
   theme: {
     extend: {
       colors: {
