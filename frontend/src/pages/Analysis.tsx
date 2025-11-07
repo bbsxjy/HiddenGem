@@ -183,7 +183,7 @@ export function Analysis() {
                   </div>
                 </div>
                 {/* Aggregated Signal */}
-                {finalResult.aggregated_signal ? (
+                {finalResult?.aggregated_signal ? (
                     <Card title="综合分析结果" padding="md">
                       {/* 综合信号指标 */}
                       <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
@@ -251,7 +251,7 @@ export function Analysis() {
                     <Card title="综合分析结果" padding="md">
                       <div className="text-center py-6 text-text-secondary">
                         <p className="text-lg font-medium mb-2">综合信号暂时无法生成</p>
-                        {finalResult.signal_rejection_reason ? (
+                        {finalResult?.signal_rejection_reason ? (
                             <div className="mt-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg max-w-2xl mx-auto">
                               <p className="text-sm text-yellow-800 font-medium mb-1">原因:</p>
                               <p className="text-sm text-yellow-700">
