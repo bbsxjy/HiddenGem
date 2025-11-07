@@ -4,25 +4,6 @@ export default {
     "./index.html",
     "./src/**/*.{js,ts,jsx,tsx}",
   ],
-  safelist: [
-    // Market-aware color classes - these are dynamically generated, so we need to safelist them
-    'text-a-share-up',
-    'text-a-share-up-light',
-    'text-a-share-up-dark',
-    'text-a-share-down',
-    'text-a-share-down-light',
-    'text-a-share-down-dark',
-    'text-us-market-up',
-    'text-us-market-up-light',
-    'text-us-market-up-dark',
-    'text-us-market-down',
-    'text-us-market-down-light',
-    'text-us-market-down-dark',
-    'bg-red-50',
-    'text-red-700',
-    'bg-green-50',
-    'text-green-700',
-  ],
   theme: {
     extend: {
       colors: {
@@ -39,8 +20,7 @@ export default {
           800: '#075985',
           900: '#0c4a6e',
         },
-        // Trading specific colors
-        // Note: Default to A-share convention (up=red, down=green)
+        // Trading specific colors (legacy, kept for compatibility)
         profit: {
           light: '#22c55e',
           DEFAULT: '#16a34a',
@@ -51,21 +31,6 @@ export default {
           DEFAULT: '#dc2626',
           dark: '#b91c1c',
         },
-        // A-Share market colors (China): up/long=red, down/short=green
-        // Flatten structure for better Tailwind support
-        'a-share-up': '#ef4444',        // red-500
-        'a-share-up-light': '#fca5a5', // red-300
-        'a-share-up-dark': '#dc2626',  // red-600
-        'a-share-down': '#22c55e',      // green-500
-        'a-share-down-light': '#86efac', // green-300
-        'a-share-down-dark': '#16a34a', // green-600
-        // US/Global market colors: up/long=green, down/short=red
-        'us-market-up': '#22c55e',       // green-500
-        'us-market-up-light': '#86efac', // green-300
-        'us-market-up-dark': '#16a34a',  // green-600
-        'us-market-down': '#ef4444',     // red-500
-        'us-market-down-light': '#fca5a5', // red-300
-        'us-market-down-dark': '#dc2626', // red-600
         // A-Share board colors
         board: {
           main: '#3b82f6',      // Main board - blue
