@@ -52,31 +52,20 @@ export default {
           dark: '#b91c1c',
         },
         // A-Share market colors (China): up/long=red, down/short=green
-        'a-share': {
-          up: {
-            light: '#fca5a5',    // red-300
-            DEFAULT: '#ef4444',  // red-500
-            dark: '#dc2626',     // red-600
-          },
-          down: {
-            light: '#86efac',    // green-300
-            DEFAULT: '#22c55e',  // green-500
-            dark: '#16a34a',     // green-600
-          },
-        },
+        // Flatten structure for better Tailwind support
+        'a-share-up': '#ef4444',        // red-500
+        'a-share-up-light': '#fca5a5', // red-300
+        'a-share-up-dark': '#dc2626',  // red-600
+        'a-share-down': '#22c55e',      // green-500
+        'a-share-down-light': '#86efac', // green-300
+        'a-share-down-dark': '#16a34a', // green-600
         // US/Global market colors: up/long=green, down/short=red
-        'us-market': {
-          up: {
-            light: '#86efac',    // green-300
-            DEFAULT: '#22c55e',  // green-500
-            dark: '#16a34a',     // green-600
-          },
-          down: {
-            light: '#fca5a5',    // red-300
-            DEFAULT: '#ef4444',  // red-500
-            dark: '#dc2626',     // red-600
-          },
-        },
+        'us-market-up': '#22c55e',       // green-500
+        'us-market-up-light': '#86efac', // green-300
+        'us-market-up-dark': '#16a34a',  // green-600
+        'us-market-down': '#ef4444',     // red-500
+        'us-market-down-light': '#fca5a5', // red-300
+        'us-market-down-dark': '#dc2626', // red-600
         // A-Share board colors
         board: {
           main: '#3b82f6',      // Main board - blue
