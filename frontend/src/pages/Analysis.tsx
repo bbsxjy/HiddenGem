@@ -393,6 +393,72 @@ export function Analysis() {
                       </div>
                     </div>
 
+                    {/* 🆕 价格目标 */}
+                    {finalResult.llm_analysis.price_targets &&
+                     (finalResult.llm_analysis.price_targets.entry ||
+                      finalResult.llm_analysis.price_targets.stop_loss ||
+                      finalResult.llm_analysis.price_targets.take_profit) && (
+                      <div>
+                        <h4 className="text-sm font-semibold text-text-primary mb-3 flex items-center gap-2">
+                          <span className="w-2 h-2 bg-green-500 rounded-full"></span>
+                          💰 价格目标
+                        </h4>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                          {finalResult.llm_analysis.price_targets.entry && (
+                            <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
+                              <div className="flex items-center justify-between mb-2">
+                                <div className="text-xs text-blue-600 font-medium">目标价</div>
+                                <div className="text-xs px-2 py-0.5 bg-blue-100 text-blue-700 rounded">
+                                  Entry
+                                </div>
+                              </div>
+                              <div className="text-2xl font-bold text-blue-700">
+                                ¥{finalResult.llm_analysis.price_targets.entry.toFixed(2)}
+                              </div>
+                            </div>
+                          )}
+
+                          {finalResult.llm_analysis.price_targets.stop_loss && (
+                            <div className="p-4 bg-red-50 rounded-lg border border-red-200">
+                              <div className="flex items-center justify-between mb-2">
+                                <div className="text-xs text-red-600 font-medium">止损价</div>
+                                <div className="text-xs px-2 py-0.5 bg-red-100 text-red-700 rounded">
+                                  Stop Loss
+                                </div>
+                              </div>
+                              <div className="text-2xl font-bold text-red-700">
+                                ¥{finalResult.llm_analysis.price_targets.stop_loss.toFixed(2)}
+                              </div>
+                              {finalResult.llm_analysis.price_targets.entry && (
+                                <div className="text-xs text-red-600 mt-1">
+                                  {((finalResult.llm_analysis.price_targets.stop_loss / finalResult.llm_analysis.price_targets.entry - 1) * 100).toFixed(1)}%
+                                </div>
+                              )}
+                            </div>
+                          )}
+
+                          {finalResult.llm_analysis.price_targets.take_profit && (
+                            <div className="p-4 bg-green-50 rounded-lg border border-green-200">
+                              <div className="flex items-center justify-between mb-2">
+                                <div className="text-xs text-green-600 font-medium">止盈价</div>
+                                <div className="text-xs px-2 py-0.5 bg-green-100 text-green-700 rounded">
+                                  Take Profit
+                                </div>
+                              </div>
+                              <div className="text-2xl font-bold text-green-700">
+                                ¥{finalResult.llm_analysis.price_targets.take_profit.toFixed(2)}
+                              </div>
+                              {finalResult.llm_analysis.price_targets.entry && (
+                                <div className="text-xs text-green-600 mt-1">
+                                  +{((finalResult.llm_analysis.price_targets.take_profit / finalResult.llm_analysis.price_targets.entry - 1) * 100).toFixed(1)}%
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
                     {/* 分析推理 - 使用 Markdown 渲染 */}
                     <div>
                       <h4 className="text-sm font-semibold text-text-primary mb-2 flex items-center gap-2">
@@ -400,7 +466,7 @@ export function Analysis() {
                         决策理由
                       </h4>
                       <div className="p-4 bg-blue-50 rounded-lg border border-blue-100">
-                        <Markdown content={finalResult.llm_analysis.reasoning} />
+                        <Markdown content={finalResult.llm_analysis.signal_processor_summary} />
                       </div>
                     </div>
 
@@ -408,80 +474,137 @@ export function Analysis() {
                     {finalResult.llm_analysis.risk_analysts &&
                      Object.keys(finalResult.llm_analysis.risk_analysts).length > 0 && (
                       <div>
-                        <h4 className="text-sm font-semibold text-text-primary mb-2 flex items-center gap-2">
+                        <h4 className="text-sm font-semibold text-text-primary mb-3 flex items-center gap-2">
                           <span className="w-2 h-2 bg-purple-500 rounded-full"></span>
-                          风险分析师意见
+                          风险分析师意见（{Object.keys(finalResult.llm_analysis.risk_analysts).length}位）
                         </h4>
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                           {finalResult.llm_analysis.risk_analysts.risky && (
                             <div className="p-4 bg-red-50 rounded-lg border border-red-200">
-                              <div className="flex items-center gap-2 mb-2">
-                                <span className="text-lg">🔴</span>
-                                <h5 className="text-sm font-semibold text-red-700">
-                                  激进派
-                                </h5>
+                              <div className="flex items-center justify-between mb-3">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-lg">🔴</span>
+                                  <h5 className="text-sm font-semibold text-red-700">
+                                    激进派
+                                  </h5>
+                                </div>
+                                {finalResult.llm_analysis.risk_analysts.risky.direction && (
+                                  <span className={`text-xs px-2 py-0.5 rounded font-semibold ${
+                                    finalResult.llm_analysis.risk_analysts.risky.direction === 'long'
+                                      ? 'bg-green-100 text-green-700'
+                                      : finalResult.llm_analysis.risk_analysts.risky.direction === 'short'
+                                      ? 'bg-red-100 text-red-700'
+                                      : 'bg-gray-100 text-gray-700'
+                                  }`}>
+                                    {finalResult.llm_analysis.risk_analysts.risky.direction === 'long' ? '看多' :
+                                     finalResult.llm_analysis.risk_analysts.risky.direction === 'short' ? '看空' : '持有'}
+                                  </span>
+                                )}
                               </div>
-                              <p className="text-xs text-text-primary leading-relaxed">
-                                {finalResult.llm_analysis.risk_analysts.risky.reasoning}
-                              </p>
-                              {finalResult.llm_analysis.risk_analysts.risky.full_analysis && (
-                                <details className="mt-2">
-                                  <summary className="text-xs text-red-600 cursor-pointer hover:text-red-700">
-                                    查看完整分析
-                                  </summary>
-                                  <div className="mt-2 p-2 bg-white rounded text-xs">
-                                    <Markdown content={finalResult.llm_analysis.risk_analysts.risky.full_analysis} />
-                                  </div>
-                                </details>
+
+                              {finalResult.llm_analysis.risk_analysts.risky.confidence !== undefined && (
+                                <div className="mb-2 flex items-center justify-between text-xs">
+                                  <span className="text-red-600">置信度</span>
+                                  <span className="font-semibold text-red-700">
+                                    {(finalResult.llm_analysis.risk_analysts.risky.confidence * 100).toFixed(0)}%
+                                  </span>
+                                </div>
                               )}
+
+                              <details className="mt-2" open>
+                                <summary className="text-xs text-red-600 cursor-pointer hover:text-red-700 font-medium mb-2">
+                                  完整分析 ▼
+                                </summary>
+                                <div className="mt-2 p-3 bg-white rounded text-xs border border-red-100 max-h-64 overflow-y-auto">
+                                  <Markdown content={finalResult.llm_analysis.risk_analysts.risky.reasoning || finalResult.llm_analysis.risk_analysts.risky.full_analysis} />
+                                </div>
+                              </details>
                             </div>
                           )}
 
                           {finalResult.llm_analysis.risk_analysts.neutral && (
                             <div className="p-4 bg-gray-50 rounded-lg border border-gray-200">
-                              <div className="flex items-center gap-2 mb-2">
-                                <span className="text-lg">⚪</span>
-                                <h5 className="text-sm font-semibold text-gray-700">
-                                  中立派
-                                </h5>
+                              <div className="flex items-center justify-between mb-3">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-lg">⚪</span>
+                                  <h5 className="text-sm font-semibold text-gray-700">
+                                    中立派
+                                  </h5>
+                                </div>
+                                {finalResult.llm_analysis.risk_analysts.neutral.direction && (
+                                  <span className={`text-xs px-2 py-0.5 rounded font-semibold ${
+                                    finalResult.llm_analysis.risk_analysts.neutral.direction === 'long'
+                                      ? 'bg-green-100 text-green-700'
+                                      : finalResult.llm_analysis.risk_analysts.neutral.direction === 'short'
+                                      ? 'bg-red-100 text-red-700'
+                                      : 'bg-gray-100 text-gray-700'
+                                  }`}>
+                                    {finalResult.llm_analysis.risk_analysts.neutral.direction === 'long' ? '看多' :
+                                     finalResult.llm_analysis.risk_analysts.neutral.direction === 'short' ? '看空' : '持有'}
+                                  </span>
+                                )}
                               </div>
-                              <p className="text-xs text-text-primary leading-relaxed">
-                                {finalResult.llm_analysis.risk_analysts.neutral.reasoning}
-                              </p>
-                              {finalResult.llm_analysis.risk_analysts.neutral.full_analysis && (
-                                <details className="mt-2">
-                                  <summary className="text-xs text-gray-600 cursor-pointer hover:text-gray-700">
-                                    查看完整分析
-                                  </summary>
-                                  <div className="mt-2 p-2 bg-white rounded text-xs">
-                                    <Markdown content={finalResult.llm_analysis.risk_analysts.neutral.full_analysis} />
-                                  </div>
-                                </details>
+
+                              {finalResult.llm_analysis.risk_analysts.neutral.confidence !== undefined && (
+                                <div className="mb-2 flex items-center justify-between text-xs">
+                                  <span className="text-gray-600">置信度</span>
+                                  <span className="font-semibold text-gray-700">
+                                    {(finalResult.llm_analysis.risk_analysts.neutral.confidence * 100).toFixed(0)}%
+                                  </span>
+                                </div>
                               )}
+
+                              <details className="mt-2" open>
+                                <summary className="text-xs text-gray-600 cursor-pointer hover:text-gray-700 font-medium mb-2">
+                                  完整分析 ▼
+                                </summary>
+                                <div className="mt-2 p-3 bg-white rounded text-xs border border-gray-100 max-h-64 overflow-y-auto">
+                                  <Markdown content={finalResult.llm_analysis.risk_analysts.neutral.reasoning || finalResult.llm_analysis.risk_analysts.neutral.full_analysis} />
+                                </div>
+                              </details>
                             </div>
                           )}
 
                           {finalResult.llm_analysis.risk_analysts.safe && (
                             <div className="p-4 bg-green-50 rounded-lg border border-green-200">
-                              <div className="flex items-center gap-2 mb-2">
-                                <span className="text-lg">🟢</span>
-                                <h5 className="text-sm font-semibold text-green-700">
-                                  保守派
-                                </h5>
+                              <div className="flex items-center justify-between mb-3">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-lg">🟢</span>
+                                  <h5 className="text-sm font-semibold text-green-700">
+                                    保守派
+                                  </h5>
+                                </div>
+                                {finalResult.llm_analysis.risk_analysts.safe.direction && (
+                                  <span className={`text-xs px-2 py-0.5 rounded font-semibold ${
+                                    finalResult.llm_analysis.risk_analysts.safe.direction === 'long'
+                                      ? 'bg-green-100 text-green-700'
+                                      : finalResult.llm_analysis.risk_analysts.safe.direction === 'short'
+                                      ? 'bg-red-100 text-red-700'
+                                      : 'bg-gray-100 text-gray-700'
+                                  }`}>
+                                    {finalResult.llm_analysis.risk_analysts.safe.direction === 'long' ? '看多' :
+                                     finalResult.llm_analysis.risk_analysts.safe.direction === 'short' ? '看空' : '持有'}
+                                  </span>
+                                )}
                               </div>
-                              <p className="text-xs text-text-primary leading-relaxed">
-                                {finalResult.llm_analysis.risk_analysts.safe.reasoning}
-                              </p>
-                              {finalResult.llm_analysis.risk_analysts.safe.full_analysis && (
-                                <details className="mt-2">
-                                  <summary className="text-xs text-green-600 cursor-pointer hover:text-green-700">
-                                    查看完整分析
-                                  </summary>
-                                  <div className="mt-2 p-2 bg-white rounded text-xs">
-                                    <Markdown content={finalResult.llm_analysis.risk_analysts.safe.full_analysis} />
-                                  </div>
-                                </details>
+
+                              {finalResult.llm_analysis.risk_analysts.safe.confidence !== undefined && (
+                                <div className="mb-2 flex items-center justify-between text-xs">
+                                  <span className="text-green-600">置信度</span>
+                                  <span className="font-semibold text-green-700">
+                                    {(finalResult.llm_analysis.risk_analysts.safe.confidence * 100).toFixed(0)}%
+                                  </span>
+                                </div>
                               )}
+
+                              <details className="mt-2" open>
+                                <summary className="text-xs text-green-600 cursor-pointer hover:text-green-700 font-medium mb-2">
+                                  完整分析 ▼
+                                </summary>
+                                <div className="mt-2 p-3 bg-white rounded text-xs border border-green-100 max-h-64 overflow-y-auto">
+                                  <Markdown content={finalResult.llm_analysis.risk_analysts.safe.reasoning || finalResult.llm_analysis.risk_analysts.safe.full_analysis} />
+                                </div>
+                              </details>
                             </div>
                           )}
                         </div>
@@ -491,12 +614,26 @@ export function Analysis() {
                     {/* 🆕 风险管理器最终决策 */}
                     {finalResult.llm_analysis.risk_manager_decision && (
                       <div>
-                        <h4 className="text-sm font-semibold text-text-primary mb-2 flex items-center gap-2">
+                        <h4 className="text-sm font-semibold text-text-primary mb-3 flex items-center gap-2">
                           <span className="w-2 h-2 bg-indigo-500 rounded-full"></span>
-                          风险管理器最终决策
+                          🛡️ 风险管理器最终决策
                         </h4>
-                        <div className="p-4 bg-indigo-50 rounded-lg border border-indigo-100">
+                        <div className="p-4 bg-indigo-50 rounded-lg border border-indigo-200">
                           <Markdown content={finalResult.llm_analysis.risk_manager_decision} />
+                        </div>
+                      </div>
+                    )}
+
+                    {/* 风险评估 */}
+                    {finalResult.llm_analysis.risk_assessment &&
+                     finalResult.llm_analysis.risk_assessment !== finalResult.llm_analysis.risk_manager_decision && (
+                      <div>
+                        <h4 className="text-sm font-semibold text-text-primary mb-2 flex items-center gap-2">
+                          <span className="w-2 h-2 bg-yellow-500 rounded-full"></span>
+                          风险评估
+                        </h4>
+                        <div className="p-4 bg-yellow-50 rounded-lg border border-yellow-100">
+                          <Markdown content={finalResult.llm_analysis.risk_assessment} />
                         </div>
                       </div>
                     )}
