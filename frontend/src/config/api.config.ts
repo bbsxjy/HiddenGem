@@ -2,7 +2,7 @@ export const API_CONFIG = {
   baseURL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000',
   wsURL: import.meta.env.VITE_WS_URL || 'ws://localhost:8000',
   timeout: 30000,  // 默认30秒（普通请求）
-  longTimeout: 900000,  // 长时间操作：900秒=15分钟（Agent分析）
+  longTimeout: 300000,  // 长时间操作：300秒=5分钟（Agent分析）
   retryAttempts: 3,
   retryDelay: 1000,
 } as const;
