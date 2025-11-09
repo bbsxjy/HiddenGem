@@ -63,7 +63,8 @@ export function Market() {
   const marketType = detectMarketType(selectedSymbol);
 
   // 判断板块
-  const getBoardType = (symbol: string) => {
+  const getBoardType = (symbol?: string) => {
+    if (!symbol) return { name: '未知', color: 'bg-gray-100 text-gray-700' };
     if (symbol.startsWith('688')) return { name: '科创板', color: 'bg-orange-100 text-orange-700' };
     if (symbol.startsWith('300')) return { name: '创业板', color: 'bg-purple-100 text-purple-700' };
     return { name: '主板', color: 'bg-blue-100 text-blue-700' };
