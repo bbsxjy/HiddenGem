@@ -68,7 +68,7 @@ export function Table<T extends Record<string, any>>({
           <tr>
             {columns.map((column, index) => (
               <th
-                key={column.key || column.accessor?.toString() || index}
+                key={column.key || `col-header-${index}`}
                 className={clsx(
                   'px-4 py-3 text-sm font-semibold text-text-primary',
                   alignClasses[column.align || 'left']
@@ -110,7 +110,7 @@ export function Table<T extends Record<string, any>>({
 
                 return (
                   <td
-                    key={column.key || column.accessor?.toString() || colIndex}
+                    key={column.key || `col-${rowIndex}-${colIndex}`}
                     className={clsx(
                       'px-4 py-3 text-sm text-text-primary',
                       alignClasses[column.align || 'left']
