@@ -251,12 +251,12 @@ export function Dashboard() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             {agents.map((agent) => (
               <div
-                key={agent.name}
+                key={agent.agent_name}
                 className="p-4 border border-gray-200 rounded-lg hover:border-primary-300 transition-colors"
               >
                 <div className="flex items-center justify-between mb-3">
                   <h3 className="text-sm font-semibold text-text-primary">
-                    {agentNameMap[agent.name] || agent.name}
+                    {agentNameMap[agent.agent_name] || agent.agent_name}
                   </h3>
                   <div
                     className={`w-3 h-3 rounded-full ${
