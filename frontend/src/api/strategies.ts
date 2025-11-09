@@ -69,11 +69,20 @@ export async function deleteStrategy(strategyName: string): Promise<{ success: b
  */
 export async function runBacktest(
   strategyName: string,
+  symbol: string,
   config: BacktestConfig
 ): Promise<BacktestResult> {
   const response = await apiClient.post<BacktestResult>(
     API_ENDPOINTS.strategies.backtest(strategyName),
-    config
+    null,
+    {
+      params: {
+        symbol,
+        start_date: config.start_date,
+        end_date: config.end_date,
+        initial_capital: config.initial_capital,
+      },
+    }
   );
   return extractData(response.data);
 }

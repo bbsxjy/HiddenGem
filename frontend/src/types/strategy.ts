@@ -35,17 +35,19 @@ export interface BacktestConfig {
 
 export interface BacktestResult {
   strategy_name: string;
+  symbol: string;  // 后端返回的股票代码
   start_date: string;
   end_date: string;
   initial_capital: number;
-  final_capital: number;
+  final_value: number;  // 后端返回 final_value 而不是 final_capital
   total_return: number;
   total_return_pct: number;
-  annual_return_pct: number;
   sharpe_ratio: number;
   max_drawdown: number;
   win_rate: number;
-  num_trades: number;
+  total_trades: number;  // 后端返回 total_trades 而不是 num_trades
+  avg_holding_days: number;  // 后端返回的平均持仓天数
+  annual_return_pct?: number;  // 可选字段，后端当前未返回
 }
 
 export interface CreateStrategyRequest {

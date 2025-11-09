@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { Card } from '@/components/common/Card';
 import { Input } from '@/components/common/Input';
 import { Button } from '@/components/common/Button';
+import { runBacktest } from '@/api/strategies';
+import type { BacktestResult } from '@/types/strategy';
 import {
   Timer,
   Play,
@@ -19,8 +21,10 @@ export function Backtest() {
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [initialCash, setInitialCash] = useState('100000');
+  const [strategyType, setStrategyType] = useState('rl');
   const [isRunning, setIsRunning] = useState(false);
-  const [results, setResults] = useState<any>(null);
+  const [results, setResults] = useState<BacktestResult | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   const handleRunBacktest = async () => {
     if (!symbol || !startDate || !endDate) {
@@ -29,21 +33,27 @@ export function Backtest() {
     }
 
     setIsRunning(true);
+    setError(null);
 
-    // TODO: Call backtest API
-    // Simulate for now
-    setTimeout(() => {
-      setResults({
-        totalReturn: 23.5,
-        sharpeRatio: 1.85,
-        maxDrawdown: -12.3,
-        winRate: 65.4,
-        totalTrades: 45,
-        avgHoldingDays: 8.5,
-        finalValue: parseFloat(initialCash) * 1.235,
-      });
+    try {
+      // 调用后端 API
+      const result = await runBacktest(
+        strategyType,
+        symbol,
+        {
+          start_date: startDate,
+          end_date: endDate,
+          initial_capital: parseFloat(initialCash),
+        }
+      );
+
+      setResults(result);
+    } catch (err) {
+      console.error('回测失败:', err);
+      setError(err instanceof Error ? err.message : '回测失败，请稍后重试');
+    } finally {
       setIsRunning(false);
-    }, 3000);
+    }
   };
 
   return (
@@ -116,7 +126,11 @@ export function Backtest() {
                 <label className="block text-sm font-medium text-text-primary mb-2">
                   策略类型
                 </label>
-                <select className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500">
+                <select
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  value={strategyType}
+                  onChange={(e) => setStrategyType(e.target.value)}
+                >
                   <option value="rl">RL Agent策略</option>
                   <option value="technical">技术分析策略</option>
                   <option value="fundamental">基本面策略</option>
@@ -155,6 +169,17 @@ export function Backtest() {
                   <p className="text-text-secondary">正在运行回测...</p>
                 </div>
               </div>
+            ) : error ? (
+              <div className="flex items-center justify-center h-96">
+                <div className="text-center">
+                  <AlertCircle className="mx-auto h-16 w-16 text-loss mb-4" />
+                  <p className="text-loss font-medium mb-2">回测失败</p>
+                  <p className="text-text-secondary text-sm">{error}</p>
+                  <Button onClick={handleRunBacktest} className="mt-4">
+                    重试
+                  </Button>
+                </div>
+              </div>
             ) : results ? (
               <div className="space-y-6">
                 {/* Key Metrics Grid */}
@@ -165,7 +190,7 @@ export function Backtest() {
                       <span className="text-xs text-text-secondary">总收益率</span>
                     </div>
                     <p className="text-2xl font-bold text-profit">
-                      +{results.totalReturn.toFixed(2)}%
+                      {results.total_return_pct >= 0 ? '+' : ''}{results.total_return_pct.toFixed(2)}%
                     </p>
                   </div>
 
@@ -175,7 +200,7 @@ export function Backtest() {
                       <span className="text-xs text-text-secondary">夏普比率</span>
                     </div>
                     <p className="text-2xl font-bold text-blue-600">
-                      {results.sharpeRatio.toFixed(2)}
+                      {results.sharpe_ratio.toFixed(2)}
                     </p>
                   </div>
 
@@ -185,7 +210,7 @@ export function Backtest() {
                       <span className="text-xs text-text-secondary">最大回撤</span>
                     </div>
                     <p className="text-2xl font-bold text-loss">
-                      {results.maxDrawdown.toFixed(2)}%
+                      {results.max_drawdown.toFixed(2)}%
                     </p>
                   </div>
 
@@ -195,7 +220,7 @@ export function Backtest() {
                       <span className="text-xs text-text-secondary">胜率</span>
                     </div>
                     <p className="text-2xl font-bold text-primary-600">
-                      {results.winRate.toFixed(1)}%
+                      {(results.win_rate * 100).toFixed(1)}%
                     </p>
                   </div>
                 </div>
@@ -208,19 +233,19 @@ export function Backtest() {
                       <div className="flex justify-between text-sm">
                         <span className="text-text-secondary">总交易次数</span>
                         <span className="font-medium text-text-primary">
-                          {results.totalTrades}
+                          {results.total_trades}
                         </span>
                       </div>
                       <div className="flex justify-between text-sm">
                         <span className="text-text-secondary">平均持仓天数</span>
                         <span className="font-medium text-text-primary">
-                          {results.avgHoldingDays.toFixed(1)} 天
+                          {results.avg_holding_days.toFixed(1)} 天
                         </span>
                       </div>
                       <div className="flex justify-between text-sm">
                         <span className="text-text-secondary">胜率</span>
                         <span className="font-medium text-profit">
-                          {results.winRate.toFixed(1)}%
+                          {(results.win_rate * 100).toFixed(1)}%
                         </span>
                       </div>
                     </div>
@@ -232,19 +257,19 @@ export function Backtest() {
                       <div className="flex justify-between text-sm">
                         <span className="text-text-secondary">初始资金</span>
                         <span className="font-medium text-text-primary">
-                          ¥{parseFloat(initialCash).toLocaleString()}
+                          ¥{results.initial_capital.toLocaleString()}
                         </span>
                       </div>
                       <div className="flex justify-between text-sm">
                         <span className="text-text-secondary">期末资金</span>
                         <span className="font-medium text-profit">
-                          ¥{results.finalValue.toLocaleString('zh-CN', { maximumFractionDigits: 2 })}
+                          ¥{results.final_value.toLocaleString('zh-CN', { maximumFractionDigits: 2 })}
                         </span>
                       </div>
                       <div className="flex justify-between text-sm">
                         <span className="text-text-secondary">总盈亏</span>
-                        <span className="font-medium text-profit">
-                          +¥{(results.finalValue - parseFloat(initialCash)).toLocaleString('zh-CN', { maximumFractionDigits: 2 })}
+                        <span className={`font-medium ${results.total_return >= 0 ? 'text-profit' : 'text-loss'}`}>
+                          {results.total_return >= 0 ? '+' : ''}¥{results.total_return.toLocaleString('zh-CN', { maximumFractionDigits: 2 })}
                         </span>
                       </div>
                     </div>
