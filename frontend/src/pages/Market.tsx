@@ -237,7 +237,7 @@ export function Market() {
                   <div className="text-center md:text-right">
                     <div className="flex items-center justify-center md:justify-end gap-2">
                       <span className="text-2xl sm:text-3xl md:text-4xl font-bold text-text-primary">
-                        ¥{quote.price.toFixed(2)}
+                        ¥{quote.price != null ? quote.price.toFixed(2) : 'N/A'}
                       </span>
                       {isUp ? (
                         <TrendingUp className={`h-6 w-6 sm:h-7 sm:w-7 md:h-8 md:w-8 ${getChangeColor(quote.change_pct, selectedSymbol)}`} />
@@ -249,7 +249,7 @@ export function Market() {
                       {formatPercentage(quote.change_pct)}
                     </div>
                     <div className="text-xs text-text-secondary mt-2">
-                      {new Date(quote.timestamp).toLocaleString('zh-CN')}
+                      {quote.timestamp ? new Date(quote.timestamp).toLocaleString('zh-CN') : 'N/A'}
                     </div>
                     {/* Manual refresh button - 移动端放在价格下方 */}
                     <button
@@ -268,35 +268,41 @@ export function Market() {
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
                   <Card title="开盘价" padding="md">
                     <div className="text-lg sm:text-xl md:text-2xl font-semibold text-text-primary">
-                      ¥{quote.open.toFixed(2)}
+                      ¥{quote.open != null ? quote.open.toFixed(2) : 'N/A'}
                     </div>
                   </Card>
 
                   <Card title="最高价" padding="md">
-                    <div className={`text-lg sm:text-xl md:text-2xl font-semibold ${getChangeColor(quote.high - quote.open, selectedSymbol)}`}>
-                      ¥{quote.high.toFixed(2)}
+                    <div className={`text-lg sm:text-xl md:text-2xl font-semibold ${quote.high != null && quote.open != null ? getChangeColor(quote.high - quote.open, selectedSymbol) : 'text-text-primary'}`}>
+                      ¥{quote.high != null ? quote.high.toFixed(2) : 'N/A'}
                     </div>
-                    <div className="text-[10px] sm:text-xs text-text-secondary mt-1">
-                      涨幅 {((quote.high - quote.open) / quote.open * 100).toFixed(2)}%
-                    </div>
+                    {quote.high != null && quote.open != null && quote.open !== 0 && (
+                      <div className="text-[10px] sm:text-xs text-text-secondary mt-1">
+                        涨幅 {((quote.high - quote.open) / quote.open * 100).toFixed(2)}%
+                      </div>
+                    )}
                   </Card>
 
                   <Card title="最低价" padding="md">
-                    <div className={`text-lg sm:text-xl md:text-2xl font-semibold ${getChangeColor(quote.low - quote.open, selectedSymbol)}`}>
-                      ¥{quote.low.toFixed(2)}
+                    <div className={`text-lg sm:text-xl md:text-2xl font-semibold ${quote.low != null && quote.open != null ? getChangeColor(quote.low - quote.open, selectedSymbol) : 'text-text-primary'}`}>
+                      ¥{quote.low != null ? quote.low.toFixed(2) : 'N/A'}
                     </div>
-                    <div className="text-[10px] sm:text-xs text-text-secondary mt-1">
-                      跌幅 {((quote.open - quote.low) / quote.open * 100).toFixed(2)}%
-                    </div>
+                    {quote.open != null && quote.low != null && quote.open !== 0 && (
+                      <div className="text-[10px] sm:text-xs text-text-secondary mt-1">
+                        跌幅 {((quote.open - quote.low) / quote.open * 100).toFixed(2)}%
+                      </div>
+                    )}
                   </Card>
 
                   <Card title="成交量" padding="md">
                     <div className="text-lg sm:text-xl md:text-2xl font-semibold text-text-primary">
-                      {(quote.volume / 10000).toFixed(2)}万
+                      {quote.volume != null ? (quote.volume / 10000).toFixed(2) : 'N/A'}万
                     </div>
-                    <div className="text-[10px] sm:text-xs text-text-secondary mt-1">
-                      振幅 {((quote.high - quote.low) / quote.open * 100).toFixed(2)}%
-                    </div>
+                    {quote.high != null && quote.low != null && quote.open != null && quote.open !== 0 && (
+                      <div className="text-[10px] sm:text-xs text-text-secondary mt-1">
+                        振幅 {((quote.high - quote.low) / quote.open * 100).toFixed(2)}%
+                      </div>
+                    )}
                   </Card>
                 </div>
               </>
@@ -449,7 +455,7 @@ export function Market() {
                     <div className="p-3 sm:p-4 bg-gray-50 rounded-lg">
                       <div className="text-[10px] sm:text-xs text-text-secondary mb-1">当前价格</div>
                       <div className="text-base sm:text-lg font-semibold text-text-primary">
-                        ¥{quote?.price.toFixed(2)}
+                        ¥{quote?.price != null ? quote.price.toFixed(2) : 'N/A'}
                       </div>
                       <div className={`text-[10px] sm:text-xs font-medium mt-1 ${evaluatePrice(quote?.price, indicators.indicators.ma_5, indicators.indicators.ma_20, indicators.indicators.ma_60).color}`}>
                         {evaluatePrice(quote?.price, indicators.indicators.ma_5, indicators.indicators.ma_20, indicators.indicators.ma_60).desc}
@@ -460,7 +466,7 @@ export function Market() {
                       <div className="text-base sm:text-lg font-semibold text-text-primary">
                         ¥{indicators.indicators.ma_5?.toFixed(2) || 'N/A'}
                       </div>
-                      {quote && indicators.indicators.ma_5 && (
+                      {quote && quote.price != null && indicators.indicators.ma_5 != null && (
                         <div className={`text-[10px] sm:text-xs font-medium mt-1 ${quote.price > indicators.indicators.ma_5 ? 'text-profit' : 'text-loss'}`}>
                           {quote.price > indicators.indicators.ma_5 ? '价格在上方 ↑' : '价格在下方 ↓'}
                         </div>
@@ -471,7 +477,7 @@ export function Market() {
                       <div className="text-base sm:text-lg font-semibold text-text-primary">
                         ¥{indicators.indicators.ma_20?.toFixed(2) || 'N/A'}
                       </div>
-                      {quote && indicators.indicators.ma_20 && (
+                      {quote && quote.price != null && indicators.indicators.ma_20 != null && (
                         <div className={`text-[10px] sm:text-xs font-medium mt-1 ${quote.price > indicators.indicators.ma_20 ? 'text-profit' : 'text-loss'}`}>
                           {quote.price > indicators.indicators.ma_20 ? '价格在上方 ↑' : '价格在下方 ↓'}
                         </div>
@@ -482,7 +488,7 @@ export function Market() {
                       <div className="text-base sm:text-lg font-semibold text-text-primary">
                         ¥{indicators.indicators.ma_60?.toFixed(2) || 'N/A'}
                       </div>
-                      {quote && indicators.indicators.ma_60 && (
+                      {quote && quote.price != null && indicators.indicators.ma_60 != null && (
                         <div className={`text-[10px] sm:text-xs font-medium mt-1 ${quote.price > indicators.indicators.ma_60 ? 'text-profit' : 'text-loss'}`}>
                           {quote.price > indicators.indicators.ma_60 ? '价格在上方 ↑' : '价格在下方 ↓'}
                         </div>
@@ -543,7 +549,7 @@ export function Market() {
                       <div className="text-base sm:text-lg font-semibold text-loss">
                         ¥{indicators.indicators.bb_upper?.toFixed(2) || 'N/A'}
                       </div>
-                      {quote && indicators.indicators.bb_upper && (
+                      {quote && quote.price != null && indicators.indicators.bb_upper != null && (
                         <div className="text-[10px] sm:text-xs font-medium mt-1 text-text-secondary">
                           {quote.price > indicators.indicators.bb_upper ? '价格突破上轨' : '压力位'}
                         </div>
@@ -563,7 +569,7 @@ export function Market() {
                       <div className="text-base sm:text-lg font-semibold text-profit">
                         ¥{indicators.indicators.bb_lower?.toFixed(2) || 'N/A'}
                       </div>
-                      {quote && indicators.indicators.bb_lower && (
+                      {quote && quote.price != null && indicators.indicators.bb_lower != null && (
                         <div className="text-[10px] sm:text-xs font-medium mt-1 text-text-secondary">
                           {quote.price < indicators.indicators.bb_lower ? '价格跌破下轨' : '支撑位'}
                         </div>
