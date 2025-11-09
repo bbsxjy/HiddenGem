@@ -33,9 +33,9 @@ export const API_ENDPOINTS = {
   // Market endpoints - aligned with NEW backend implementation
   market: {
     data: (symbol: string) => `/api/v1/market/data/${symbol}`,  // 获取历史OHLCV数据
-    quote: (symbol: string) => `/api/v1/market/data/${symbol}`,  // 别名，用于即时报价
-    bars: (symbol: string) => `/api/v1/market/data/${symbol}`,   // 别名，用于K线数据
-    indicators: (symbol: string) => `/api/v1/market/data/${symbol}`,  // 技术指标包含在data中
+    quote: (symbol: string) => `/api/v1/market/quote/${symbol}`,  // 即时报价
+    bars: (symbol: string) => `/api/v1/market/data/${symbol}`,   // K线数据
+    indicators: (symbol: string) => `/api/v1/market/indicators/${symbol}`,  // 技术指标
     search: '/api/v1/market/search',
     info: (symbol: string) => `/api/v1/market/info/${symbol}`,
   },
