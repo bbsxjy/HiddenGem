@@ -457,16 +457,16 @@ export function Market() {
                       <div className="text-base sm:text-lg font-semibold text-text-primary">
                         ¥{quote?.price != null ? quote.price.toFixed(2) : 'N/A'}
                       </div>
-                      <div className={`text-[10px] sm:text-xs font-medium mt-1 ${evaluatePrice(quote?.price, indicators.indicators.ma_5, indicators.indicators.ma_20, indicators.indicators.ma_60).color}`}>
-                        {evaluatePrice(quote?.price, indicators.indicators.ma_5, indicators.indicators.ma_20, indicators.indicators.ma_60).desc}
+                      <div className={`text-[10px] sm:text-xs font-medium mt-1 ${evaluatePrice(quote?.price, indicators?.indicators?.ma_5, indicators?.indicators?.ma_20, indicators?.indicators?.ma_60).color}`}>
+                        {evaluatePrice(quote?.price, indicators?.indicators?.ma_5, indicators?.indicators?.ma_20, indicators?.indicators?.ma_60).desc}
                       </div>
                     </div>
                     <div className="p-3 sm:p-4 bg-gray-50 rounded-lg">
                       <div className="text-[10px] sm:text-xs text-text-secondary mb-1">MA5 (5日均线)</div>
                       <div className="text-base sm:text-lg font-semibold text-text-primary">
-                        ¥{indicators.indicators.ma_5?.toFixed(2) || 'N/A'}
+                        ¥{indicators?.indicators?.ma_5?.toFixed(2) || 'N/A'}
                       </div>
-                      {quote && quote.price != null && indicators.indicators.ma_5 != null && (
+                      {quote && quote.price != null && indicators?.indicators?.ma_5 != null && (
                         <div className={`text-[10px] sm:text-xs font-medium mt-1 ${quote.price > indicators.indicators.ma_5 ? 'text-profit' : 'text-loss'}`}>
                           {quote.price > indicators.indicators.ma_5 ? '价格在上方 ↑' : '价格在下方 ↓'}
                         </div>
@@ -475,9 +475,9 @@ export function Market() {
                     <div className="p-3 sm:p-4 bg-gray-50 rounded-lg">
                       <div className="text-[10px] sm:text-xs text-text-secondary mb-1">MA20 (20日均线)</div>
                       <div className="text-base sm:text-lg font-semibold text-text-primary">
-                        ¥{indicators.indicators.ma_20?.toFixed(2) || 'N/A'}
+                        ¥{indicators?.indicators?.ma_20?.toFixed(2) || 'N/A'}
                       </div>
-                      {quote && quote.price != null && indicators.indicators.ma_20 != null && (
+                      {quote && quote.price != null && indicators?.indicators?.ma_20 != null && (
                         <div className={`text-[10px] sm:text-xs font-medium mt-1 ${quote.price > indicators.indicators.ma_20 ? 'text-profit' : 'text-loss'}`}>
                           {quote.price > indicators.indicators.ma_20 ? '价格在上方 ↑' : '价格在下方 ↓'}
                         </div>
@@ -486,9 +486,9 @@ export function Market() {
                     <div className="p-3 sm:p-4 bg-gray-50 rounded-lg">
                       <div className="text-[10px] sm:text-xs text-text-secondary mb-1">MA60 (60日均线)</div>
                       <div className="text-base sm:text-lg font-semibold text-text-primary">
-                        ¥{indicators.indicators.ma_60?.toFixed(2) || 'N/A'}
+                        ¥{indicators?.indicators?.ma_60?.toFixed(2) || 'N/A'}
                       </div>
-                      {quote && quote.price != null && indicators.indicators.ma_60 != null && (
+                      {quote && quote.price != null && indicators?.indicators?.ma_60 != null && (
                         <div className={`text-[10px] sm:text-xs font-medium mt-1 ${quote.price > indicators.indicators.ma_60 ? 'text-profit' : 'text-loss'}`}>
                           {quote.price > indicators.indicators.ma_60 ? '价格在上方 ↑' : '价格在下方 ↓'}
                         </div>
@@ -503,35 +503,35 @@ export function Market() {
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
                     <div className="p-3 sm:p-4 bg-gray-50 rounded-lg">
                       <div className="text-[10px] sm:text-xs text-text-secondary mb-1">RSI (相对强弱)</div>
-                      <div className={`text-base sm:text-lg font-semibold ${evaluateRSI(indicators.indicators.rsi).color}`}>
-                        {evaluateRSI(indicators.indicators.rsi).text}
+                      <div className={`text-base sm:text-lg font-semibold ${evaluateRSI(indicators?.indicators?.rsi).color}`}>
+                        {evaluateRSI(indicators?.indicators?.rsi).text}
                       </div>
                       <div className="text-[10px] sm:text-xs font-medium mt-1 text-text-secondary">
-                        {evaluateRSI(indicators.indicators.rsi).desc || '标准: 30-70'}
+                        {evaluateRSI(indicators?.indicators?.rsi).desc || '标准: 30-70'}
                       </div>
                     </div>
                     <div className="p-3 sm:p-4 bg-gray-50 rounded-lg">
                       <div className="text-[10px] sm:text-xs text-text-secondary mb-1">MACD</div>
-                      <div className={`text-base sm:text-lg font-semibold ${evaluateMACD(indicators.indicators.macd, indicators.indicators.macd_signal).color}`}>
-                        {evaluateMACD(indicators.indicators.macd, indicators.indicators.macd_signal).text}
+                      <div className={`text-base sm:text-lg font-semibold ${evaluateMACD(indicators?.indicators?.macd, indicators?.indicators?.macd_signal).color}`}>
+                        {evaluateMACD(indicators?.indicators?.macd, indicators?.indicators?.macd_signal).text}
                       </div>
                       <div className="text-[10px] sm:text-xs font-medium mt-1 text-text-secondary">
-                        {evaluateMACD(indicators.indicators.macd, indicators.indicators.macd_signal).desc}
+                        {evaluateMACD(indicators?.indicators?.macd, indicators?.indicators?.macd_signal).desc}
                       </div>
                     </div>
                     <div className="p-3 sm:p-4 bg-gray-50 rounded-lg">
                       <div className="text-[10px] sm:text-xs text-text-secondary mb-1">KDJ_K</div>
-                      <div className={`text-base sm:text-lg font-semibold ${evaluateKDJ(indicators.indicators.kdj_k, indicators.indicators.kdj_d).color}`}>
-                        {evaluateKDJ(indicators.indicators.kdj_k, indicators.indicators.kdj_d).text}
+                      <div className={`text-base sm:text-lg font-semibold ${evaluateKDJ(indicators?.indicators?.kdj_k, indicators?.indicators?.kdj_d).color}`}>
+                        {evaluateKDJ(indicators?.indicators?.kdj_k, indicators?.indicators?.kdj_d).text}
                       </div>
                       <div className="text-[10px] sm:text-xs font-medium mt-1 text-text-secondary">
-                        {evaluateKDJ(indicators.indicators.kdj_k, indicators.indicators.kdj_d).desc}
+                        {evaluateKDJ(indicators?.indicators?.kdj_k, indicators?.indicators?.kdj_d).desc}
                       </div>
                     </div>
                     <div className="p-3 sm:p-4 bg-gray-50 rounded-lg">
                       <div className="text-[10px] sm:text-xs text-text-secondary mb-1">KDJ_D</div>
                       <div className="text-base sm:text-lg font-semibold text-text-primary">
-                        {indicators.indicators.kdj_d?.toFixed(2) || 'N/A'}
+                        {indicators?.indicators?.kdj_d?.toFixed(2) || 'N/A'}
                       </div>
                       <div className="text-[10px] sm:text-xs font-medium mt-1 text-text-secondary">
                         标准: 20-80
@@ -547,9 +547,9 @@ export function Market() {
                     <div className="p-3 sm:p-4 bg-gray-50 rounded-lg">
                       <div className="text-[10px] sm:text-xs text-text-secondary mb-1">布林上轨</div>
                       <div className="text-base sm:text-lg font-semibold text-loss">
-                        ¥{indicators.indicators.bb_upper?.toFixed(2) || 'N/A'}
+                        ¥{indicators?.indicators?.bb_upper?.toFixed(2) || 'N/A'}
                       </div>
-                      {quote && quote.price != null && indicators.indicators.bb_upper != null && (
+                      {quote && quote.price != null && indicators?.indicators?.bb_upper != null && (
                         <div className="text-[10px] sm:text-xs font-medium mt-1 text-text-secondary">
                           {quote.price > indicators.indicators.bb_upper ? '价格突破上轨' : '压力位'}
                         </div>
@@ -558,7 +558,7 @@ export function Market() {
                     <div className="p-3 sm:p-4 bg-gray-50 rounded-lg">
                       <div className="text-[10px] sm:text-xs text-text-secondary mb-1">布林中轨</div>
                       <div className="text-base sm:text-lg font-semibold text-text-primary">
-                        ¥{indicators.indicators.bb_middle?.toFixed(2) || 'N/A'}
+                        ¥{indicators?.indicators?.bb_middle?.toFixed(2) || 'N/A'}
                       </div>
                       <div className="text-[10px] sm:text-xs font-medium mt-1 text-text-secondary">
                         中轨参考
@@ -567,9 +567,9 @@ export function Market() {
                     <div className="p-3 sm:p-4 bg-gray-50 rounded-lg">
                       <div className="text-[10px] sm:text-xs text-text-secondary mb-1">布林下轨</div>
                       <div className="text-base sm:text-lg font-semibold text-profit">
-                        ¥{indicators.indicators.bb_lower?.toFixed(2) || 'N/A'}
+                        ¥{indicators?.indicators?.bb_lower?.toFixed(2) || 'N/A'}
                       </div>
-                      {quote && quote.price != null && indicators.indicators.bb_lower != null && (
+                      {quote && quote.price != null && indicators?.indicators?.bb_lower != null && (
                         <div className="text-[10px] sm:text-xs font-medium mt-1 text-text-secondary">
                           {quote.price < indicators.indicators.bb_lower ? '价格跌破下轨' : '支撑位'}
                         </div>
@@ -578,7 +578,7 @@ export function Market() {
                     <div className="p-3 sm:p-4 bg-gray-50 rounded-lg">
                       <div className="text-[10px] sm:text-xs text-text-secondary mb-1">ATR (真实波幅)</div>
                       <div className="text-base sm:text-lg font-semibold text-text-primary">
-                        {indicators.indicators.atr?.toFixed(3) || 'N/A'}
+                        {indicators?.indicators?.atr?.toFixed(3) || 'N/A'}
                       </div>
                       <div className="text-[10px] sm:text-xs font-medium mt-1 text-text-secondary">
                         波动性指标
