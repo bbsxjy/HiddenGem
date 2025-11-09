@@ -30,11 +30,12 @@ export const API_ENDPOINTS = {
     backtest: (strategyName: string) => `/api/v1/strategies/${strategyName}/backtest`,
     stats: (strategyName: string) => `/api/v1/strategies/${strategyName}/stats`,
   },
-  // Market endpoints - aligned with backend API.md
+  // Market endpoints - aligned with NEW backend implementation
   market: {
-    quote: (symbol: string) => `/api/v1/market/quote/${symbol}`,
-    bars: (symbol: string) => `/api/v1/market/bars/${symbol}`,
-    indicators: (symbol: string) => `/api/v1/market/indicators/${symbol}`,
+    data: (symbol: string) => `/api/v1/market/data/${symbol}`,  // 获取历史OHLCV数据
+    quote: (symbol: string) => `/api/v1/market/data/${symbol}`,  // 别名，用于即时报价
+    bars: (symbol: string) => `/api/v1/market/data/${symbol}`,   // 别名，用于K线数据
+    indicators: (symbol: string) => `/api/v1/market/data/${symbol}`,  // 技术指标包含在data中
     search: '/api/v1/market/search',
     info: (symbol: string) => `/api/v1/market/info/${symbol}`,
   },
