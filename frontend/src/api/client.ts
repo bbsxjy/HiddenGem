@@ -101,12 +101,24 @@ function convertNumericFields(data: any): any {
       const value = data[key];
 
       // Convert string numbers to actual numbers for known numeric fields
-      const numericFields = ['price', 'open', 'high', 'low', 'volume', 'close',
-                            'change_pct', 'total_value', 'cash', 'positions_value',
-                            'total_pnl', 'daily_pnl', 'market_value', 'unrealized_pnl',
-                            'avg_cost', 'current_price', 'entry_price', 'target_price',
-                            'stop_loss_price', 'confidence', 'strength', 'score',
-                            'position_size'];
+      const numericFields = [
+        // Quote fields
+        'price', 'open', 'high', 'low', 'volume', 'close', 'change_pct',
+        // Portfolio fields
+        'total_value', 'cash', 'positions_value', 'total_pnl', 'daily_pnl',
+        'market_value', 'unrealized_pnl', 'avg_cost', 'current_price',
+        // Trading fields
+        'entry_price', 'target_price', 'stop_loss_price', 'confidence',
+        'strength', 'score', 'position_size',
+        // Technical indicators
+        'rsi', 'macd', 'macd_signal', 'macd_hist',
+        'ma_5', 'ma_20', 'ma_60',
+        'kdj_k', 'kdj_d', 'kdj_j',
+        'bb_upper', 'bb_middle', 'bb_lower',
+        'atr', 'adx',
+        // Count fields
+        'count', 'calculated_from_days'
+      ];
 
       if (numericFields.includes(key) && typeof value === 'string' && !isNaN(Number(value))) {
         converted[key] = Number(value);
