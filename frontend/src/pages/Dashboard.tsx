@@ -165,7 +165,7 @@ export function Dashboard() {
               <div className="grid grid-cols-2 gap-2">
                 {agents.map((agent) => (
                   <div
-                    key={agent.name}
+                    key={agent.agent_name}
                     className="flex items-center gap-2 p-2 bg-gray-50 rounded"
                   >
                     <div
@@ -174,7 +174,7 @@ export function Dashboard() {
                       }`}
                     />
                     <span className="text-xs text-text-primary">
-                      {agentNameMap[agent.name] || agent.name}
+                      {agentNameMap[agent.agent_name] || agent.agent_name}
                     </span>
                   </div>
                 ))}
