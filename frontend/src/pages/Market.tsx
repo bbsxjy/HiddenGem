@@ -343,7 +343,7 @@ export function Market() {
                 </div>
               )}
 
-              {!barsLoading && !barsError && barsData && barsData.bars.length > 0 ? (
+              {!barsLoading && !barsError && barsData?.bars?.length > 0 ? (
                 <div className="h-64 sm:h-80 md:h-96">
                   <CandlestickChart data={barsData.bars} />
                 </div>
@@ -382,7 +382,7 @@ export function Market() {
                 </div>
               )}
 
-              {!barsLoading && !barsError && barsData && barsData.bars.length > 0 ? (
+              {!barsLoading && !barsError && barsData?.bars?.length > 0 ? (
                 <div className="h-64 sm:h-80">
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={barsData.bars.slice(-20)}>
