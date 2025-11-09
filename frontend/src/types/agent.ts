@@ -59,9 +59,11 @@ export interface AgentAnalysisResult {
  * Risk analyst feedback
  */
 export interface RiskAnalystFeedback {
-  position: string;        // 立场：激进/中立/保守
-  reasoning: string;       // 推理摘要
-  full_analysis: string;   // 完整分析
+  position: string;           // 立场：激进/中立/保守
+  direction?: SignalDirection; // 🆕 交易方向
+  confidence?: number;        // 🆕 置信度 (0-1)
+  reasoning: string;          // 完整分析内容（已改为完整内容）
+  full_analysis: string;      // 完整分析（保持兼容）
 }
 
 /**
@@ -86,6 +88,7 @@ export interface LLMAnalysis {
     take_profit?: number;
   };
   analysis_timestamp: string;             // Analysis timestamp (ISO 8601)
+  signal_processor_summary: string;
 }
 
 /**

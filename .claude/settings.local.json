@@ -27,7 +27,14 @@
       "Bash(git rm:*)",
       "Bash(.gitignore)",
       "Bash(git checkout:*)",
-      "Bash(chmod:*)"
+      "Bash(chmod:*)",
+      "Bash(find:*)",
+      "Bash(wc:*)",
+      "WebSearch",
+      "WebFetch(domain:arxiv.org)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:finrl-contest.readthedocs.io)",
+      "WebFetch(domain:melwy.com)"
     ],
     "deny": [],
     "ask": []

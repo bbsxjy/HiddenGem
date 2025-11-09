@@ -1,0 +1,20 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(python scripts/verify_data_sources.py:*)",
+      "Bash(copy:*)",
+      "WebFetch(domain:tushare.pro)",
+      "Bash(python scripts/test_tushare_api.py:*)",
+      "Bash(python scripts/test_market_agent.py:*)",
+      "Bash(python scripts/test_premium_apis.py:*)",
+      "Bash(python scripts/test_fundamental_agent.py:*)",
+      "WebSearch",
+      "Bash(python scripts/test_risk_agent.py:*)",
+      "Bash(python:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}
