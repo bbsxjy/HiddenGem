@@ -1,7 +1,19 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import {
+  LineChart,
+  Line,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ResponsiveContainer,
+} from 'recharts';
 import { Card } from '@/components/common/Card';
 import { Loading } from '@/components/common/Loading';
 import { Input } from '@/components/common/Input';
@@ -27,6 +39,8 @@ import {
   Trash2,
   Filter,
   X,
+  Activity,
+  PieChart,
 } from 'lucide-react';
 
 export function MemoryBank() {
@@ -111,6 +125,53 @@ export function MemoryBank() {
     setDateTo('');
   };
 
+  // Process chart data
+  const chartData = useMemo(() => {
+    if (!episodes || episodes.length === 0) {
+      return { dailyActivity: [], cumulativeReturns: [] };
+    }
+
+    // Sort episodes by date
+    const sortedEpisodes = [...episodes].sort((a, b) =>
+      new Date(a.date).getTime() - new Date(b.date).getTime()
+    );
+
+    // Daily trading activity (buy/sell count per day)
+    const dailyActivityMap = new Map<string, { date: string; buys: number; sells: number; holds: number }>();
+
+    sortedEpisodes.forEach(ep => {
+      const existing = dailyActivityMap.get(ep.date) || { date: ep.date, buys: 0, sells: 0, holds: 0 };
+
+      if (ep.action === 'buy' || ep.action === '买入') {
+        existing.buys += 1;
+      } else if (ep.action === 'sell' || ep.action === '卖出') {
+        existing.sells += 1;
+      } else {
+        existing.holds += 1;
+      }
+
+      dailyActivityMap.set(ep.date, existing);
+    });
+
+    const dailyActivity = Array.from(dailyActivityMap.values());
+
+    // Cumulative returns over time
+    let cumulativeReturn = 0;
+    const cumulativeReturns = sortedEpisodes
+      .filter(ep => ep.percentage_return !== null && ep.percentage_return !== undefined)
+      .map(ep => {
+        cumulativeReturn += (ep.percentage_return || 0);
+        return {
+          date: ep.date,
+          cumulativeReturn: cumulativeReturn * 100, // Convert to percentage
+          singleReturn: (ep.percentage_return || 0) * 100,
+          symbol: ep.symbol,
+        };
+      });
+
+    return { dailyActivity, cumulativeReturns };
+  }, [episodes]);
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -189,6 +250,122 @@ export function MemoryBank() {
           </Card>
         </div>
       ) : null}
+
+      {/* Charts Section */}
+      {episodes && episodes.length > 0 && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Daily Trading Activity Chart */}
+          <Card className="p-6">
+            <div className="flex items-center gap-2 mb-4">
+              <Activity className="w-5 h-5 text-primary-500" />
+              <h2 className="text-lg font-semibold text-text-primary">每日交易活动</h2>
+            </div>
+            {chartData.dailyActivity.length > 0 ? (
+              <ResponsiveContainer width="100%" height={300}>
+                <BarChart data={chartData.dailyActivity}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                  <XAxis
+                    dataKey="date"
+                    stroke="#6b7280"
+                    tick={{ fontSize: 12 }}
+                    tickFormatter={(value) => {
+                      const date = new Date(value);
+                      return `${date.getMonth() + 1}/${date.getDate()}`;
+                    }}
+                  />
+                  <YAxis stroke="#6b7280" tick={{ fontSize: 12 }} />
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: '#fff',
+                      border: '1px solid #e5e7eb',
+                      borderRadius: '8px',
+                    }}
+                    labelFormatter={(value) => `日期: ${value}`}
+                  />
+                  <Legend />
+                  <Bar dataKey="buys" fill="#10b981" name="买入" />
+                  <Bar dataKey="sells" fill="#ef4444" name="卖出" />
+                  {chartData.dailyActivity.some(d => d.holds > 0) && (
+                    <Bar dataKey="holds" fill="#6b7280" name="持有" />
+                  )}
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="text-center py-8 text-text-secondary">
+                <Activity className="w-12 h-12 mx-auto mb-2 opacity-30" />
+                <p>暂无交易活动数据</p>
+              </div>
+            )}
+          </Card>
+
+          {/* Cumulative Returns Chart */}
+          <Card className="p-6">
+            <div className="flex items-center gap-2 mb-4">
+              <PieChart className="w-5 h-5 text-primary-500" />
+              <h2 className="text-lg font-semibold text-text-primary">累计收益走势</h2>
+            </div>
+            {chartData.cumulativeReturns.length > 0 ? (
+              <ResponsiveContainer width="100%" height={300}>
+                <LineChart data={chartData.cumulativeReturns}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                  <XAxis
+                    dataKey="date"
+                    stroke="#6b7280"
+                    tick={{ fontSize: 12 }}
+                    tickFormatter={(value) => {
+                      const date = new Date(value);
+                      return `${date.getMonth() + 1}/${date.getDate()}`;
+                    }}
+                  />
+                  <YAxis
+                    stroke="#6b7280"
+                    tick={{ fontSize: 12 }}
+                    tickFormatter={(value) => `${value.toFixed(1)}%`}
+                  />
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: '#fff',
+                      border: '1px solid #e5e7eb',
+                      borderRadius: '8px',
+                    }}
+                    labelFormatter={(value) => `日期: ${value}`}
+                    formatter={(value: any, name: string) => {
+                      const num = typeof value === 'number' ? value : parseFloat(value);
+                      return [
+                        `${num >= 0 ? '+' : ''}${num.toFixed(2)}%`,
+                        name === 'cumulativeReturn' ? '累计收益' : '单次收益',
+                      ];
+                    }}
+                  />
+                  <Legend />
+                  <Line
+                    type="monotone"
+                    dataKey="cumulativeReturn"
+                    stroke="#0ea5e9"
+                    strokeWidth={2}
+                    dot={{ fill: '#0ea5e9', r: 4 }}
+                    name="累计收益"
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="singleReturn"
+                    stroke="#8b5cf6"
+                    strokeWidth={1}
+                    dot={{ fill: '#8b5cf6', r: 2 }}
+                    name="单次收益"
+                    strokeDasharray="5 5"
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="text-center py-8 text-text-secondary">
+                <PieChart className="w-12 h-12 mx-auto mb-2 opacity-30" />
+                <p>暂无收益数据</p>
+              </div>
+            )}
+          </Card>
+        </div>
+      )}
 
       {/* Filters */}
       <Card className="p-4">
