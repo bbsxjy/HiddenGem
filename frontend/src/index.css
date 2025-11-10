@@ -114,6 +114,102 @@
     word-break: break-word;
   }
 
+  /* Prose styles for ReactMarkdown */
+  .prose {
+    @apply text-text-primary max-w-none;
+  }
+
+  .prose h1 {
+    @apply text-2xl font-bold text-text-primary mb-4 mt-6;
+  }
+
+  .prose h2 {
+    @apply text-xl font-semibold text-text-primary mb-3 mt-5 border-b border-border pb-2;
+  }
+
+  .prose h3 {
+    @apply text-lg font-semibold text-text-primary mb-2 mt-4;
+  }
+
+  .prose h4 {
+    @apply text-base font-semibold text-text-primary mb-2 mt-3;
+  }
+
+  .prose p {
+    @apply text-text-primary mb-3 leading-relaxed;
+  }
+
+  .prose ul {
+    @apply list-disc list-inside mb-3 space-y-1;
+  }
+
+  .prose ol {
+    @apply list-decimal list-inside mb-3 space-y-1;
+  }
+
+  .prose li {
+    @apply text-text-primary;
+  }
+
+  .prose li > ul,
+  .prose li > ol {
+    @apply ml-4 mt-1;
+  }
+
+  .prose strong {
+    @apply font-semibold text-text-primary;
+  }
+
+  .prose em {
+    @apply italic;
+  }
+
+  .prose code {
+    @apply bg-gray-100 text-gray-800 px-1.5 py-0.5 rounded text-sm font-mono;
+  }
+
+  .prose pre {
+    @apply bg-gray-100 p-4 rounded-lg overflow-x-auto mb-3;
+  }
+
+  .prose pre code {
+    @apply bg-transparent p-0 text-sm;
+  }
+
+  .prose blockquote {
+    @apply border-l-4 border-primary-500 pl-4 italic text-text-secondary mb-3;
+  }
+
+  .prose hr {
+    @apply border-t border-border my-6;
+  }
+
+  .prose a {
+    @apply text-primary-500 hover:text-primary-600 underline;
+  }
+
+  .prose table {
+    @apply w-full border-collapse mb-3;
+  }
+
+  .prose th {
+    @apply bg-gray-100 border border-border px-3 py-2 text-left font-semibold;
+  }
+
+  .prose td {
+    @apply border border-border px-3 py-2;
+  }
+
+  /* Remove first element top margin */
+  .prose > *:first-child {
+    @apply mt-0;
+  }
+
+  /* Remove last element bottom margin */
+  .prose > *:last-child {
+    @apply mb-0;
+  }
+
   /* Line clamp utility */
   .line-clamp-2 {
     display: -webkit-box;

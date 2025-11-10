@@ -1,5 +1,7 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { Card } from '@/components/common/Card';
 import { Loading } from '@/components/common/Loading';
 import { Input } from '@/components/common/Input';
@@ -493,8 +495,12 @@ export function MemoryBank() {
                 {/* Lesson */}
                 {episodeDetail.lesson && (
                   <div className="border border-border rounded-lg p-4">
-                    <h3 className="font-semibold text-text-primary mb-2">经验总结</h3>
-                    <p className="text-text-primary whitespace-pre-wrap">{episodeDetail.lesson}</p>
+                    <h3 className="font-semibold text-text-primary mb-4">经验总结</h3>
+                    <div className="prose prose-sm max-w-none text-text-primary">
+                      <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                        {episodeDetail.lesson}
+                      </ReactMarkdown>
+                    </div>
                   </div>
                 )}
 
