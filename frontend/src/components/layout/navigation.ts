@@ -46,6 +46,11 @@ export const NAV_ITEMS: NavItem[] = [
     icon: ShoppingCart,
   },
   {
+    label: '交易历史',
+    path: '/trade-history',
+    icon: History,
+  },
+  {
     label: '策略管理',
     path: '/strategy',
     icon: LineChart,
