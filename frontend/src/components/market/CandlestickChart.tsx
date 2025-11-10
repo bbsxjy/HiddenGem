@@ -75,13 +75,60 @@ export function CandlestickChart({ data, height }: CandlestickChartProps) {
       candlestickSeriesRef.current = candlestickSeries;
 
       // Convert data to lightweight-charts format
-      const chartData = data.map((bar) => ({
-        time: Math.floor(new Date(bar.date).getTime() / 1000) as any, // Convert to Unix timestamp in seconds
-        open: bar.open,
-        high: bar.high,
-        low: bar.low,
-        close: bar.close,
-      }));
+      const chartData = data
+        .map((bar) => {
+          // Parse date - handle multiple formats
+          let timestamp: number;
+
+          if (typeof bar.date === 'number') {
+            // Already a timestamp
+            timestamp = bar.date;
+          } else if (typeof bar.date === 'string') {
+            // Parse date string - ensure proper format
+            const parsedDate = new Date(bar.date.replace(/\s+/g, 'T')); // Handle space-separated datetime
+            timestamp = parsedDate.getTime();
+          } else {
+            console.warn('Invalid date type:', typeof bar.date, bar.date);
+            return null;
+          }
+
+          const timeInSeconds = Math.floor(timestamp / 1000);
+
+          // Validate timestamp and OHLC values
+          if (
+            isNaN(timestamp) ||
+            isNaN(timeInSeconds) ||
+            timeInSeconds <= 0 ||
+            !bar.open ||
+            !bar.high ||
+            !bar.low ||
+            !bar.close ||
+            bar.open <= 0 ||
+            bar.high <= 0 ||
+            bar.low <= 0 ||
+            bar.close <= 0
+          ) {
+            console.warn('Invalid bar data:', bar, 'timestamp:', timeInSeconds);
+            return null;
+          }
+
+          return {
+            time: timeInSeconds as any, // Unix timestamp in seconds
+            open: bar.open,
+            high: bar.high,
+            low: bar.low,
+            close: bar.close,
+          };
+        })
+        .filter((bar): bar is NonNullable<typeof bar> => bar !== null) // Remove invalid entries
+        .sort((a, b) => a.time - b.time); // Sort by time ascending
+
+      // Log the final data for debugging
+      if (chartData.length > 0) {
+        console.log('Chart data sample:', chartData.slice(0, 3), '...', chartData.slice(-3));
+      } else {
+        console.error('No valid chart data after filtering');
+      }
 
       candlestickSeries.setData(chartData);
 

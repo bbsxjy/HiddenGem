@@ -100,6 +100,9 @@ function convertNumericFields(data: any): any {
     for (const key in data) {
       const value = data[key];
 
+      // Fields that should never be converted to numbers
+      const dateFields = ['date', 'timestamp', 'created_at', 'updated_at'];
+
       // Convert string numbers to actual numbers for known numeric fields
       const numericFields = [
         // Quote fields
@@ -120,7 +123,10 @@ function convertNumericFields(data: any): any {
         'count', 'calculated_from_days'
       ];
 
-      if (numericFields.includes(key) && typeof value === 'string' && !isNaN(Number(value))) {
+      // Skip date fields - keep as strings
+      if (dateFields.includes(key)) {
+        converted[key] = value;
+      } else if (numericFields.includes(key) && typeof value === 'string' && !isNaN(Number(value))) {
         converted[key] = Number(value);
       } else if (typeof value === 'object') {
         converted[key] = convertNumericFields(value);

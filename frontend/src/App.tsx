@@ -13,6 +13,7 @@ import { Strategy } from './pages/Strategy';
 import { Agents } from './pages/Agents';
 import { Backtest } from './pages/Backtest';
 import { Settings } from './pages/Settings';
+import { MemoryBank } from './pages/MemoryBank';
 
 // Create a client
 const queryClient = new QueryClient({
@@ -53,6 +54,7 @@ function App() {
                     <Route path="/strategy" element={<Strategy />} />
                     <Route path="/agents" element={<Agents />} />
                     <Route path="/backtest" element={<Backtest />} />
+                    <Route path="/memory" element={<MemoryBank />} />
                     <Route path="/settings" element={<Settings />} />
                   </Routes>
                 </Layout>

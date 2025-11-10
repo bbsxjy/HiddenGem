@@ -32,7 +32,15 @@ export function Market() {
   // Fetch historical bars
   const { data: barsData, isLoading: barsLoading, error: barsError, refetch: refetchBars } = useQuery({
     queryKey: ['bars', selectedSymbol],
-    queryFn: () => getBars(selectedSymbol, { days: 60 }),
+    queryFn: async () => {
+      const result = await getBars(selectedSymbol, { days: 60 });
+      console.log('📊 [Market] Bars API response:', result);
+      if (result?.bars && result.bars.length > 0) {
+        console.log('📊 [Market] First bar:', result.bars[0]);
+        console.log('📊 [Market] Last bar:', result.bars[result.bars.length - 1]);
+      }
+      return result;
+    },
     enabled: !!selectedSymbol,
     retry: 1,
   });

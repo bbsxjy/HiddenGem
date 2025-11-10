@@ -7,6 +7,7 @@ import {
   LineChart,
   Brain,
   Timer,
+  Database,
   Settings,
   type LucideIcon,
 } from 'lucide-react';
@@ -57,6 +58,11 @@ export const NAV_ITEMS: NavItem[] = [
     label: '回测系统',
     path: '/backtest',
     icon: Timer,
+  },
+  {
+    label: 'Memory Bank',
+    path: '/memory',
+    icon: Database,
   },
   {
     label: '设置',
