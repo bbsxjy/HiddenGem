@@ -4,6 +4,7 @@ import {
   TrendingUp,
   Briefcase,
   ShoppingCart,
+  History,
   LineChart,
   Brain,
   Timer,

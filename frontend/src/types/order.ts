@@ -13,6 +13,7 @@ export type OrderStatus =
 export interface Order {
   id: number;
   symbol: string;
+  name?: string;  // 股票名称
   side: OrderSide;
   order_type: OrderType;
   quantity: number;
@@ -23,6 +24,7 @@ export interface Order {
   created_at: string;
   filled_at?: string;
   strategy_name?: string;
+  reasoning?: string;  // 交易原因
 }
 
 export interface CreateOrderRequest {
