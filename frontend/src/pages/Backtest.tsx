@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Card } from '@/components/common/Card';
 import { Input } from '@/components/common/Input';
 import { Button } from '@/components/common/Button';
+import { EquityCurveChart } from '@/components/strategy/EquityCurveChart';
 import { runBacktest } from '@/api/strategies';
 import type { BacktestResult } from '@/types/strategy';
 import {
@@ -276,14 +277,21 @@ export function Backtest() {
                   </div>
                 </div>
 
-                {/* Chart Placeholder */}
+                {/* Equity Curve Chart */}
                 <div className="border-t border-gray-200 pt-6">
                   <h3 className="text-sm font-semibold text-text-primary mb-4">资金曲线</h3>
-                  <div className="h-64 bg-gray-50 rounded-lg flex items-center justify-center">
-                    <p className="text-text-secondary text-sm">
-                      图表功能开发中...
-                    </p>
-                  </div>
+                  {results.equity_curve && results.equity_curve.length > 0 ? (
+                    <EquityCurveChart
+                      data={results.equity_curve}
+                      initialCapital={results.initial_capital}
+                    />
+                  ) : (
+                    <div className="h-64 bg-gray-50 rounded-lg flex items-center justify-center">
+                      <p className="text-text-secondary text-sm">
+                        暂无资金曲线数据
+                      </p>
+                    </div>
+                  )}
                 </div>
               </div>
             ) : (

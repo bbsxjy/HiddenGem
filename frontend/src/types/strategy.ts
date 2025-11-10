@@ -33,6 +33,12 @@ export interface BacktestConfig {
   symbols?: string[];
 }
 
+export interface EquityCurvePoint {
+  date: string;
+  value: number;
+  daily_return?: number;
+}
+
 export interface BacktestResult {
   strategy_name: string;
   symbol: string;  // 后端返回的股票代码
@@ -47,6 +53,7 @@ export interface BacktestResult {
   win_rate: number;
   total_trades: number;  // 后端返回 total_trades 而不是 num_trades
   avg_holding_days: number;  // 后端返回的平均持仓天数
+  equity_curve: EquityCurvePoint[];  // 资金曲线数据
   annual_return_pct?: number;  // 可选字段，后端当前未返回
 }
 
