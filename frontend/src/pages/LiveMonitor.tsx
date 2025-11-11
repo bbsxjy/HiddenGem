@@ -1,4 +1,3 @@
-import { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Card } from '@/components/common/Card';
 import {
@@ -23,13 +22,13 @@ interface StockDecision {
   decision: 'buy' | 'sell' | 'hold' | 'skip';
   reason: string;
   price?: number;
+  change?: number;
+  volume?: number;
   suggested_quantity?: number;
   confidence?: number;
 }
 
 export function LiveMonitor() {
-  const [decisions, setDecisions] = useState<StockDecision[]>([]);
-
   // Fetch auto trading status
   const { data: autoTradingStatus } = useQuery({
     queryKey: ['autoTradingStatus'],
@@ -38,6 +37,17 @@ export function LiveMonitor() {
       return response.data.data;
     },
     refetchInterval: 3000, // 每3秒刷新
+  });
+
+  // Fetch stock decisions (real-time)
+  const { data: stockDecisions } = useQuery({
+    queryKey: ['stockDecisions'],
+    queryFn: async () => {
+      const response = await axios.get(`${API_BASE_URL}/api/v1/auto-trading/decisions`);
+      return response.data.data || [];
+    },
+    refetchInterval: 5000, // 每5秒刷新
+    enabled: autoTradingStatus?.is_running || false, // 只有在运行时才获取
   });
 
   // Fetch recent trading signals
@@ -49,26 +59,12 @@ export function LiveMonitor() {
       });
       return response.data.data || [];
     },
-    refetchInterval: 5000, // 每5秒刷新
+    refetchInterval: 10000, // 每10秒刷新
   });
-
-  // 模拟从自动交易日志中提取决策信息
-  useEffect(() => {
-    if (autoTradingStatus && autoTradingStatus.current_symbols) {
-      const mockDecisions: StockDecision[] = autoTradingStatus.current_symbols.map((symbol: string) => ({
-        symbol,
-        name: symbol, // 实际应该从市场数据API获取
-        last_check: new Date().toISOString(),
-        decision: 'hold',
-        reason: '等待市场数据连接',
-        confidence: 0.5,
-      }));
-      setDecisions(mockDecisions);
-    }
-  }, [autoTradingStatus]);
 
   const isRunning = autoTradingStatus?.is_running || false;
   const isTradingHours = autoTradingStatus?.is_trading_hours || false;
+  const decisions = stockDecisions || [];
 
   const getDecisionIcon = (decision: string) => {
     switch (decision) {
@@ -260,6 +256,31 @@ export function LiveMonitor() {
                       {stock.reason}
                     </p>
 
+                    {stock.price && (
+                      <div className="flex items-center gap-4 mb-2 text-sm">
+                        <div>
+                          <span className="text-text-secondary">当前价格：</span>
+                          <span className="font-semibold text-text-primary ml-1">¥{stock.price.toFixed(2)}</span>
+                        </div>
+                        {stock.change !== undefined && (
+                          <div>
+                            <span className="text-text-secondary">涨跌幅：</span>
+                            <span className={`font-semibold ml-1 ${stock.change >= 0 ? 'text-profit' : 'text-loss'}`}>
+                              {stock.change >= 0 ? '+' : ''}{stock.change.toFixed(2)}%
+                            </span>
+                          </div>
+                        )}
+                        {stock.volume && (
+                          <div>
+                            <span className="text-text-secondary">成交量：</span>
+                            <span className="font-medium text-text-primary ml-1">
+                              {(stock.volume / 10000).toFixed(2)}万
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
                     {stock.confidence !== undefined && (
                       <div className="flex items-center gap-2 mb-2">
                         <span className="text-sm text-text-secondary">置信度：</span>
@@ -275,16 +296,13 @@ export function LiveMonitor() {
                       </div>
                     )}
 
-                    {stock.price && (
+                    {stock.suggested_quantity && (
                       <p className="text-sm text-text-secondary">
-                        <span className="font-medium">当前价格：</span>
-                        ¥{stock.price.toFixed(2)}
-                        {stock.suggested_quantity && (
-                          <span className="ml-3">
-                            <span className="font-medium">建议数量：</span>
-                            {stock.suggested_quantity}股
-                          </span>
-                        )}
+                        <span className="font-medium">建议数量：</span>
+                        {stock.suggested_quantity}股
+                        <span className="ml-2 text-xs">
+                          (约 ¥{(stock.suggested_quantity * (stock.price || 0)).toFixed(0)})
+                        </span>
                       </p>
                     )}
                   </div>
