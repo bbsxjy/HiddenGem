@@ -5,6 +5,7 @@ import { Table } from '@/components/common/Table';
 import { getPortfolioSummary, getCurrentPositions, getPortfolioHistory } from '@/api/portfolio';
 import { getQuote } from '@/api/market';
 import { formatCurrency, formatPercentage, formatProfitLoss, getChangeColor } from '@/utils/format';
+import { useSettingsStore } from '@/store/useSettingsStore';
 import {
   TrendingUp,
   DollarSign,
@@ -14,51 +15,53 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 import type { Position } from '@/types/portfolio';
 
 export function OverviewTab() {
+  // Get refresh intervals from settings
+  const { dataRefresh } = useSettingsStore();
 
   // Fetch portfolio summary
   const { data: summary, isLoading: summaryLoading } = useQuery({
     queryKey: ['portfolio', 'summary'],
     queryFn: getPortfolioSummary,
-    refetchInterval: 30000,
+    refetchInterval: dataRefresh.positionDataInterval * 1000,
   });
 
   // Fetch current positions
   const { data: positions, isLoading: positionsLoading } = useQuery({
     queryKey: ['portfolio', 'positions'],
     queryFn: getCurrentPositions,
-    refetchInterval: 30000,
+    refetchInterval: dataRefresh.positionDataInterval * 1000,
   });
 
   // Fetch portfolio history
   const { data: history, isLoading: historyLoading } = useQuery({
     queryKey: ['portfolio', 'history'],
     queryFn: () => getPortfolioHistory(30),
-    refetchInterval: 60000,
+    refetchInterval: dataRefresh.positionDataInterval * 1000 * 2,
   });
 
   // Fetch market indices
   const { data: hs300 } = useQuery({
     queryKey: ['market', 'quote', '000300.SH'],
     queryFn: () => getQuote('000300.SH'),
-    refetchInterval: 30000,
+    refetchInterval: dataRefresh.marketDataInterval * 1000,
   });
 
   const { data: shIndex } = useQuery({
     queryKey: ['market', 'quote', '000001.SH'],
     queryFn: () => getQuote('000001.SH'),
-    refetchInterval: 30000,
+    refetchInterval: dataRefresh.marketDataInterval * 1000,
   });
 
   const { data: szIndex } = useQuery({
     queryKey: ['market', 'quote', '399001.SZ'],
     queryFn: () => getQuote('399001.SZ'),
-    refetchInterval: 30000,
+    refetchInterval: dataRefresh.marketDataInterval * 1000,
   });
 
   const { data: cybIndex } = useQuery({
     queryKey: ['market', 'quote', '399006.SZ'],
     queryFn: () => getQuote('399006.SZ'),
-    refetchInterval: 30000,
+    refetchInterval: dataRefresh.marketDataInterval * 1000,
   });
 
   // Prepare chart data
