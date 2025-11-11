@@ -3,9 +3,24 @@ import { useQuery } from '@tanstack/react-query';
 import { Card } from '@/components/common/Card';
 import { Button } from '@/components/common/Button';
 import { Input } from '@/components/common/Input';
+import { Loading } from '@/components/common/Loading';
 import { checkHealth } from '@/api/health';
+import { getAgentsStatus } from '@/api/agents';
 import { useSettingsStore } from '@/store/useSettingsStore';
-import { Settings as SettingsIcon, Server, Database, RefreshCw, BookOpen, Info, Save, RotateCcw } from 'lucide-react';
+import {
+  Settings as SettingsIcon,
+  Server,
+  Database,
+  RefreshCw,
+  BookOpen,
+  Info,
+  Save,
+  RotateCcw,
+  Brain,
+  CheckCircle2,
+  AlertCircle,
+  XCircle,
+} from 'lucide-react';
 
 export function Settings() {
   const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
@@ -17,6 +32,23 @@ export function Settings() {
     queryFn: checkHealth,
     refetchInterval: 30000,
   });
+
+  // Fetch agents status
+  const { data: agents, isLoading: agentsLoading } = useQuery({
+    queryKey: ['agents', 'status'],
+    queryFn: getAgentsStatus,
+    refetchInterval: 30000,
+  });
+
+  const agentNameMap: Record<string, string> = {
+    technical: '技术分析',
+    fundamental: '基本面分析',
+    sentiment: '情绪分析',
+    policy: '政策分析',
+    market: '市场分析',
+    risk: '风险管理',
+    execution: '执行代理',
+  };
 
   // Settings store
   const {
@@ -491,6 +523,106 @@ export function Settings() {
             数据刷新间隔默认为30秒，与数据源更新频率保持一致。过短的刷新间隔可能导致API请求过于频繁。
           </div>
         </div>
+      </Card>
+
+      {/* Agent Management */}
+      <Card
+        title={<div className="flex items-center gap-2"><Brain size={18} />Agent管理</div>}
+        padding="md"
+      >
+        {agentsLoading ? (
+          <div className="flex items-center justify-center py-12">
+            <Loading size="md" text="加载Agent状态..." />
+          </div>
+        ) : agents && agents.length > 0 ? (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+              <div className="flex items-center gap-3">
+                <Brain className="h-6 w-6 text-primary-500" />
+                <span className="text-sm font-semibold text-text-primary">
+                  运行状态: {agents.filter(a => a.enabled).length}/{agents.length} 在线
+                </span>
+              </div>
+              <div className="text-sm text-text-secondary">
+                最后更新: {new Date().toLocaleTimeString('zh-CN')}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {agents.map((agent) => (
+                <div
+                  key={agent.agent_name}
+                  className={`p-4 rounded-lg border-2 transition-all ${
+                    agent.enabled
+                      ? 'border-profit bg-green-50'
+                      : 'border-gray-300 bg-gray-50'
+                  }`}
+                >
+                  <div className="flex items-start justify-between mb-3">
+                    <div className="flex items-center gap-2">
+                      {agent.enabled ? (
+                        <CheckCircle2 size={20} className="text-profit" />
+                      ) : (
+                        <XCircle size={20} className="text-gray-400" />
+                      )}
+                      <h3 className="font-semibold text-text-primary">
+                        {agentNameMap[agent.agent_name] || agent.agent_name}
+                      </h3>
+                    </div>
+                    <span
+                      className={`px-2 py-1 text-xs font-medium rounded-full ${
+                        agent.enabled
+                          ? 'bg-profit text-white'
+                          : 'bg-gray-300 text-gray-600'
+                      }`}
+                    >
+                      {agent.enabled ? '运行中' : '已停用'}
+                    </span>
+                  </div>
+
+                  <div className="space-y-2 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-text-secondary">类型:</span>
+                      <span className="font-medium text-text-primary">
+                        {agent.agent_type || 'N/A'}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-text-secondary">版本:</span>
+                      <span className="font-medium text-text-primary">
+                        {agent.version || 'N/A'}
+                      </span>
+                    </div>
+                    {agent.last_active && (
+                      <div className="flex justify-between">
+                        <span className="text-text-secondary">最后活跃:</span>
+                        <span className="font-medium text-text-primary">
+                          {new Date(agent.last_active).toLocaleString('zh-CN')}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+
+                  {agent.description && (
+                    <p className="mt-3 text-xs text-text-secondary border-t border-gray-200 pt-3">
+                      {agent.description}
+                    </p>
+                  )}
+                </div>
+              ))}
+            </div>
+
+            <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-800">
+              <strong>说明：</strong>
+              Agent状态由后端系统自动管理。所有启用的Agent将参与市场分析和交易决策。
+            </div>
+          </div>
+        ) : (
+          <div className="text-center py-12 text-text-secondary">
+            <Brain className="mx-auto h-16 w-16 text-text-secondary mb-4" />
+            <p>暂无Agent数据</p>
+          </div>
+        )}
       </Card>
 
       {/* API Documentation */}
