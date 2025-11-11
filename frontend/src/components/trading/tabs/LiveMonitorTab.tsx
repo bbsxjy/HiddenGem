@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { Card } from '@/components/common/Card';
+import { useSettingsStore } from '@/store/useSettingsStore';
 import {
   Activity,
   TrendingUp,
@@ -29,6 +30,9 @@ interface StockDecision {
 }
 
 export function LiveMonitorTab() {
+  // Get refresh intervals from settings
+  const { dataRefresh } = useSettingsStore();
+
   // Fetch auto trading status
   const { data: autoTradingStatus } = useQuery({
     queryKey: ['autoTradingStatus'],
@@ -36,7 +40,7 @@ export function LiveMonitorTab() {
       const response = await axios.get(`${API_BASE_URL}/api/v1/auto-trading/status`);
       return response.data.data;
     },
-    refetchInterval: 30000,
+    refetchInterval: dataRefresh.marketDataInterval * 1000,
   });
 
   // Fetch stock decisions (real-time)
@@ -46,7 +50,7 @@ export function LiveMonitorTab() {
       const response = await axios.get(`${API_BASE_URL}/api/v1/auto-trading/decisions`);
       return response.data.data || [];
     },
-    refetchInterval: 30000,
+    refetchInterval: dataRefresh.marketDataInterval * 1000,
     enabled: autoTradingStatus?.is_running || false,
   });
 
@@ -59,7 +63,7 @@ export function LiveMonitorTab() {
       });
       return response.data.data || [];
     },
-    refetchInterval: 30000,
+    refetchInterval: dataRefresh.signalInterval * 1000,
   });
 
   const isRunning = autoTradingStatus?.is_running || false;

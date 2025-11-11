@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card } from '@/components/common/Card';
 import { Button } from '@/components/common/Button';
 import { Input } from '@/components/common/Input';
+import { useSettingsStore } from '@/store/useSettingsStore';
 import {
   Play,
   Square,
@@ -36,6 +37,9 @@ interface StockDecision {
 export function AutoTradingTab() {
   const queryClient = useQueryClient();
 
+  // Get refresh intervals from settings
+  const { dataRefresh } = useSettingsStore();
+
   // 自动交易配置
   const [symbols, setSymbols] = useState('000001,600519,000858');
   const [initialCash, setInitialCash] = useState(100000);
@@ -49,7 +53,7 @@ export function AutoTradingTab() {
       const response = await axios.get(`${API_BASE_URL}/api/v1/auto-trading/status`);
       return response.data.data;
     },
-    refetchInterval: 30000,
+    refetchInterval: dataRefresh.marketDataInterval * 1000,
   });
 
   // Fetch stock decisions (real-time)
@@ -59,7 +63,7 @@ export function AutoTradingTab() {
       const response = await axios.get(`${API_BASE_URL}/api/v1/auto-trading/decisions`);
       return response.data.data || [];
     },
-    refetchInterval: 30000,
+    refetchInterval: dataRefresh.marketDataInterval * 1000,
     enabled: autoTradingStatus?.is_running || false,
   });
 
@@ -72,7 +76,7 @@ export function AutoTradingTab() {
       });
       return response.data.data || [];
     },
-    refetchInterval: 30000,
+    refetchInterval: dataRefresh.signalInterval * 1000,
     enabled: autoTradingStatus?.is_running || false,
   });
 

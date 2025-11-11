@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Card } from '@/components/common/Card';
 import { Loading } from '@/components/common/Loading';
 import { getAgentsStatus } from '@/api/agents';
+import { useSettingsStore } from '@/store/useSettingsStore';
 import {
   Activity,
   CheckCircle2,
@@ -16,11 +17,14 @@ import {
 export function AgentsTab() {
   const [selectedAgent, setSelectedAgent] = useState<string | null>(null);
 
+  // Get refresh intervals from settings
+  const { dataRefresh } = useSettingsStore();
+
   // Fetch agents status
   const { data: agents, isLoading, error } = useQuery({
     queryKey: ['agents', 'status'],
     queryFn: getAgentsStatus,
-    refetchInterval: 30000,
+    refetchInterval: dataRefresh.agentStatusInterval * 1000,
   });
 
   const agentNameMap: Record<string, string> = {
