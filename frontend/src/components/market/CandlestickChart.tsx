@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { createChart, ISeriesApi } from 'lightweight-charts';
+import { createChart } from 'lightweight-charts';
 import type { BarData } from '@/types/market';
 
 interface IndicatorData {
