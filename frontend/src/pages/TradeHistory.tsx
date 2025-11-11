@@ -35,7 +35,7 @@ export function TradeHistory() {
   const fetchTradeHistory = async () => {
     setIsLoading(true);
     try {
-      const response = await axios.get(`${API_BASE_URL}/api/orders/history/recent`, {
+      const response = await axios.get(`${API_BASE_URL}/api/v1/orders/history/recent`, {
         params: { days: daysFilter }
       });
 
