@@ -1,10 +1,10 @@
 import { Tab } from '@headlessui/react';
-import { LayoutDashboard, Briefcase, History, Star, Brain } from 'lucide-react';
+import { LayoutDashboard, History, Star, Brain, Shield } from 'lucide-react';
 import { OverviewTab } from '@/components/dashboard/tabs/OverviewTab';
-import { PortfolioTab } from '@/components/dashboard/tabs/PortfolioTab';
 import { HistoryTab } from '@/components/dashboard/tabs/HistoryTab';
 import { WatchlistTab } from '@/components/dashboard/tabs/WatchlistTab';
 import { AgentsTab } from '@/components/dashboard/tabs/AgentsTab';
+import { RiskTab } from '@/components/dashboard/tabs/RiskTab';
 import clsx from 'clsx';
 
 export function Dashboard() {
@@ -13,11 +13,6 @@ export function Dashboard() {
       name: '总览',
       icon: LayoutDashboard,
       component: OverviewTab,
-    },
-    {
-      name: '投资组合',
-      icon: Briefcase,
-      component: PortfolioTab,
     },
     {
       name: '交易历史',
@@ -33,6 +28,11 @@ export function Dashboard() {
       name: 'Agent状态',
       icon: Brain,
       component: AgentsTab,
+    },
+    {
+      name: '风险管理',
+      icon: Shield,
+      component: RiskTab,
     },
   ];
 

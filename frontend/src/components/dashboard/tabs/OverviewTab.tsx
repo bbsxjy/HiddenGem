@@ -1,9 +1,10 @@
 import { useQuery } from '@tanstack/react-query';
 import { Card } from '@/components/common/Card';
 import { Loading } from '@/components/common/Loading';
-import { getPortfolioSummary } from '@/api/portfolio';
+import { Table } from '@/components/common/Table';
+import { getPortfolioSummary, getCurrentPositions, getPortfolioHistory } from '@/api/portfolio';
 import { getAgentsStatus } from '@/api/agents';
-import { formatCurrency, formatPercentage, formatProfitLoss } from '@/utils/format';
+import { formatCurrency, formatPercentage, formatProfitLoss, getChangeColor } from '@/utils/format';
 import {
   TrendingUp,
   DollarSign,
@@ -14,6 +15,8 @@ import {
   AlertCircle,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import type { Position } from '@/types/portfolio';
 
 export function OverviewTab() {
   const navigate = useNavigate();
@@ -32,6 +35,20 @@ export function OverviewTab() {
     refetchInterval: 30000,
   });
 
+  // Fetch current positions
+  const { data: positions, isLoading: positionsLoading } = useQuery({
+    queryKey: ['portfolio', 'positions'],
+    queryFn: getCurrentPositions,
+    refetchInterval: 30000,
+  });
+
+  // Fetch portfolio history
+  const { data: history, isLoading: historyLoading } = useQuery({
+    queryKey: ['portfolio', 'history'],
+    queryFn: () => getPortfolioHistory(30),
+    refetchInterval: 60000,
+  });
+
   const enabledAgentsCount = agents?.filter(a => a.enabled).length || 0;
   const totalAgentsCount = agents?.length || 0;
 
@@ -41,6 +58,69 @@ export function OverviewTab() {
     sentiment: '情绪分析',
     policy: '政策分析',
   };
+
+  // Prepare chart data
+  const chartData = history?.snapshots.map(snapshot => ({
+    date: new Date(snapshot.timestamp).toLocaleDateString('zh-CN'),
+    总价值: snapshot.total_value,
+    盈亏: snapshot.total_pnl,
+  })) || [];
+
+  // Prepare positions table data
+  const positionColumns = [
+    {
+      header: '股票代码',
+      accessor: 'symbol' as const,
+      cell: (value: string) => (
+        <span className="font-semibold text-text-primary">{value}</span>
+      ),
+    },
+    {
+      header: '数量',
+      accessor: 'quantity' as const,
+      cell: (value: number) => value.toLocaleString(),
+    },
+    {
+      header: '成本价',
+      accessor: 'avg_cost' as const,
+      cell: (value: number) => `¥${value.toFixed(2)}`,
+    },
+    {
+      header: '当前价',
+      accessor: 'current_price' as const,
+      cell: (value: number) => `¥${value.toFixed(2)}`,
+    },
+    {
+      header: '市值',
+      accessor: 'market_value' as const,
+      cell: (value: number) => formatCurrency(value),
+    },
+    {
+      header: '盈亏',
+      accessor: 'unrealized_pnl' as const,
+      cell: (value: number, row: Position) => (
+        <span className={getChangeColor(value, row.symbol)}>
+          {formatCurrency(value)}
+        </span>
+      ),
+    },
+    {
+      header: '收益率',
+      accessor: 'unrealized_pnl_pct' as const,
+      cell: (value: number, row: Position) => (
+        <span className={getChangeColor(value, row.symbol)}>
+          {formatPercentage(value)}
+        </span>
+      ),
+    },
+    {
+      header: '策略',
+      accessor: 'strategy_name' as const,
+      cell: (value?: string) => (
+        <span className="text-sm text-text-secondary">{value || 'N/A'}</span>
+      ),
+    },
+  ];
 
   return (
     <div className="space-y-6">
@@ -114,6 +194,76 @@ export function OverviewTab() {
             暂无投资组合数据
           </div>
         )}
+      </div>
+
+      {/* Portfolio History Chart */}
+      <div>
+        <h2 className="text-lg font-semibold text-text-primary mb-4">资产走势（30天）</h2>
+        <Card padding="md">
+          {historyLoading ? (
+            <div className="h-80 flex items-center justify-center">
+              <Loading size="sm" text="加载历史数据..." />
+            </div>
+          ) : chartData.length > 0 ? (
+            <div className="h-80">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={chartData}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                  <XAxis
+                    dataKey="date"
+                    stroke="#6b7280"
+                    tick={{ fontSize: 12 }}
+                  />
+                  <YAxis
+                    stroke="#6b7280"
+                    tick={{ fontSize: 12 }}
+                    domain={['auto', 'auto']}
+                  />
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: '#fff',
+                      border: '1px solid #e5e7eb',
+                      borderRadius: '8px'
+                    }}
+                    formatter={(value: number) => formatCurrency(value)}
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="总价值"
+                    stroke="#0ea5e9"
+                    strokeWidth={2}
+                    dot={false}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          ) : (
+            <div className="h-80 flex items-center justify-center text-text-secondary">
+              暂无历史数据
+            </div>
+          )}
+        </Card>
+      </div>
+
+      {/* Current Positions Table */}
+      <div>
+        <h2 className="text-lg font-semibold text-text-primary mb-4">当前持仓</h2>
+        <Card padding="md">
+          {positionsLoading ? (
+            <div className="h-64 flex items-center justify-center">
+              <Loading size="sm" text="加载持仓数据..." />
+            </div>
+          ) : positions && positions.length > 0 ? (
+            <Table
+              columns={positionColumns}
+              data={positions}
+            />
+          ) : (
+            <div className="h-64 flex items-center justify-center text-text-secondary">
+              暂无持仓
+            </div>
+          )}
+        </Card>
       </div>
 
       {/* Agent健康状态 */}
