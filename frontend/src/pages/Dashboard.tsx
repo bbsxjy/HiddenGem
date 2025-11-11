@@ -1,7 +1,6 @@
 import { Tab } from '@headlessui/react';
-import { LayoutDashboard, History, Brain } from 'lucide-react';
+import { LayoutDashboard, Brain } from 'lucide-react';
 import { OverviewTab } from '@/components/dashboard/tabs/OverviewTab';
-import { HistoryTab } from '@/components/dashboard/tabs/HistoryTab';
 import { AgentsTab } from '@/components/dashboard/tabs/AgentsTab';
 import clsx from 'clsx';
 
@@ -11,11 +10,6 @@ export function Dashboard() {
       name: '总览',
       icon: LayoutDashboard,
       component: OverviewTab,
-    },
-    {
-      name: '交易历史',
-      icon: History,
-      component: HistoryTab,
     },
     {
       name: 'Agent状态',
