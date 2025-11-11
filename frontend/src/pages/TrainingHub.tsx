@@ -1,7 +1,6 @@
 import { Tab } from '@headlessui/react';
-import { GraduationCap, Timer, LineChart, Database } from 'lucide-react';
+import { GraduationCap, Timer, Database } from 'lucide-react';
 import { BacktestTab } from '@/components/training/tabs/BacktestTab';
-import { StrategyTab } from '@/components/training/tabs/StrategyTab';
 import { MemoryBankTab } from '@/components/training/tabs/MemoryBankTab';
 import clsx from 'clsx';
 
@@ -11,11 +10,6 @@ export function TrainingHub() {
       name: '回测系统',
       icon: Timer,
       component: BacktestTab,
-    },
-    {
-      name: '策略管理',
-      icon: LineChart,
-      component: StrategyTab,
     },
     {
       name: 'Memory Bank',
@@ -33,7 +27,7 @@ export function TrainingHub() {
           训练中心
         </h1>
         <p className="text-text-secondary mt-1">
-          回测策略表现、管理交易策略、查看Agent学习记录
+          回测策略表现、查看Agent学习记录
         </p>
       </div>
 
