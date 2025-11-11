@@ -31,11 +31,6 @@ export const NAV_ITEMS: NavItem[] = [
     icon: ShoppingCart,
   },
   {
-    label: 'Agent监控',
-    path: '/agents',
-    icon: Brain,
-  },
-  {
     label: '训练中心',
     path: '/training',
     icon: GraduationCap,

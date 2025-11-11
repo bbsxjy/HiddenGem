@@ -8,7 +8,6 @@ import { Dashboard } from './pages/Dashboard';
 import { Market } from './pages/Market';
 import { TradingHub } from './pages/TradingHub';
 import { TradeHistory } from './pages/TradeHistory';
-import { Agents } from './pages/Agents';
 import { TrainingHub } from './pages/TrainingHub';
 import { Settings } from './pages/Settings';
 
@@ -47,7 +46,6 @@ function App() {
                     <Route path="/market" element={<Market />} />
                     <Route path="/trading" element={<TradingHub />} />
                     <Route path="/trade-history" element={<TradeHistory />} />
-                    <Route path="/agents" element={<Agents />} />
                     <Route path="/training" element={<TrainingHub />} />
                     <Route path="/settings" element={<Settings />} />
                   </Routes>

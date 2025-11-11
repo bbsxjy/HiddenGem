@@ -1,9 +1,10 @@
 import { Tab } from '@headlessui/react';
-import { LayoutDashboard, Briefcase, History, Star } from 'lucide-react';
+import { LayoutDashboard, Briefcase, History, Star, Brain } from 'lucide-react';
 import { OverviewTab } from '@/components/dashboard/tabs/OverviewTab';
 import { PortfolioTab } from '@/components/dashboard/tabs/PortfolioTab';
 import { HistoryTab } from '@/components/dashboard/tabs/HistoryTab';
 import { WatchlistTab } from '@/components/dashboard/tabs/WatchlistTab';
+import { AgentsTab } from '@/components/dashboard/tabs/AgentsTab';
 import clsx from 'clsx';
 
 export function Dashboard() {
@@ -27,6 +28,11 @@ export function Dashboard() {
       name: '市场关注',
       icon: Star,
       component: WatchlistTab,
+    },
+    {
+      name: 'Agent状态',
+      icon: Brain,
+      component: AgentsTab,
     },
   ];
 

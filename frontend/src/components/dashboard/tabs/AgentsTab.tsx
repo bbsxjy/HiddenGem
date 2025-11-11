@@ -13,7 +13,7 @@ import {
   BarChart3,
 } from 'lucide-react';
 
-export function StatusTab() {
+export function AgentsTab() {
   const [selectedAgent, setSelectedAgent] = useState<string | null>(null);
 
   // Fetch agents status
