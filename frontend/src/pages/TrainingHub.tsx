@@ -1,26 +1,26 @@
 import { Tab } from '@headlessui/react';
-import { Brain, Activity, LineChart, History } from 'lucide-react';
-import { StatusTab } from '@/components/agents/tabs/StatusTab';
-import { AnalysisTab } from '@/components/agents/tabs/AnalysisTab';
-import { HistoryTab } from '@/components/agents/tabs/HistoryTab';
+import { GraduationCap, Timer, LineChart, Database } from 'lucide-react';
+import { BacktestTab } from '@/components/training/tabs/BacktestTab';
+import { StrategyTab } from '@/components/training/tabs/StrategyTab';
+import { MemoryBankTab } from '@/components/training/tabs/MemoryBankTab';
 import clsx from 'clsx';
 
-export function Agents() {
+export function TrainingHub() {
   const tabs = [
     {
-      name: 'Agent状态',
-      icon: Brain,
-      component: StatusTab,
+      name: '回测系统',
+      icon: Timer,
+      component: BacktestTab,
     },
     {
-      name: '深度分析',
+      name: '策略管理',
       icon: LineChart,
-      component: AnalysisTab,
+      component: StrategyTab,
     },
     {
-      name: '预测历史',
-      icon: History,
-      component: HistoryTab,
+      name: 'Memory Bank',
+      icon: Database,
+      component: MemoryBankTab,
     },
   ];
 
@@ -29,11 +29,11 @@ export function Agents() {
       {/* Header */}
       <div>
         <h1 className="text-2xl font-bold text-text-primary flex items-center gap-3">
-          <Brain className="text-primary-500" size={32} />
-          Agent 监控中心
+          <GraduationCap className="text-primary-500" size={32} />
+          训练中心
         </h1>
         <p className="text-text-secondary mt-1">
-          实时监控多智能体系统的运行状态、深度分析和历史表现
+          回测策略表现、管理交易策略、查看Agent学习记录
         </p>
       </div>
 
