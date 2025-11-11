@@ -2,9 +2,7 @@ import {
   LayoutDashboard,
   Activity,
   TrendingUp,
-  Briefcase,
   ShoppingCart,
-  History,
   LineChart,
   Brain,
   Timer,
@@ -37,19 +35,9 @@ export const NAV_ITEMS: NavItem[] = [
     icon: TrendingUp,
   },
   {
-    label: '投资组合',
-    path: '/portfolio',
-    icon: Briefcase,
-  },
-  {
     label: '交易面板',
     path: '/trading',
     icon: ShoppingCart,
-  },
-  {
-    label: '交易历史',
-    path: '/trade-history',
-    icon: History,
   },
   {
     label: '实时监控',
