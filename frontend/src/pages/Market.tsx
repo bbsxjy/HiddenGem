@@ -8,7 +8,7 @@ import { CandlestickChart } from '@/components/market/CandlestickChart';
 import { getQuote, getBars, getTechnicalIndicators, getStockInfo } from '@/api/market';
 import { formatProfitLoss, formatPercentage, getChangeColor, detectMarketType, getDirectionColor } from '@/utils/format';
 import { useStreamingAnalysis } from '@/hooks/useStreamingAnalysis';
-import { Search, TrendingUp, TrendingDown, Building2, MapPin, Calendar, AlertCircle, RefreshCw, Brain, FileText, X, ChevronDown, ChevronUp } from 'lucide-react';
+import { Search, TrendingUp, TrendingDown, Building2, MapPin, Calendar, AlertCircle, RefreshCw, Brain, FileText, X, ChevronDown, ChevronUp, BarChart2 } from 'lucide-react';
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 
 export function Market() {
