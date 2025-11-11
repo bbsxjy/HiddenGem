@@ -1,26 +1,22 @@
 import { Tab } from '@headlessui/react';
-import { ShoppingCart, MonitorPlay, Play } from 'lucide-react';
-import { ManualTab } from '@/components/trading/tabs/ManualTab';
-import { LiveMonitorTab } from '@/components/trading/tabs/LiveMonitorTab';
+import { Play, History } from 'lucide-react';
 import { AutoTradingTab } from '@/components/trading/tabs/AutoTradingTab';
+import { TradingHistoryTab } from '@/components/trading/tabs/TradingHistoryTab';
 import clsx from 'clsx';
 
 export function TradingHub() {
   const tabs = [
     {
-      name: '手动交易',
-      icon: ShoppingCart,
-      component: ManualTab,
-    },
-    {
-      name: '实时监控',
-      icon: MonitorPlay,
-      component: LiveMonitorTab,
-    },
-    {
       name: '自动交易',
       icon: Play,
       component: AutoTradingTab,
+      description: '启动后显示实时监控，停止后显示控制面板'
+    },
+    {
+      name: '交易历史',
+      icon: History,
+      component: TradingHistoryTab,
+      description: '查看历史交易记录和统计'
     },
   ];
 
@@ -29,7 +25,7 @@ export function TradingHub() {
       {/* Header */}
       <div>
         <h1 className="text-2xl font-bold text-text-primary">交易中心</h1>
-        <p className="text-text-secondary mt-1">执行交易、监控实时状态和管理自动交易</p>
+        <p className="text-text-secondary mt-1">自动交易系统与历史交易记录</p>
       </div>
 
       {/* Tabs */}
