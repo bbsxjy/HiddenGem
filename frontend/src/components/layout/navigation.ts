@@ -10,6 +10,7 @@ import {
   Timer,
   Database,
   Settings,
+  MonitorPlay,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -49,6 +50,11 @@ export const NAV_ITEMS: NavItem[] = [
     label: '交易历史',
     path: '/trade-history',
     icon: History,
+  },
+  {
+    label: '实时监控',
+    path: '/live-monitor',
+    icon: MonitorPlay,
   },
   {
     label: '策略管理',

@@ -10,6 +10,7 @@ import { Market } from './pages/Market';
 import { Portfolio } from './pages/Portfolio';
 import { Trading } from './pages/Trading';
 import { TradeHistory } from './pages/TradeHistory';
+import { LiveMonitor } from './pages/LiveMonitor';
 import { Strategy } from './pages/Strategy';
 import { Agents } from './pages/Agents';
 import { Backtest } from './pages/Backtest';
@@ -53,6 +54,7 @@ function App() {
                     <Route path="/portfolio" element={<Portfolio />} />
                     <Route path="/trading" element={<Trading />} />
                     <Route path="/trade-history" element={<TradeHistory />} />
+                    <Route path="/live-monitor" element={<LiveMonitor />} />
                     <Route path="/strategy" element={<Strategy />} />
                     <Route path="/agents" element={<Agents />} />
                     <Route path="/backtest" element={<Backtest />} />
