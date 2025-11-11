@@ -8,7 +8,6 @@ import {
   Timer,
   Database,
   Settings,
-  MonitorPlay,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -35,14 +34,9 @@ export const NAV_ITEMS: NavItem[] = [
     icon: TrendingUp,
   },
   {
-    label: '交易面板',
+    label: '交易中心',
     path: '/trading',
     icon: ShoppingCart,
-  },
-  {
-    label: '实时监控',
-    path: '/live-monitor',
-    icon: MonitorPlay,
   },
   {
     label: '策略管理',
