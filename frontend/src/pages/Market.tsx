@@ -16,6 +16,7 @@ export function Market() {
   const [searchInput, setSearchInput] = useState('');
   const [showDeepAnalysis, setShowDeepAnalysis] = useState(false);
   const [expandedAgent, setExpandedAgent] = useState<string | null>(null);
+  const [collapseBasicInfo, setCollapseBasicInfo] = useState(false);
 
   // Use streaming analysis hook for deep analysis
   const {
@@ -77,13 +78,21 @@ export function Market() {
     if (searchInput.trim()) {
       setSelectedSymbol(searchInput.trim());
       setShowDeepAnalysis(false); // Reset deep analysis when searching new symbol
+      setCollapseBasicInfo(false); // Expand basic info for new search
     }
   };
 
   const handleDeepAnalysis = () => {
-    if (selectedSymbol) {
+    const symbol = searchInput.trim() || selectedSymbol;
+    if (symbol) {
+      // Set selected symbol if not already set
+      if (!selectedSymbol || selectedSymbol !== symbol) {
+        setSelectedSymbol(symbol);
+        setSearchInput(symbol);
+      }
       setShowDeepAnalysis(true);
-      startAnalysis(selectedSymbol);
+      setCollapseBasicInfo(true); // Collapse basic info when showing analysis
+      startAnalysis(symbol);
     }
   };
 
@@ -174,7 +183,7 @@ export function Market() {
             >
               查询
             </button>
-            {selectedSymbol && (
+            {searchInput.trim() && (
               <button
                 type="button"
                 onClick={handleDeepAnalysis}
@@ -182,8 +191,8 @@ export function Market() {
                 className="flex-1 sm:flex-none px-4 sm:px-6 py-2 bg-gradient-to-r from-purple-500 to-indigo-500 text-white rounded-lg hover:from-purple-600 hover:to-indigo-600 transition-colors font-medium text-sm sm:text-base disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 justify-center"
               >
                 <Brain size={18} />
-                <span className="hidden sm:inline">{isAnalyzing ? '分析中...' : '深度分析'}</span>
-                <span className="sm:hidden">{isAnalyzing ? '分析中' : 'AI分析'}</span>
+                <span className="hidden sm:inline">{isAnalyzing ? '分析中...' : 'AI分析'}</span>
+                <span className="sm:hidden">{isAnalyzing ? '分析' : 'AI'}</span>
               </button>
             )}
             {isAnalyzing && (
@@ -270,107 +279,180 @@ export function Market() {
 
             {quote && stockInfo && !quoteLoading && !stockInfoLoading ? (
               <>
-                {/* 股票基本信息 */}
-                <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4 mb-4">
-                  <div className="flex-1">
-                    <div className="flex flex-wrap items-center gap-2 sm:gap-3 mb-3">
-                      <h2 className="text-xl sm:text-2xl md:text-3xl font-bold text-text-primary">{stockInfo.name}</h2>
-                      <span className="text-base sm:text-lg md:text-xl text-text-secondary">{quote.symbol}</span>
-                      <span className={`px-2 sm:px-3 py-0.5 sm:py-1 rounded-full text-xs sm:text-sm font-medium ${getBoardType(quote.symbol).color}`}>
-                        {getBoardType(quote.symbol).name}
-                      </span>
-                    </div>
-                    {/* 行业信息 - 移动端垂直堆叠 */}
-                    <div className="flex flex-col sm:flex-row sm:gap-4 md:gap-6 text-xs sm:text-sm text-text-secondary space-y-1 sm:space-y-0">
-                      <div className="flex items-center gap-1">
-                        <Building2 size={14} className="sm:hidden" />
-                        <Building2 size={16} className="hidden sm:block" />
-                        <span>行业: {stockInfo.industry || 'N/A'}</span>
+                {collapseBasicInfo && showDeepAnalysis ? (
+                  /* Collapsed View - 简洁版本 */
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div>
+                          <div className="flex items-center gap-2 mb-1">
+                            <h2 className="text-lg font-bold text-text-primary">{stockInfo.name}</h2>
+                            <span className="text-sm text-text-secondary">{quote.symbol}</span>
+                            <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${getBoardType(quote.symbol).color}`}>
+                              {getBoardType(quote.symbol).name}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-4">
+                            <div className="flex items-center gap-2">
+                              <span className="text-2xl font-bold text-text-primary">
+                                ¥{quote.price != null ? quote.price.toFixed(2) : 'N/A'}
+                              </span>
+                              {isUp ? (
+                                <TrendingUp className={`h-6 w-6 ${getChangeColor(quote.change_pct, selectedSymbol)}`} />
+                              ) : (
+                                <TrendingDown className={`h-6 w-6 ${getChangeColor(quote.change_pct, selectedSymbol)}`} />
+                              )}
+                              <span className={`text-lg font-semibold ${getChangeColor(quote.change_pct, selectedSymbol)}`}>
+                                {formatPercentage(quote.change_pct)}
+                              </span>
+                            </div>
+                            <div className="flex gap-4 text-sm">
+                              <div>
+                                <span className="text-text-secondary">开:</span>
+                                <span className="font-medium text-text-primary ml-1">
+                                  ¥{quote.open != null ? quote.open.toFixed(2) : 'N/A'}
+                                </span>
+                              </div>
+                              <div>
+                                <span className="text-text-secondary">高:</span>
+                                <span className="font-medium text-profit ml-1">
+                                  ¥{quote.high != null ? quote.high.toFixed(2) : 'N/A'}
+                                </span>
+                              </div>
+                              <div>
+                                <span className="text-text-secondary">低:</span>
+                                <span className="font-medium text-loss ml-1">
+                                  ¥{quote.low != null ? quote.low.toFixed(2) : 'N/A'}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
                       </div>
-                      <div className="flex items-center gap-1">
-                        <MapPin size={14} className="sm:hidden" />
-                        <MapPin size={16} className="hidden sm:block" />
-                        <span>地区: {stockInfo.area || 'N/A'}</span>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <Calendar size={14} className="sm:hidden" />
-                        <Calendar size={16} className="hidden sm:block" />
-                        <span>上市日期: {stockInfo.listing_date || 'N/A'}</span>
-                      </div>
+                      <button
+                        onClick={() => setCollapseBasicInfo(false)}
+                        className="px-3 py-1.5 text-sm text-primary-600 hover:text-primary-700 hover:bg-primary-50 rounded transition-colors"
+                      >
+                        展开详情 ▼
+                      </button>
                     </div>
                   </div>
-                  {/* 价格信息 - 移动端居中，桌面端右对齐 */}
-                  <div className="text-center md:text-right">
-                    <div className="flex items-center justify-center md:justify-end gap-2">
-                      <span className="text-2xl sm:text-3xl md:text-4xl font-bold text-text-primary">
-                        ¥{quote.price != null ? quote.price.toFixed(2) : 'N/A'}
-                      </span>
-                      {isUp ? (
-                        <TrendingUp className={`h-6 w-6 sm:h-7 sm:w-7 md:h-8 md:w-8 ${getChangeColor(quote.change_pct, selectedSymbol)}`} />
-                      ) : (
-                        <TrendingDown className={`h-6 w-6 sm:h-7 sm:w-7 md:h-8 md:w-8 ${getChangeColor(quote.change_pct, selectedSymbol)}`} />
-                      )}
-                    </div>
-                    <div className={`text-lg sm:text-xl font-semibold mt-2 ${getChangeColor(quote.change_pct, selectedSymbol)}`}>
-                      {formatPercentage(quote.change_pct)}
-                    </div>
-                    <div className="text-xs text-text-secondary mt-2">
-                      {quote.timestamp ? new Date(quote.timestamp).toLocaleString('zh-CN') : 'N/A'}
-                    </div>
-                    {/* Manual refresh button - 移动端放在价格下方 */}
-                    <button
-                      onClick={handleRefreshAll}
-                      disabled={quoteLoading || stockInfoLoading}
-                      className="mt-2 inline-flex items-center gap-2 text-xs px-3 py-1.5 rounded bg-gray-100 hover:bg-gray-200 text-text-secondary transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                      title="刷新所有数据"
-                    >
-                      <RefreshCw size={14} className={quoteLoading || stockInfoLoading ? 'animate-spin' : ''} />
-                      <span>刷新数据</span>
-                    </button>
-                  </div>
-                </div>
-
-                {/* 行情数据卡片 - 移动端2列，平板4列 */}
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
-                  <Card title="开盘价" padding="md">
-                    <div className="text-lg sm:text-xl md:text-2xl font-semibold text-text-primary">
-                      ¥{quote.open != null ? quote.open.toFixed(2) : 'N/A'}
-                    </div>
-                  </Card>
-
-                  <Card title="最高价" padding="md">
-                    <div className={`text-lg sm:text-xl md:text-2xl font-semibold ${quote.high != null && quote.open != null ? getChangeColor(quote.high - quote.open, selectedSymbol) : 'text-text-primary'}`}>
-                      ¥{quote.high != null ? quote.high.toFixed(2) : 'N/A'}
-                    </div>
-                    {quote.high != null && quote.open != null && quote.open !== 0 && (
-                      <div className="text-[10px] sm:text-xs text-text-secondary mt-1">
-                        涨幅 {((quote.high - quote.open) / quote.open * 100).toFixed(2)}%
+                ) : (
+                  /* Full View - 完整版本 */
+                  <>
+                    {/* 股票基本信息 */}
+                    <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4 mb-4">
+                      <div className="flex-1">
+                        <div className="flex flex-wrap items-center gap-2 sm:gap-3 mb-3">
+                          <h2 className="text-xl sm:text-2xl md:text-3xl font-bold text-text-primary">{stockInfo.name}</h2>
+                          <span className="text-base sm:text-lg md:text-xl text-text-secondary">{quote.symbol}</span>
+                          <span className={`px-2 sm:px-3 py-0.5 sm:py-1 rounded-full text-xs sm:text-sm font-medium ${getBoardType(quote.symbol).color}`}>
+                            {getBoardType(quote.symbol).name}
+                          </span>
+                        </div>
+                        {/* 行业信息 - 移动端垂直堆叠 */}
+                        <div className="flex flex-col sm:flex-row sm:gap-4 md:gap-6 text-xs sm:text-sm text-text-secondary space-y-1 sm:space-y-0">
+                          <div className="flex items-center gap-1">
+                            <Building2 size={14} className="sm:hidden" />
+                            <Building2 size={16} className="hidden sm:block" />
+                            <span>行业: {stockInfo.industry || 'N/A'}</span>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <MapPin size={14} className="sm:hidden" />
+                            <MapPin size={16} className="hidden sm:block" />
+                            <span>地区: {stockInfo.area || 'N/A'}</span>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <Calendar size={14} className="sm:hidden" />
+                            <Calendar size={16} className="hidden sm:block" />
+                            <span>上市日期: {stockInfo.listing_date || 'N/A'}</span>
+                          </div>
+                        </div>
                       </div>
-                    )}
-                  </Card>
-
-                  <Card title="最低价" padding="md">
-                    <div className={`text-lg sm:text-xl md:text-2xl font-semibold ${quote.low != null && quote.open != null ? getChangeColor(quote.low - quote.open, selectedSymbol) : 'text-text-primary'}`}>
-                      ¥{quote.low != null ? quote.low.toFixed(2) : 'N/A'}
-                    </div>
-                    {quote.open != null && quote.low != null && quote.open !== 0 && (
-                      <div className="text-[10px] sm:text-xs text-text-secondary mt-1">
-                        跌幅 {((quote.open - quote.low) / quote.open * 100).toFixed(2)}%
+                      {/* 价格信息 - 移动端居中，桌面端右对齐 */}
+                      <div className="text-center md:text-right">
+                        <div className="flex items-center justify-center md:justify-end gap-2">
+                          <span className="text-2xl sm:text-3xl md:text-4xl font-bold text-text-primary">
+                            ¥{quote.price != null ? quote.price.toFixed(2) : 'N/A'}
+                          </span>
+                          {isUp ? (
+                            <TrendingUp className={`h-6 w-6 sm:h-7 sm:w-7 md:h-8 md:w-8 ${getChangeColor(quote.change_pct, selectedSymbol)}`} />
+                          ) : (
+                            <TrendingDown className={`h-6 w-6 sm:h-7 sm:w-7 md:h-8 md:w-8 ${getChangeColor(quote.change_pct, selectedSymbol)}`} />
+                          )}
+                        </div>
+                        <div className={`text-lg sm:text-xl font-semibold mt-2 ${getChangeColor(quote.change_pct, selectedSymbol)}`}>
+                          {formatPercentage(quote.change_pct)}
+                        </div>
+                        <div className="text-xs text-text-secondary mt-2">
+                          {quote.timestamp ? new Date(quote.timestamp).toLocaleString('zh-CN') : 'N/A'}
+                        </div>
+                        {/* Manual refresh button - 移动端放在价格下方 */}
+                        <div className="flex gap-2 justify-center md:justify-end mt-2">
+                          <button
+                            onClick={handleRefreshAll}
+                            disabled={quoteLoading || stockInfoLoading}
+                            className="inline-flex items-center gap-2 text-xs px-3 py-1.5 rounded bg-gray-100 hover:bg-gray-200 text-text-secondary transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                            title="刷新所有数据"
+                          >
+                            <RefreshCw size={14} className={quoteLoading || stockInfoLoading ? 'animate-spin' : ''} />
+                            <span>刷新数据</span>
+                          </button>
+                          {showDeepAnalysis && (
+                            <button
+                              onClick={() => setCollapseBasicInfo(true)}
+                              className="inline-flex items-center gap-2 text-xs px-3 py-1.5 rounded bg-primary-50 hover:bg-primary-100 text-primary-600 transition-colors"
+                            >
+                              折叠 ▲
+                            </button>
+                          )}
+                        </div>
                       </div>
-                    )}
-                  </Card>
-
-                  <Card title="成交量" padding="md">
-                    <div className="text-lg sm:text-xl md:text-2xl font-semibold text-text-primary">
-                      {quote.volume != null ? (quote.volume / 10000).toFixed(2) : 'N/A'}万
                     </div>
-                    {quote.high != null && quote.low != null && quote.open != null && quote.open !== 0 && (
-                      <div className="text-[10px] sm:text-xs text-text-secondary mt-1">
-                        振幅 {((quote.high - quote.low) / quote.open * 100).toFixed(2)}%
-                      </div>
-                    )}
-                  </Card>
-                </div>
+
+                    {/* 行情数据卡片 - 移动端2列，平板4列 */}
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
+                      <Card title="开盘价" padding="md">
+                        <div className="text-lg sm:text-xl md:text-2xl font-semibold text-text-primary">
+                          ¥{quote.open != null ? quote.open.toFixed(2) : 'N/A'}
+                        </div>
+                      </Card>
+
+                      <Card title="最高价" padding="md">
+                        <div className={`text-lg sm:text-xl md:text-2xl font-semibold ${quote.high != null && quote.open != null ? getChangeColor(quote.high - quote.open, selectedSymbol) : 'text-text-primary'}`}>
+                          ¥{quote.high != null ? quote.high.toFixed(2) : 'N/A'}
+                        </div>
+                        {quote.high != null && quote.open != null && quote.open !== 0 && (
+                          <div className="text-[10px] sm:text-xs text-text-secondary mt-1">
+                            涨幅 {((quote.high - quote.open) / quote.open * 100).toFixed(2)}%
+                          </div>
+                        )}
+                      </Card>
+
+                      <Card title="最低价" padding="md">
+                        <div className={`text-lg sm:text-xl md:text-2xl font-semibold ${quote.low != null && quote.open != null ? getChangeColor(quote.low - quote.open, selectedSymbol) : 'text-text-primary'}`}>
+                          ¥{quote.low != null ? quote.low.toFixed(2) : 'N/A'}
+                        </div>
+                        {quote.open != null && quote.low != null && quote.open !== 0 && (
+                          <div className="text-[10px] sm:text-xs text-text-secondary mt-1">
+                            跌幅 {((quote.open - quote.low) / quote.open * 100).toFixed(2)}%
+                          </div>
+                        )}
+                      </Card>
+
+                      <Card title="成交量" padding="md">
+                        <div className="text-lg sm:text-xl md:text-2xl font-semibold text-text-primary">
+                          {quote.volume != null ? (quote.volume / 10000).toFixed(2) : 'N/A'}万
+                        </div>
+                        {quote.high != null && quote.low != null && quote.open != null && quote.open !== 0 && (
+                          <div className="text-[10px] sm:text-xs text-text-secondary mt-1">
+                            振幅 {((quote.high - quote.low) / quote.open * 100).toFixed(2)}%
+                          </div>
+                        )}
+                      </Card>
+                    </div>
+                  </>
+                )}
               </>
             ) : !quoteLoading && !stockInfoLoading && !(quoteError || stockInfoError) ? (
               <div className="text-center py-8">
