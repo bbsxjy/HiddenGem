@@ -1,42 +1,31 @@
 import { Tab } from '@headlessui/react';
-import { GraduationCap, Brain, FlaskConical } from 'lucide-react';
-import { TrainingTab } from '@/components/training/tabs/TrainingTab';
-import { TestingTab } from '@/components/training/tabs/TestingTab';
+import { Timer, Database } from 'lucide-react';
+import { BacktestTab } from '@/components/training/tabs/BacktestTab';
+import { MemoryBankTab } from '@/components/training/tabs/MemoryBankTab';
 import clsx from 'clsx';
 
-export function TrainingHub() {
-  const tabs = [
+export function TestingTab() {
+  const subtabs = [
     {
-      name: '模型训练',
-      icon: Brain,
-      component: TrainingTab,
-      description: '训练AI模型，启动深度学习任务'
+      name: '回测系统',
+      icon: Timer,
+      component: BacktestTab,
+      description: '使用历史数据回测策略表现'
     },
     {
-      name: '模型测试',
-      icon: FlaskConical,
-      component: TestingTab,
-      description: '回测系统与Memory Bank'
+      name: 'Memory Bank',
+      icon: Database,
+      component: MemoryBankTab,
+      description: '查看和管理Agent学习记录'
     },
   ];
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold text-text-primary flex items-center gap-3">
-          <GraduationCap className="text-primary-500" size={32} />
-          训练中心
-        </h1>
-        <p className="text-text-secondary mt-1">
-          AI模型训练、策略回测、经验记录管理
-        </p>
-      </div>
-
-      {/* Tabs */}
+      {/* Sub-tabs */}
       <Tab.Group>
         <Tab.List className="flex space-x-1 rounded-xl bg-gray-100 p-1">
-          {tabs.map((tab) => (
+          {subtabs.map((tab) => (
             <Tab
               key={tab.name}
               className={({ selected }) =>
@@ -57,7 +46,7 @@ export function TrainingHub() {
           ))}
         </Tab.List>
         <Tab.Panels className="mt-6">
-          {tabs.map((tab, idx) => (
+          {subtabs.map((tab, idx) => (
             <Tab.Panel
               key={idx}
               className={clsx(

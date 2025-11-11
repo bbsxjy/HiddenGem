@@ -1,7 +1,11 @@
+import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Card } from '@/components/common/Card';
+import { Button } from '@/components/common/Button';
+import { Input } from '@/components/common/Input';
 import { checkHealth } from '@/api/health';
-import { Settings as SettingsIcon, Server, Database, RefreshCw, BookOpen, Info } from 'lucide-react';
+import { useSettingsStore } from '@/store/useSettingsStore';
+import { Settings as SettingsIcon, Server, Database, RefreshCw, BookOpen, Info, Save, RotateCcw } from 'lucide-react';
 
 export function Settings() {
   const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
@@ -14,6 +18,79 @@ export function Settings() {
     refetchInterval: 30000,
   });
 
+  // Settings store
+  const {
+    riskControl,
+    orderSettings,
+    dataRefresh,
+    updateRiskControl,
+    updateOrderSettings,
+    updateDataRefresh,
+    resetRiskControl,
+    resetOrderSettings,
+    resetDataRefresh,
+  } = useSettingsStore();
+
+  // Local state for editing
+  const [isEditingRisk, setIsEditingRisk] = useState(false);
+  const [isEditingOrder, setIsEditingOrder] = useState(false);
+  const [isEditingRefresh, setIsEditingRefresh] = useState(false);
+
+  const [editedRisk, setEditedRisk] = useState(riskControl);
+  const [editedOrder, setEditedOrder] = useState(orderSettings);
+  const [editedRefresh, setEditedRefresh] = useState(dataRefresh);
+
+  // Save handlers
+  const handleSaveRisk = () => {
+    updateRiskControl(editedRisk);
+    setIsEditingRisk(false);
+  };
+
+  const handleSaveOrder = () => {
+    updateOrderSettings(editedOrder);
+    setIsEditingOrder(false);
+  };
+
+  const handleSaveRefresh = () => {
+    updateDataRefresh(editedRefresh);
+    setIsEditingRefresh(false);
+  };
+
+  // Reset handlers
+  const handleResetRisk = () => {
+    resetRiskControl();
+    setEditedRisk(riskControl);
+    setIsEditingRisk(false);
+  };
+
+  const handleResetOrder = () => {
+    resetOrderSettings();
+    setEditedOrder(orderSettings);
+    setIsEditingOrder(false);
+  };
+
+  const handleResetRefresh = () => {
+    resetDataRefresh();
+    setEditedRefresh(dataRefresh);
+    setIsEditingRefresh(false);
+  };
+
+  // Cancel handlers
+  const handleCancelRisk = () => {
+    setEditedRisk(riskControl);
+    setIsEditingRisk(false);
+  };
+
+  const handleCancelOrder = () => {
+    setEditedOrder(orderSettings);
+    setIsEditingOrder(false);
+  };
+
+  const handleCancelRefresh = () => {
+    setEditedRefresh(dataRefresh);
+    setIsEditingRefresh(false);
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -24,29 +101,6 @@ export function Settings() {
         </h1>
         <p className="text-text-secondary mt-1">配置系统参数和查看系统信息</p>
       </div>
-
-      {/* Quick Link to Auto Trading */}
-      <Card padding="md" className="border-2 border-primary-200 bg-primary-50/30">
-        <div className="flex items-start gap-3">
-          <div className="p-2 bg-primary-100 rounded-lg">
-            <SettingsIcon className="text-primary-600" size={20} />
-          </div>
-          <div className="flex-1">
-            <h3 className="text-sm font-semibold text-text-primary mb-1">
-              自动交易设置
-            </h3>
-            <p className="text-xs text-text-secondary mb-3">
-              自动交易配置已移至"交易中心"页面的"自动交易"标签页中
-            </p>
-            <a
-              href="/trading"
-              className="text-sm text-primary-600 hover:text-primary-700 font-medium"
-            >
-              前往交易中心 →
-            </a>
-          </div>
-        </div>
-      </Card>
 
       {/* System Info */}
       <Card title={<div className="flex items-center gap-2"><Server size={18} />系统信息</div>} padding="md">
@@ -102,89 +156,339 @@ export function Settings() {
         </div>
       </Card>
 
-      {/* Trading Settings */}
-      <Card title={<div className="flex items-center gap-2"><Database size={18} />交易设置</div>} padding="md">
-        <div className="space-y-4">
-          <div className="p-4 border border-gray-200 rounded-lg">
-            <h3 className="font-semibold text-text-primary mb-3">风险控制</h3>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-              <div>
-                <span className="text-text-secondary">最大单个仓位:</span>
-                <span className="font-semibold text-text-primary ml-2">10%</span>
+      {/* Risk Control Settings */}
+      <Card
+        title={<div className="flex items-center gap-2"><Database size={18} />风险控制设置</div>}
+        padding="md"
+        extra={
+          <div className="flex gap-2">
+            {!isEditingRisk ? (
+              <Button size="sm" variant="outline" onClick={() => setIsEditingRisk(true)}>
+                编辑
+              </Button>
+            ) : (
+              <>
+                <Button size="sm" variant="outline" onClick={handleCancelRisk}>
+                  取消
+                </Button>
+                <Button size="sm" variant="outline" onClick={handleResetRisk}>
+                  <RotateCcw size={14} className="mr-1" />
+                  重置
+                </Button>
+                <Button size="sm" onClick={handleSaveRisk}>
+                  <Save size={14} className="mr-1" />
+                  保存
+                </Button>
+              </>
+            )}
+          </div>
+        }
+      >
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div>
+            <label className="block text-sm font-medium text-text-secondary mb-2">
+              最大单个仓位 (%)
+            </label>
+            {isEditingRisk ? (
+              <Input
+                type="number"
+                value={editedRisk.maxPositionPct}
+                onChange={(e) => setEditedRisk({ ...editedRisk, maxPositionPct: Number(e.target.value) })}
+                min={1}
+                max={100}
+              />
+            ) : (
+              <div className="px-4 py-2 bg-gray-50 rounded-lg text-sm text-text-primary font-semibold">
+                {riskControl.maxPositionPct}%
               </div>
-              <div>
-                <span className="text-text-secondary">默认止损:</span>
-                <span className="font-semibold text-text-primary ml-2">8%</span>
-              </div>
-              <div>
-                <span className="text-text-secondary">默认止盈:</span>
-                <span className="font-semibold text-text-primary ml-2">15%</span>
-              </div>
-            </div>
+            )}
           </div>
 
-          <div className="p-4 border border-gray-200 rounded-lg">
-            <h3 className="font-semibold text-text-primary mb-3">订单设置</h3>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-              <div>
-                <span className="text-text-secondary">最小交易单位:</span>
-                <span className="font-semibold text-text-primary ml-2">100股</span>
+          <div>
+            <label className="block text-sm font-medium text-text-secondary mb-2">
+              最大板块暴露 (%)
+            </label>
+            {isEditingRisk ? (
+              <Input
+                type="number"
+                value={editedRisk.maxSectorExposurePct}
+                onChange={(e) => setEditedRisk({ ...editedRisk, maxSectorExposurePct: Number(e.target.value) })}
+                min={1}
+                max={100}
+              />
+            ) : (
+              <div className="px-4 py-2 bg-gray-50 rounded-lg text-sm text-text-primary font-semibold">
+                {riskControl.maxSectorExposurePct}%
               </div>
-              <div>
-                <span className="text-text-secondary">默认订单类型:</span>
-                <span className="font-semibold text-text-primary ml-2">限价单</span>
+            )}
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-text-secondary mb-2">
+              默认止损 (%)
+            </label>
+            {isEditingRisk ? (
+              <Input
+                type="number"
+                value={editedRisk.defaultStopLossPct}
+                onChange={(e) => setEditedRisk({ ...editedRisk, defaultStopLossPct: Number(e.target.value) })}
+                min={1}
+                max={50}
+              />
+            ) : (
+              <div className="px-4 py-2 bg-gray-50 rounded-lg text-sm text-text-primary font-semibold">
+                {riskControl.defaultStopLossPct}%
               </div>
-              <div>
-                <span className="text-text-secondary">超时时间:</span>
-                <span className="font-semibold text-text-primary ml-2">30秒</span>
+            )}
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-text-secondary mb-2">
+              默认止盈 (%)
+            </label>
+            {isEditingRisk ? (
+              <Input
+                type="number"
+                value={editedRisk.defaultTakeProfitPct}
+                onChange={(e) => setEditedRisk({ ...editedRisk, defaultTakeProfitPct: Number(e.target.value) })}
+                min={1}
+                max={100}
+              />
+            ) : (
+              <div className="px-4 py-2 bg-gray-50 rounded-lg text-sm text-text-primary font-semibold">
+                {riskControl.defaultTakeProfitPct}%
               </div>
-            </div>
+            )}
+          </div>
+        </div>
+
+        <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-800">
+          <strong>说明：</strong>
+          风险控制参数会应用于所有自动交易和手动交易。请根据您的风险承受能力合理设置。
+        </div>
+      </Card>
+
+      {/* Order Settings */}
+      <Card
+        title={<div className="flex items-center gap-2"><Database size={18} />订单设置</div>}
+        padding="md"
+        extra={
+          <div className="flex gap-2">
+            {!isEditingOrder ? (
+              <Button size="sm" variant="outline" onClick={() => setIsEditingOrder(true)}>
+                编辑
+              </Button>
+            ) : (
+              <>
+                <Button size="sm" variant="outline" onClick={handleCancelOrder}>
+                  取消
+                </Button>
+                <Button size="sm" variant="outline" onClick={handleResetOrder}>
+                  <RotateCcw size={14} className="mr-1" />
+                  重置
+                </Button>
+                <Button size="sm" onClick={handleSaveOrder}>
+                  <Save size={14} className="mr-1" />
+                  保存
+                </Button>
+              </>
+            )}
+          </div>
+        }
+      >
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div>
+            <label className="block text-sm font-medium text-text-secondary mb-2">
+              最小交易单位 (股)
+            </label>
+            {isEditingOrder ? (
+              <Input
+                type="number"
+                value={editedOrder.minTradingUnit}
+                onChange={(e) => setEditedOrder({ ...editedOrder, minTradingUnit: Number(e.target.value) })}
+                min={100}
+                step={100}
+              />
+            ) : (
+              <div className="px-4 py-2 bg-gray-50 rounded-lg text-sm text-text-primary font-semibold">
+                {orderSettings.minTradingUnit}股
+              </div>
+            )}
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-text-secondary mb-2">
+              默认订单类型
+            </label>
+            {isEditingOrder ? (
+              <select
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                value={editedOrder.defaultOrderType}
+                onChange={(e) => setEditedOrder({ ...editedOrder, defaultOrderType: e.target.value as 'limit' | 'market' })}
+              >
+                <option value="limit">限价单</option>
+                <option value="market">市价单</option>
+              </select>
+            ) : (
+              <div className="px-4 py-2 bg-gray-50 rounded-lg text-sm text-text-primary font-semibold">
+                {orderSettings.defaultOrderType === 'limit' ? '限价单' : '市价单'}
+              </div>
+            )}
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-text-secondary mb-2">
+              订单超时时间 (秒)
+            </label>
+            {isEditingOrder ? (
+              <Input
+                type="number"
+                value={editedOrder.orderTimeoutSeconds}
+                onChange={(e) => setEditedOrder({ ...editedOrder, orderTimeoutSeconds: Number(e.target.value) })}
+                min={10}
+                max={300}
+              />
+            ) : (
+              <div className="px-4 py-2 bg-gray-50 rounded-lg text-sm text-text-primary font-semibold">
+                {orderSettings.orderTimeoutSeconds}秒
+              </div>
+            )}
           </div>
         </div>
       </Card>
 
       {/* Data Refresh Settings */}
-      <Card title={<div className="flex items-center gap-2"><RefreshCw size={18} />数据刷新设置</div>} padding="md">
+      <Card
+        title={<div className="flex items-center gap-2"><RefreshCw size={18} />数据刷新设置</div>}
+        padding="md"
+        extra={
+          <div className="flex gap-2">
+            {!isEditingRefresh ? (
+              <Button size="sm" variant="outline" onClick={() => setIsEditingRefresh(true)}>
+                编辑
+              </Button>
+            ) : (
+              <>
+                <Button size="sm" variant="outline" onClick={handleCancelRefresh}>
+                  取消
+                </Button>
+                <Button size="sm" variant="outline" onClick={handleResetRefresh}>
+                  <RotateCcw size={14} className="mr-1" />
+                  重置
+                </Button>
+                <Button size="sm" onClick={handleSaveRefresh}>
+                  <Save size={14} className="mr-1" />
+                  保存
+                </Button>
+              </>
+            )}
+          </div>
+        }
+      >
         <div className="space-y-4">
-          <div className="p-4 border border-gray-200 rounded-lg">
+          <div>
             <h3 className="font-semibold text-text-primary mb-3">实时数据</h3>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
-                <span className="text-text-secondary">行情数据:</span>
-                <span className="font-semibold text-text-primary ml-2">30秒</span>
+                <label className="block text-xs text-text-secondary mb-1">行情数据 (秒)</label>
+                {isEditingRefresh ? (
+                  <Input
+                    type="number"
+                    value={editedRefresh.marketDataInterval}
+                    onChange={(e) => setEditedRefresh({ ...editedRefresh, marketDataInterval: Number(e.target.value) })}
+                    min={5}
+                    max={300}
+                  />
+                ) : (
+                  <div className="px-3 py-2 bg-gray-50 rounded text-sm font-semibold">{dataRefresh.marketDataInterval}秒</div>
+                )}
               </div>
+
               <div>
-                <span className="text-text-secondary">持仓数据:</span>
-                <span className="font-semibold text-text-primary ml-2">30秒</span>
+                <label className="block text-xs text-text-secondary mb-1">持仓数据 (秒)</label>
+                {isEditingRefresh ? (
+                  <Input
+                    type="number"
+                    value={editedRefresh.positionDataInterval}
+                    onChange={(e) => setEditedRefresh({ ...editedRefresh, positionDataInterval: Number(e.target.value) })}
+                    min={5}
+                    max={300}
+                  />
+                ) : (
+                  <div className="px-3 py-2 bg-gray-50 rounded text-sm font-semibold">{dataRefresh.positionDataInterval}秒</div>
+                )}
               </div>
+
               <div>
-                <span className="text-text-secondary">订单数据:</span>
-                <span className="font-semibold text-text-primary ml-2">30秒</span>
+                <label className="block text-xs text-text-secondary mb-1">订单数据 (秒)</label>
+                {isEditingRefresh ? (
+                  <Input
+                    type="number"
+                    value={editedRefresh.orderDataInterval}
+                    onChange={(e) => setEditedRefresh({ ...editedRefresh, orderDataInterval: Number(e.target.value) })}
+                    min={5}
+                    max={300}
+                  />
+                ) : (
+                  <div className="px-3 py-2 bg-gray-50 rounded text-sm font-semibold">{dataRefresh.orderDataInterval}秒</div>
+                )}
               </div>
             </div>
           </div>
 
-          <div className="p-4 border border-gray-200 rounded-lg">
+          <div>
             <h3 className="font-semibold text-text-primary mb-3">Agent数据</h3>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
-                <span className="text-text-secondary">状态检查:</span>
-                <span className="font-semibold text-text-primary ml-2">30秒</span>
+                <label className="block text-xs text-text-secondary mb-1">状态检查 (秒)</label>
+                {isEditingRefresh ? (
+                  <Input
+                    type="number"
+                    value={editedRefresh.agentStatusInterval}
+                    onChange={(e) => setEditedRefresh({ ...editedRefresh, agentStatusInterval: Number(e.target.value) })}
+                    min={5}
+                    max={300}
+                  />
+                ) : (
+                  <div className="px-3 py-2 bg-gray-50 rounded text-sm font-semibold">{dataRefresh.agentStatusInterval}秒</div>
+                )}
               </div>
+
               <div>
-                <span className="text-text-secondary">交易信号:</span>
-                <span className="font-semibold text-text-primary ml-2">30秒</span>
+                <label className="block text-xs text-text-secondary mb-1">交易信号 (秒)</label>
+                {isEditingRefresh ? (
+                  <Input
+                    type="number"
+                    value={editedRefresh.signalInterval}
+                    onChange={(e) => setEditedRefresh({ ...editedRefresh, signalInterval: Number(e.target.value) })}
+                    min={5}
+                    max={300}
+                  />
+                ) : (
+                  <div className="px-3 py-2 bg-gray-50 rounded text-sm font-semibold">{dataRefresh.signalInterval}秒</div>
+                )}
               </div>
+
               <div>
-                <span className="text-text-secondary">策略列表:</span>
-                <span className="font-semibold text-text-primary ml-2">30秒</span>
+                <label className="block text-xs text-text-secondary mb-1">策略列表 (秒)</label>
+                {isEditingRefresh ? (
+                  <Input
+                    type="number"
+                    value={editedRefresh.strategyListInterval}
+                    onChange={(e) => setEditedRefresh({ ...editedRefresh, strategyListInterval: Number(e.target.value) })}
+                    min={5}
+                    max={300}
+                  />
+                ) : (
+                  <div className="px-3 py-2 bg-gray-50 rounded text-sm font-semibold">{dataRefresh.strategyListInterval}秒</div>
+                )}
               </div>
             </div>
           </div>
 
           <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-800">
             <strong>说明：</strong>
-            所有数据刷新间隔已统一为30秒，与MiniShare官方数据更新频率保持一致，避免过度请求。
+            数据刷新间隔默认为30秒，与数据源更新频率保持一致。过短的刷新间隔可能导致API请求过于频繁。
           </div>
         </div>
       </Card>

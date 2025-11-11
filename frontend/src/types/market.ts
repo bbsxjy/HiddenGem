@@ -12,12 +12,15 @@ export interface StockInfo {
 
 export interface Quote {
   symbol: string;
-  price: number;
+  last_price: number;  // 最新价
+  price: number;       // 价格（兼容）
   open: number;
   high: number;
   low: number;
   volume: number;
-  change_pct: number;
+  change: number;      // 涨跌额
+  change_pct: number;  // 涨跌幅（旧字段，兼容）
+  change_percent: number;  // 涨跌幅（新字段）
   timestamp: string;
 }
 
