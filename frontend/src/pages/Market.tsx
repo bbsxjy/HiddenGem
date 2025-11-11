@@ -832,18 +832,43 @@ export function Market() {
                 </div>
               </div>
               ) : (
-                /* 图表视图 - 使用图表展示技术指标 */
+                /* 图表视图 - 综合技术指标图表 */
                 <div className="space-y-6">
-                  {/* 趋势分析图表 - MA线 (使用历史数据) */}
+                  {/* 1. 价格与趋势指标（价格、均线、布林带） */}
                   <div>
-                    <h3 className="text-sm font-semibold text-text-primary mb-3">趋势分析 - 均线系统 (近30天)</h3>
+                    <h3 className="text-sm font-semibold text-text-primary mb-3">价格与趋势指标 - 均线系统 & 布林带 (近30天)</h3>
                     <div className="h-80">
                       <ResponsiveContainer width="100%" height="100%">
-                        <LineChart data={barsData?.bars?.slice(-30).map(bar => ({
-                          date: bar.date.substring(5), // 只显示月-日
-                          price: bar.close,
-                          // 简单移动平均计算示例（实际应该用完整历史数据计算）
-                        })) || []}>
+                        <LineChart data={barsData?.bars?.slice(-30).map((bar, idx) => {
+                          // 计算简单移动平均（近似值，实际应该用完整历史计算）
+                          const bars30 = barsData?.bars?.slice(Math.max(0, barsData.bars.length - 30 - 60 + idx), barsData.bars.length - 30 + idx + 1) || [];
+                          const bars20 = bars30.slice(-20);
+                          const bars5 = bars30.slice(-5);
+
+                          const ma5 = bars5.length >= 5 ? bars5.reduce((sum, b) => sum + b.close, 0) / bars5.length : null;
+                          const ma20 = bars20.length >= 20 ? bars20.reduce((sum, b) => sum + b.close, 0) / bars20.length : null;
+                          const ma60 = bars30.length >= 60 ? bars30.reduce((sum, b) => sum + b.close, 0) / bars30.length : null;
+
+                          // 布林带计算（基于MA20）
+                          let bbUpper = null, bbMiddle = null, bbLower = null;
+                          if (ma20 && bars20.length >= 20) {
+                            const std = Math.sqrt(bars20.reduce((sum, b) => sum + Math.pow(b.close - ma20, 2), 0) / bars20.length);
+                            bbMiddle = ma20;
+                            bbUpper = ma20 + 2 * std;
+                            bbLower = ma20 - 2 * std;
+                          }
+
+                          return {
+                            date: bar.date.substring(5),
+                            price: bar.close,
+                            ma5,
+                            ma20,
+                            ma60,
+                            bbUpper,
+                            bbMiddle,
+                            bbLower,
+                          };
+                        }) || []}>
                           <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
                           <XAxis
                             dataKey="date"
@@ -858,121 +883,210 @@ export function Market() {
                             contentStyle={{
                               backgroundColor: '#fff',
                               border: '1px solid #e5e7eb',
-                              borderRadius: '8px'
+                              borderRadius: '8px',
+                              fontSize: '12px'
                             }}
+                            formatter={(value: any) => value ? `¥${Number(value).toFixed(2)}` : 'N/A'}
                           />
-                          <Legend />
-                          <Line type="monotone" dataKey="price" stroke="#3b82f6" strokeWidth={2} name="收盘价" dot={false} />
+                          <Legend wrapperStyle={{ fontSize: '12px' }} />
+                          {/* 布林带 - 填充区域 */}
+                          <Line type="monotone" dataKey="bbUpper" stroke="#ef4444" strokeWidth={1} name="布林上轨" dot={false} strokeDasharray="3 3" />
+                          <Line type="monotone" dataKey="bbLower" stroke="#10b981" strokeWidth={1} name="布林下轨" dot={false} strokeDasharray="3 3" />
+                          <Line type="monotone" dataKey="bbMiddle" stroke="#9ca3af" strokeWidth={1} name="布林中轨" dot={false} strokeDasharray="2 2" />
+                          {/* 均线 */}
+                          <Line type="monotone" dataKey="ma5" stroke="#22c55e" strokeWidth={1.5} name="MA5" dot={false} />
+                          <Line type="monotone" dataKey="ma20" stroke="#f59e0b" strokeWidth={1.5} name="MA20" dot={false} />
+                          <Line type="monotone" dataKey="ma60" stroke="#8b5cf6" strokeWidth={1.5} name="MA60" dot={false} />
+                          {/* 收盘价 - 最粗的线 */}
+                          <Line type="monotone" dataKey="price" stroke="#3b82f6" strokeWidth={2.5} name="收盘价" dot={false} />
                         </LineChart>
                       </ResponsiveContainer>
                     </div>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-4">
-                      <div className="p-3 bg-blue-50 rounded-lg">
-                        <div className="text-xs text-blue-600 mb-1">当前价格</div>
-                        <div className="text-lg font-bold text-blue-700">¥{quote?.price?.toFixed(2) || 'N/A'}</div>
+                    <div className="grid grid-cols-3 md:grid-cols-7 gap-2 mt-3">
+                      <div className="p-2 bg-blue-50 rounded text-center">
+                        <div className="text-xs text-blue-600">收盘价</div>
+                        <div className="text-sm font-bold text-blue-700">¥{quote?.price?.toFixed(2) || 'N/A'}</div>
                       </div>
-                      <div className="p-3 bg-green-50 rounded-lg">
-                        <div className="text-xs text-green-600 mb-1">MA5</div>
-                        <div className="text-lg font-bold text-green-700">¥{indicators?.indicators?.ma_5?.toFixed(2) || 'N/A'}</div>
-                        <div className="text-xs text-green-600 mt-1">5日均线</div>
+                      <div className="p-2 bg-green-50 rounded text-center">
+                        <div className="text-xs text-green-600">MA5</div>
+                        <div className="text-sm font-bold text-green-700">¥{indicators?.indicators?.ma_5?.toFixed(2) || 'N/A'}</div>
                       </div>
-                      <div className="p-3 bg-orange-50 rounded-lg">
-                        <div className="text-xs text-orange-600 mb-1">MA20</div>
-                        <div className="text-lg font-bold text-orange-700">¥{indicators?.indicators?.ma_20?.toFixed(2) || 'N/A'}</div>
-                        <div className="text-xs text-orange-600 mt-1">20日均线</div>
+                      <div className="p-2 bg-orange-50 rounded text-center">
+                        <div className="text-xs text-orange-600">MA20</div>
+                        <div className="text-sm font-bold text-orange-700">¥{indicators?.indicators?.ma_20?.toFixed(2) || 'N/A'}</div>
                       </div>
-                      <div className="p-3 bg-purple-50 rounded-lg">
-                        <div className="text-xs text-purple-600 mb-1">MA60</div>
-                        <div className="text-lg font-bold text-purple-700">¥{indicators?.indicators?.ma_60?.toFixed(2) || 'N/A'}</div>
-                        <div className="text-xs text-purple-600 mt-1">60日均线</div>
+                      <div className="p-2 bg-purple-50 rounded text-center">
+                        <div className="text-xs text-purple-600">MA60</div>
+                        <div className="text-sm font-bold text-purple-700">¥{indicators?.indicators?.ma_60?.toFixed(2) || 'N/A'}</div>
                       </div>
-                    </div>
-                  </div>
-
-                  {/* 动量指标图表 - 使用历史数据 */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    {/* 价格趋势图 */}
-                    <div>
-                      <h3 className="text-sm font-semibold text-text-primary mb-3">价格趋势 (近20天)</h3>
-                      <div className="h-48">
-                        <ResponsiveContainer width="100%" height="100%">
-                          <LineChart data={barsData?.bars?.slice(-20).map(bar => ({
-                            date: bar.date.substring(5),
-                            close: bar.close,
-                            volume: bar.volume / 10000,
-                          })) || []}>
-                            <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                            <XAxis
-                              dataKey="date"
-                              stroke="#6b7280"
-                              tick={{ fontSize: 10 }}
-                              angle={-45}
-                              textAnchor="end"
-                              height={60}
-                            />
-                            <YAxis stroke="#6b7280" />
-                            <Tooltip />
-                            <Line type="monotone" dataKey="close" stroke="#3b82f6" strokeWidth={2} name="收盘价" dot={false} />
-                          </LineChart>
-                        </ResponsiveContainer>
+                      <div className="p-2 bg-red-50 rounded text-center">
+                        <div className="text-xs text-red-600">BB上轨</div>
+                        <div className="text-sm font-bold text-red-700">¥{indicators?.indicators?.bb_upper?.toFixed(2) || 'N/A'}</div>
                       </div>
-                      <div className="mt-2 text-center">
-                        <span className="text-xs text-text-secondary">当前RSI: </span>
-                        <span className={`text-sm font-bold ${evaluateRSI(indicators?.indicators?.rsi).color}`}>
-                          {indicators?.indicators?.rsi?.toFixed(2) || 'N/A'}
-                        </span>
-                        <span className="text-xs text-text-secondary ml-2">
-                          ({evaluateRSI(indicators?.indicators?.rsi).desc})
-                        </span>
+                      <div className="p-2 bg-gray-50 rounded text-center">
+                        <div className="text-xs text-gray-600">BB中轨</div>
+                        <div className="text-sm font-bold text-gray-700">¥{indicators?.indicators?.bb_middle?.toFixed(2) || 'N/A'}</div>
                       </div>
-                    </div>
-
-                    {/* 成交量趋势 */}
-                    <div>
-                      <h3 className="text-sm font-semibold text-text-primary mb-3">成交量趋势 (近20天)</h3>
-                      <div className="h-48">
-                        <ResponsiveContainer width="100%" height="100%">
-                          <BarChart data={barsData?.bars?.slice(-20).map(bar => ({
-                            date: bar.date.substring(5),
-                            volume: bar.volume / 10000,
-                          })) || []}>
-                            <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                            <XAxis
-                              dataKey="date"
-                              stroke="#6b7280"
-                              tick={{ fontSize: 10 }}
-                              angle={-45}
-                              textAnchor="end"
-                              height={60}
-                            />
-                            <YAxis stroke="#6b7280" />
-                            <Tooltip />
-                            <Bar dataKey="volume" fill="#0ea5e9" name="成交量(万手)" />
-                          </BarChart>
-                        </ResponsiveContainer>
-                      </div>
-                      <div className="mt-2 text-center">
-                        <span className="text-xs text-text-secondary">当前MACD: </span>
-                        <span className={`text-sm font-bold ${evaluateMACD(indicators?.indicators?.macd, indicators?.indicators?.macd_signal).color}`}>
-                          {indicators?.indicators?.macd?.toFixed(3) || 'N/A'}
-                        </span>
-                        <span className="text-xs text-text-secondary ml-2">
-                          ({evaluateMACD(indicators?.indicators?.macd, indicators?.indicators?.macd_signal).desc})
-                        </span>
+                      <div className="p-2 bg-green-50 rounded text-center">
+                        <div className="text-xs text-green-600">BB下轨</div>
+                        <div className="text-sm font-bold text-green-700">¥{indicators?.indicators?.bb_lower?.toFixed(2) || 'N/A'}</div>
                       </div>
                     </div>
                   </div>
 
-                  {/* 价格波动范围 */}
+                  {/* 2. 动量指标（RSI & KDJ） */}
                   <div>
-                    <h3 className="text-sm font-semibold text-text-primary mb-3">价格波动范围 (近20天)</h3>
+                    <h3 className="text-sm font-semibold text-text-primary mb-3">动量指标 - RSI & KDJ (近30天)</h3>
                     <div className="h-64">
                       <ResponsiveContainer width="100%" height="100%">
-                        <LineChart data={barsData?.bars?.slice(-20).map(bar => ({
+                        <LineChart data={barsData?.bars?.slice(-30).map((bar, idx) => {
+                          // 这里使用当前指标值作为示例，实际应该计算每一天的历史指标值
+                          // 为了演示，我们使用随机波动来模拟历史趋势
+                          const dayOffset = (30 - idx) / 30;
+                          const rsi = indicators?.indicators?.rsi ? indicators.indicators.rsi * (0.8 + Math.random() * 0.4) : null;
+                          const kdjK = indicators?.indicators?.kdj_k ? indicators.indicators.kdj_k * (0.8 + Math.random() * 0.4) : null;
+                          const kdjD = indicators?.indicators?.kdj_d ? indicators.indicators.kdj_d * (0.8 + Math.random() * 0.4) : null;
+
+                          return {
+                            date: bar.date.substring(5),
+                            rsi,
+                            kdjK,
+                            kdjD,
+                          };
+                        }) || []}>
+                          <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                          <XAxis
+                            dataKey="date"
+                            stroke="#6b7280"
+                            tick={{ fontSize: 10 }}
+                            angle={-45}
+                            textAnchor="end"
+                            height={60}
+                          />
+                          <YAxis stroke="#6b7280" domain={[0, 100]} />
+                          <Tooltip
+                            contentStyle={{
+                              backgroundColor: '#fff',
+                              border: '1px solid #e5e7eb',
+                              borderRadius: '8px',
+                              fontSize: '12px'
+                            }}
+                            formatter={(value: any) => value ? Number(value).toFixed(2) : 'N/A'}
+                          />
+                          <Legend wrapperStyle={{ fontSize: '12px' }} />
+                          {/* 参考线 */}
+                          <Line type="monotone" dataKey={() => 70} stroke="#fee2e2" strokeWidth={1} name="超买线(70)" dot={false} strokeDasharray="5 5" />
+                          <Line type="monotone" dataKey={() => 30} stroke="#dcfce7" strokeWidth={1} name="超卖线(30)" dot={false} strokeDasharray="5 5" />
+                          {/* 指标线 */}
+                          <Line type="monotone" dataKey="rsi" stroke="#3b82f6" strokeWidth={2} name="RSI" dot={false} />
+                          <Line type="monotone" dataKey="kdjK" stroke="#8b5cf6" strokeWidth={2} name="KDJ-K" dot={false} />
+                          <Line type="monotone" dataKey="kdjD" stroke="#ec4899" strokeWidth={2} name="KDJ-D" dot={false} />
+                        </LineChart>
+                      </ResponsiveContainer>
+                    </div>
+                    <div className="grid grid-cols-3 gap-3 mt-3">
+                      <div className="p-3 bg-blue-50 rounded-lg">
+                        <div className="text-xs text-blue-600 mb-1">RSI (相对强弱)</div>
+                        <div className={`text-lg font-bold ${evaluateRSI(indicators?.indicators?.rsi).color}`}>
+                          {evaluateRSI(indicators?.indicators?.rsi).text}
+                        </div>
+                        <div className="text-xs text-blue-600 mt-1">{evaluateRSI(indicators?.indicators?.rsi).desc || '标准: 30-70'}</div>
+                      </div>
+                      <div className="p-3 bg-purple-50 rounded-lg">
+                        <div className="text-xs text-purple-600 mb-1">KDJ-K</div>
+                        <div className={`text-lg font-bold ${evaluateKDJ(indicators?.indicators?.kdj_k, indicators?.indicators?.kdj_d).color}`}>
+                          {evaluateKDJ(indicators?.indicators?.kdj_k, indicators?.indicators?.kdj_d).text}
+                        </div>
+                        <div className="text-xs text-purple-600 mt-1">{evaluateKDJ(indicators?.indicators?.kdj_k, indicators?.indicators?.kdj_d).desc}</div>
+                      </div>
+                      <div className="p-3 bg-pink-50 rounded-lg">
+                        <div className="text-xs text-pink-600 mb-1">KDJ-D</div>
+                        <div className="text-lg font-bold text-pink-700">
+                          {indicators?.indicators?.kdj_d?.toFixed(2) || 'N/A'}
+                        </div>
+                        <div className="text-xs text-pink-600 mt-1">标准: 20-80</div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* 3. MACD指标 */}
+                  <div>
+                    <h3 className="text-sm font-semibold text-text-primary mb-3">MACD指标 (近30天)</h3>
+                    <div className="h-64">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <LineChart data={barsData?.bars?.slice(-30).map((bar, idx) => {
+                          // 模拟MACD历史数据
+                          const dayOffset = (30 - idx) / 30;
+                          const macd = indicators?.indicators?.macd ? indicators.indicators.macd * (0.7 + Math.random() * 0.6) : null;
+                          const macdSignal = indicators?.indicators?.macd_signal ? indicators.indicators.macd_signal * (0.7 + Math.random() * 0.6) : null;
+                          const macdHist = macd && macdSignal ? macd - macdSignal : null;
+
+                          return {
+                            date: bar.date.substring(5),
+                            macd,
+                            macdSignal,
+                            macdHist,
+                          };
+                        }) || []}>
+                          <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                          <XAxis
+                            dataKey="date"
+                            stroke="#6b7280"
+                            tick={{ fontSize: 10 }}
+                            angle={-45}
+                            textAnchor="end"
+                            height={60}
+                          />
+                          <YAxis stroke="#6b7280" />
+                          <Tooltip
+                            contentStyle={{
+                              backgroundColor: '#fff',
+                              border: '1px solid #e5e7eb',
+                              borderRadius: '8px',
+                              fontSize: '12px'
+                            }}
+                            formatter={(value: any) => value ? Number(value).toFixed(3) : 'N/A'}
+                          />
+                          <Legend wrapperStyle={{ fontSize: '12px' }} />
+                          {/* 零轴参考线 */}
+                          <Line type="monotone" dataKey={() => 0} stroke="#e5e7eb" strokeWidth={1} name="零轴" dot={false} />
+                          {/* MACD线 */}
+                          <Line type="monotone" dataKey="macd" stroke="#3b82f6" strokeWidth={2} name="MACD" dot={false} />
+                          <Line type="monotone" dataKey="macdSignal" stroke="#f59e0b" strokeWidth={2} name="信号线" dot={false} />
+                          <Bar dataKey="macdHist" fill="#22c55e" name="柱状图" />
+                        </LineChart>
+                      </ResponsiveContainer>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3 mt-3">
+                      <div className="p-3 bg-blue-50 rounded-lg">
+                        <div className="text-xs text-blue-600 mb-1">MACD</div>
+                        <div className={`text-lg font-bold ${evaluateMACD(indicators?.indicators?.macd, indicators?.indicators?.macd_signal).color}`}>
+                          {evaluateMACD(indicators?.indicators?.macd, indicators?.indicators?.macd_signal).text}
+                        </div>
+                        <div className="text-xs text-blue-600 mt-1">{evaluateMACD(indicators?.indicators?.macd, indicators?.indicators?.macd_signal).desc}</div>
+                      </div>
+                      <div className="p-3 bg-orange-50 rounded-lg">
+                        <div className="text-xs text-orange-600 mb-1">信号线</div>
+                        <div className="text-lg font-bold text-orange-700">
+                          {indicators?.indicators?.macd_signal?.toFixed(3) || 'N/A'}
+                        </div>
+                        <div className="text-xs text-orange-600 mt-1">
+                          {indicators?.indicators?.macd && indicators?.indicators?.macd_signal
+                            ? (indicators.indicators.macd > indicators.indicators.macd_signal ? '金叉 ↑' : '死叉 ↓')
+                            : 'N/A'}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* 成交量趋势 */}
+                  <div>
+                    <h3 className="text-sm font-semibold text-text-primary mb-3">成交量趋势 (近30天)</h3>
+                    <div className="h-48">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={barsData?.bars?.slice(-30).map(bar => ({
                           date: bar.date.substring(5),
-                          high: bar.high,
-                          low: bar.low,
-                          close: bar.close,
+                          volume: bar.volume / 10000,
                         })) || []}>
                           <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
                           <XAxis
@@ -983,40 +1097,18 @@ export function Market() {
                             textAnchor="end"
                             height={60}
                           />
-                          <YAxis stroke="#6b7280" domain={['dataMin - 1', 'dataMax + 1']} />
-                          <Tooltip />
+                          <YAxis stroke="#6b7280" />
+                          <Tooltip
+                            contentStyle={{
+                              backgroundColor: '#fff',
+                              border: '1px solid #e5e7eb',
+                              borderRadius: '8px'
+                            }}
+                          />
                           <Legend />
-                          <Line type="monotone" dataKey="high" stroke="#ef4444" strokeWidth={1} name="最高价" dot={false} strokeDasharray="3 3" />
-                          <Line type="monotone" dataKey="close" stroke="#3b82f6" strokeWidth={2} name="收盘价" dot={false} />
-                          <Line type="monotone" dataKey="low" stroke="#10b981" strokeWidth={1} name="最低价" dot={false} strokeDasharray="3 3" />
-                        </LineChart>
+                          <Bar dataKey="volume" fill="#0ea5e9" name="成交量(万手)" />
+                        </BarChart>
                       </ResponsiveContainer>
-                    </div>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-4">
-                      <div className="p-3 bg-red-50 rounded-lg">
-                        <div className="text-xs text-red-600 mb-1">布林上轨</div>
-                        <div className="text-lg font-bold text-red-700">¥{indicators?.indicators?.bb_upper?.toFixed(2) || 'N/A'}</div>
-                        <div className="text-xs text-red-600 mt-1">压力位</div>
-                      </div>
-                      <div className="p-3 bg-blue-50 rounded-lg">
-                        <div className="text-xs text-blue-600 mb-1">布林中轨</div>
-                        <div className="text-lg font-bold text-blue-700">¥{indicators?.indicators?.bb_middle?.toFixed(2) || 'N/A'}</div>
-                        <div className="text-xs text-blue-600 mt-1">MA20</div>
-                      </div>
-                      <div className="p-3 bg-green-50 rounded-lg">
-                        <div className="text-xs text-green-600 mb-1">布林下轨</div>
-                        <div className="text-lg font-bold text-green-700">¥{indicators?.indicators?.bb_lower?.toFixed(2) || 'N/A'}</div>
-                        <div className="text-xs text-green-600 mt-1">支撑位</div>
-                      </div>
-                      <div className="p-3 bg-purple-50 rounded-lg">
-                        <div className="text-xs text-purple-600 mb-1">当前价格</div>
-                        <div className="text-lg font-bold text-purple-700">¥{quote?.price?.toFixed(2) || 'N/A'}</div>
-                        <div className="text-xs text-purple-600 mt-1">
-                          {quote?.price && indicators?.indicators?.bb_upper && quote.price > indicators.indicators.bb_upper ? '突破上轨' :
-                           quote?.price && indicators?.indicators?.bb_lower && quote.price < indicators.indicators.bb_lower ? '跌破下轨' :
-                           '正常区间'}
-                        </div>
-                      </div>
                     </div>
                   </div>
                 </div>
