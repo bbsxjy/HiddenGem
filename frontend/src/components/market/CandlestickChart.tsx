@@ -1,16 +1,35 @@
 import { useEffect, useRef } from 'react';
-import { createChart } from 'lightweight-charts';
+import { createChart, ISeriesApi } from 'lightweight-charts';
 import type { BarData } from '@/types/market';
+
+interface IndicatorData {
+  time: number;
+  value: number;
+}
 
 interface CandlestickChartProps {
   data: BarData[];
   height?: number;
+  // 叠加指标
+  showMA?: boolean;
+  showBollingerBands?: boolean;
+  maValues?: { ma5?: IndicatorData[]; ma20?: IndicatorData[]; ma60?: IndicatorData[] };
+  bbValues?: { upper?: IndicatorData[]; middle?: IndicatorData[]; lower?: IndicatorData[] };
 }
 
-export function CandlestickChart({ data, height }: CandlestickChartProps) {
+export function CandlestickChart({
+  data,
+  height,
+  showMA = false,
+  showBollingerBands = false,
+  maValues,
+  bbValues
+}: CandlestickChartProps) {
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<any>(null);
   const candlestickSeriesRef = useRef<any>(null);
+  const maSeriesRef = useRef<{ ma5?: any; ma20?: any; ma60?: any }>({});
+  const bbSeriesRef = useRef<{ upper?: any; middle?: any; lower?: any }>({});
 
   useEffect(() => {
     if (!chartContainerRef.current || data.length === 0) return;
@@ -132,6 +151,75 @@ export function CandlestickChart({ data, height }: CandlestickChartProps) {
 
       candlestickSeries.setData(chartData);
 
+      // Add MA lines if enabled
+      if (showMA && maValues) {
+        if (maValues.ma5 && maValues.ma5.length > 0) {
+          const ma5Series = chart.addLineSeries({
+            color: '#22c55e',
+            lineWidth: 2,
+            title: 'MA5',
+          });
+          ma5Series.setData(maValues.ma5);
+          maSeriesRef.current.ma5 = ma5Series;
+        }
+
+        if (maValues.ma20 && maValues.ma20.length > 0) {
+          const ma20Series = chart.addLineSeries({
+            color: '#f59e0b',
+            lineWidth: 2,
+            title: 'MA20',
+          });
+          ma20Series.setData(maValues.ma20);
+          maSeriesRef.current.ma20 = ma20Series;
+        }
+
+        if (maValues.ma60 && maValues.ma60.length > 0) {
+          const ma60Series = chart.addLineSeries({
+            color: '#8b5cf6',
+            lineWidth: 2,
+            title: 'MA60',
+          });
+          ma60Series.setData(maValues.ma60);
+          maSeriesRef.current.ma60 = ma60Series;
+        }
+      }
+
+      // Add Bollinger Bands if enabled
+      if (showBollingerBands && bbValues) {
+        if (bbValues.upper && bbValues.upper.length > 0) {
+          const upperSeries = chart.addLineSeries({
+            color: '#ef4444',
+            lineWidth: 1,
+            lineStyle: 2, // Dashed
+            title: 'BB上轨',
+          });
+          upperSeries.setData(bbValues.upper);
+          bbSeriesRef.current.upper = upperSeries;
+        }
+
+        if (bbValues.middle && bbValues.middle.length > 0) {
+          const middleSeries = chart.addLineSeries({
+            color: '#9ca3af',
+            lineWidth: 1,
+            lineStyle: 2, // Dashed
+            title: 'BB中轨',
+          });
+          middleSeries.setData(bbValues.middle);
+          bbSeriesRef.current.middle = middleSeries;
+        }
+
+        if (bbValues.lower && bbValues.lower.length > 0) {
+          const lowerSeries = chart.addLineSeries({
+            color: '#10b981',
+            lineWidth: 1,
+            lineStyle: 2, // Dashed
+            title: 'BB下轨',
+          });
+          lowerSeries.setData(bbValues.lower);
+          bbSeriesRef.current.lower = lowerSeries;
+        }
+      }
+
       // Fit content
       chart.timeScale().fitContent();
 
@@ -152,6 +240,8 @@ export function CandlestickChart({ data, height }: CandlestickChartProps) {
         chart.remove();
         chartRef.current = null;
         candlestickSeriesRef.current = null;
+        maSeriesRef.current = {};
+        bbSeriesRef.current = {};
       };
     };
 
@@ -164,14 +254,16 @@ export function CandlestickChart({ data, height }: CandlestickChartProps) {
         chartRef.current.remove();
         chartRef.current = null;
         candlestickSeriesRef.current = null;
+        maSeriesRef.current = {};
+        bbSeriesRef.current = {};
       }
     };
-  }, [data, height]);
+  }, [data, height, showMA, showBollingerBands, maValues, bbValues]);
 
   return (
     <div className="relative h-full w-full flex flex-col">
       <div ref={chartContainerRef} className="w-full flex-1" />
-      <div className="mt-2 flex items-center justify-center gap-4 text-xs text-text-secondary">
+      <div className="mt-2 flex flex-wrap items-center justify-center gap-3 text-xs text-text-secondary">
         <div className="flex items-center gap-2">
           <div className="w-3 h-3 bg-loss rounded"></div>
           <span>上涨</span>
@@ -180,6 +272,40 @@ export function CandlestickChart({ data, height }: CandlestickChartProps) {
           <div className="w-3 h-3 bg-profit rounded"></div>
           <span>下跌</span>
         </div>
+        {showMA && (
+          <>
+            <div className="w-px h-3 bg-gray-300"></div>
+            <div className="flex items-center gap-2">
+              <div className="w-4 h-0.5 bg-green-500"></div>
+              <span>MA5</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-4 h-0.5 bg-orange-500"></div>
+              <span>MA20</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-4 h-0.5 bg-purple-500"></div>
+              <span>MA60</span>
+            </div>
+          </>
+        )}
+        {showBollingerBands && (
+          <>
+            <div className="w-px h-3 bg-gray-300"></div>
+            <div className="flex items-center gap-2">
+              <div className="w-4 h-0.5 bg-red-500 border-dashed"></div>
+              <span>BB上轨</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-4 h-0.5 bg-gray-400 border-dashed"></div>
+              <span>BB中轨</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-4 h-0.5 bg-green-500 border-dashed"></div>
+              <span>BB下轨</span>
+            </div>
+          </>
+        )}
       </div>
     </div>
   );

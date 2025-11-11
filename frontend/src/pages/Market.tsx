@@ -483,7 +483,7 @@ export function Market() {
               </button>
             </Card>
           ) : (
-            /* 完整视图 - 显示K线图和成交量 */
+            /* 完整视图 - 显示K线图和技术指标 */
             <>
               {showDeepAnalysis && (
                 <div className="flex justify-end">
@@ -496,453 +496,169 @@ export function Market() {
                   </button>
                 </div>
               )}
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-6">
-                <Card title="价格走势（60天）" padding="md" className="lg:col-span-2">
-              {barsError && (
-                <div className="mb-3">
-                  <div className="bg-red-50 border border-red-200 rounded-lg p-3">
-                    <div className="flex items-center gap-2 mb-1">
-                      <AlertCircle className="h-4 w-4 text-loss" />
-                      <span className="text-xs font-semibold text-red-900">无法加载K线数据</span>
-                    </div>
-                    <p className="text-xs text-red-700">
-                      {barsError instanceof Error ? barsError.message : '未知错误'}
-                    </p>
-                    <button
-                      onClick={() => refetchBars()}
-                      className="text-xs mt-2 px-2 py-1 bg-primary-500 text-white rounded hover:bg-primary-600 transition-colors"
-                    >
-                      刷新
-                    </button>
-                  </div>
-                </div>
-              )}
 
-              {barsLoading && (
-                <div className="h-64 sm:h-80 flex items-center justify-center">
-                  <Loading size="sm" text="加载K线数据..." />
-                </div>
-              )}
-
-              {!barsLoading && !barsError && barsData?.bars?.length > 0 ? (
-                <div className="h-64 sm:h-80 md:h-96">
-                  <CandlestickChart data={barsData.bars} />
-                </div>
-              ) : !barsLoading && !barsError ? (
-                <div className="h-64 sm:h-80 flex items-center justify-center text-text-secondary">
-                  暂无K线数据
-                </div>
-              ) : null}
-            </Card>
-
-            {/* Volume Chart */}
-            <Card title="成交量（最近20天）" padding="md">
-              {barsError && (
-                <div className="mb-3">
-                  <div className="bg-red-50 border border-red-200 rounded-lg p-3">
-                    <div className="flex items-center gap-2 mb-1">
-                      <AlertCircle className="h-4 w-4 text-loss" />
-                      <span className="text-xs font-semibold text-red-900">无法加载成交量数据</span>
-                    </div>
-                    <p className="text-xs text-red-700">
-                      {barsError instanceof Error ? barsError.message : '未知错误'}
-                    </p>
-                    <button
-                      onClick={() => refetchBars()}
-                      className="text-xs mt-2 px-2 py-1 bg-primary-500 text-white rounded hover:bg-primary-600 transition-colors"
-                    >
-                      刷新
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {barsLoading && (
-                <div className="h-64 sm:h-80 flex items-center justify-center">
-                  <Loading size="sm" text="加载成交量..." />
-                </div>
-              )}
-
-              {!barsLoading && !barsError && barsData?.bars?.length > 0 ? (
-                <div className="h-64 sm:h-80">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={barsData.bars.slice(-20)}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                      <XAxis
-                        dataKey="date"
-                        stroke="#6b7280"
-                        tick={{ fontSize: 10 }}
-                        angle={-45}
-                        textAnchor="end"
-                        height={80}
-                      />
-                      <YAxis
-                        stroke="#6b7280"
-                        tick={{ fontSize: 12 }}
-                      />
-                      <Tooltip
-                        contentStyle={{
-                          backgroundColor: '#fff',
-                          border: '1px solid #e5e7eb',
-                          borderRadius: '8px'
-                        }}
-                      />
-                      <Bar dataKey="volume" fill="#0ea5e9" />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-              ) : !barsLoading && !barsError ? (
-                <div className="h-64 sm:h-80 flex items-center justify-center text-text-secondary">
-                  暂无成交量数据
-                </div>
-              ) : null}
-            </Card>
-          </div>
-            </>
-          )}
-
-          {/* Technical Indicators - 可折叠，支持表格/图表切换 */}
-          {collapseCharts && showDeepAnalysis ? (
-            /* 折叠视图 */
-            <Card padding="md">
-              <button
-                onClick={() => setCollapseCharts(false)}
-                className="w-full flex items-center justify-between text-left hover:bg-gray-50 transition-colors p-2 rounded"
-              >
-                <div className="flex items-center gap-2">
-                  <BarChart2 size={18} className="text-primary-500" />
-                  <span className="font-semibold text-text-primary">技术指标分析</span>
-                  <span className="text-xs text-text-secondary">(已折叠)</span>
-                </div>
-                <ChevronDown size={18} className="text-text-secondary" />
-              </button>
-            </Card>
-          ) : (
-            /* 完整视图 - 显示技术指标 */
-            <Card
-              title={
-                <div className="flex items-center justify-between w-full">
-                  <span>技术指标分析</span>
-                  <div className="flex items-center gap-2">
-                    {/* 视图切换按钮 */}
-                    <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
+              {/* K线图 + 均线 + 布林带 */}
+              <Card title="K线图与趋势指标" padding="md">
+                {barsError && (
+                  <div className="mb-3">
+                    <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+                      <div className="flex items-center gap-2 mb-1">
+                        <AlertCircle className="h-4 w-4 text-loss" />
+                        <span className="text-xs font-semibold text-red-900">无法加载K线数据</span>
+                      </div>
+                      <p className="text-xs text-red-700">
+                        {barsError instanceof Error ? barsError.message : '未知错误'}
+                      </p>
                       <button
-                        onClick={() => setIndicatorViewMode('table')}
-                        className={`px-3 py-1 rounded text-xs font-medium transition-colors ${
-                          indicatorViewMode === 'table'
-                            ? 'bg-white text-primary-600 shadow-sm'
-                            : 'text-text-secondary hover:text-text-primary'
-                        }`}
+                        onClick={() => refetchBars()}
+                        className="text-xs mt-2 px-2 py-1 bg-primary-500 text-white rounded hover:bg-primary-600 transition-colors"
                       >
-                        <Table size={14} className="inline mr-1" />
-                        表格
-                      </button>
-                      <button
-                        onClick={() => setIndicatorViewMode('chart')}
-                        className={`px-3 py-1 rounded text-xs font-medium transition-colors ${
-                          indicatorViewMode === 'chart'
-                            ? 'bg-white text-primary-600 shadow-sm'
-                            : 'text-text-secondary hover:text-text-primary'
-                        }`}
-                      >
-                        <BarChart2 size={14} className="inline mr-1" />
-                        图表
+                        刷新
                       </button>
                     </div>
-                    {showDeepAnalysis && (
-                      <button
-                        onClick={() => setCollapseCharts(true)}
-                        className="text-sm text-primary-600 hover:text-primary-700 flex items-center gap-1"
-                      >
-                        <ChevronUp size={16} />
-                      </button>
-                    )}
                   </div>
-                </div>
-              }
-              padding="md"
-            >
-            {indicatorsError && (
-              <div className="mb-4">
-                <div className="bg-red-50 border border-red-200 rounded-lg p-3">
-                  <div className="flex items-center gap-2 mb-1">
-                    <AlertCircle className="h-4 w-4 text-loss" />
-                    <span className="text-xs font-semibold text-red-900">无法加载技术指标</span>
+                )}
+
+                {barsLoading && (
+                  <div className="h-96 flex items-center justify-center">
+                    <Loading size="sm" text="加载K线数据..." />
                   </div>
-                  <p className="text-xs text-red-700">
-                    {indicatorsError instanceof Error ? indicatorsError.message : '未知错误'}
-                  </p>
-                  <button
-                    onClick={() => refetchIndicators()}
-                    className="text-xs mt-2 px-2 py-1 bg-primary-500 text-white rounded hover:bg-primary-600 transition-colors"
-                  >
-                    刷新
-                  </button>
-                </div>
-              </div>
-            )}
+                )}
 
-            {indicatorsLoading && (
-              <div className="h-64 flex items-center justify-center">
-                <Loading size="sm" text="加载技术指标..." />
-              </div>
-            )}
-
-            {!indicatorsLoading && !indicatorsError && indicators ? (
-              indicatorViewMode === 'table' ? (
-                /* 表格视图 - 原有的卡片展示 */
-                <div className="space-y-6">
-                {/* 趋势分析 - 移动端2列，平板4列 */}
-                <div>
-                  <h3 className="text-xs sm:text-sm font-semibold text-text-secondary mb-3">趋势分析</h3>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
-                    <div className="p-3 sm:p-4 bg-gray-50 rounded-lg">
-                      <div className="text-[10px] sm:text-xs text-text-secondary mb-1">当前价格</div>
-                      <div className="text-base sm:text-lg font-semibold text-text-primary">
-                        ¥{quote?.price != null ? quote.price.toFixed(2) : 'N/A'}
-                      </div>
-                      <div className={`text-[10px] sm:text-xs font-medium mt-1 ${evaluatePrice(quote?.price, indicators?.indicators?.ma_5, indicators?.indicators?.ma_20, indicators?.indicators?.ma_60).color}`}>
-                        {evaluatePrice(quote?.price, indicators?.indicators?.ma_5, indicators?.indicators?.ma_20, indicators?.indicators?.ma_60).desc}
-                      </div>
-                    </div>
-                    <div className="p-3 sm:p-4 bg-gray-50 rounded-lg">
-                      <div className="text-[10px] sm:text-xs text-text-secondary mb-1">MA5 (5日均线)</div>
-                      <div className="text-base sm:text-lg font-semibold text-text-primary">
-                        ¥{indicators?.indicators?.ma_5?.toFixed(2) || 'N/A'}
-                      </div>
-                      {quote && quote.price != null && indicators?.indicators?.ma_5 != null && (
-                        <div className={`text-[10px] sm:text-xs font-medium mt-1 ${quote.price > indicators.indicators.ma_5 ? 'text-profit' : 'text-loss'}`}>
-                          {quote.price > indicators.indicators.ma_5 ? '价格在上方 ↑' : '价格在下方 ↓'}
-                        </div>
-                      )}
-                    </div>
-                    <div className="p-3 sm:p-4 bg-gray-50 rounded-lg">
-                      <div className="text-[10px] sm:text-xs text-text-secondary mb-1">MA20 (20日均线)</div>
-                      <div className="text-base sm:text-lg font-semibold text-text-primary">
-                        ¥{indicators?.indicators?.ma_20?.toFixed(2) || 'N/A'}
-                      </div>
-                      {quote && quote.price != null && indicators?.indicators?.ma_20 != null && (
-                        <div className={`text-[10px] sm:text-xs font-medium mt-1 ${quote.price > indicators.indicators.ma_20 ? 'text-profit' : 'text-loss'}`}>
-                          {quote.price > indicators.indicators.ma_20 ? '价格在上方 ↑' : '价格在下方 ↓'}
-                        </div>
-                      )}
-                    </div>
-                    <div className="p-3 sm:p-4 bg-gray-50 rounded-lg">
-                      <div className="text-[10px] sm:text-xs text-text-secondary mb-1">MA60 (60日均线)</div>
-                      <div className="text-base sm:text-lg font-semibold text-text-primary">
-                        ¥{indicators?.indicators?.ma_60?.toFixed(2) || 'N/A'}
-                      </div>
-                      {quote && quote.price != null && indicators?.indicators?.ma_60 != null && (
-                        <div className={`text-[10px] sm:text-xs font-medium mt-1 ${quote.price > indicators.indicators.ma_60 ? 'text-profit' : 'text-loss'}`}>
-                          {quote.price > indicators.indicators.ma_60 ? '价格在上方 ↑' : '价格在下方 ↓'}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-
-                {/* 动量指标 - 移动端2列，平板4列 */}
-                <div>
-                  <h3 className="text-xs sm:text-sm font-semibold text-text-secondary mb-3">动量指标</h3>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
-                    <div className="p-3 sm:p-4 bg-gray-50 rounded-lg">
-                      <div className="text-[10px] sm:text-xs text-text-secondary mb-1">RSI (相对强弱)</div>
-                      <div className={`text-base sm:text-lg font-semibold ${evaluateRSI(indicators?.indicators?.rsi).color}`}>
-                        {evaluateRSI(indicators?.indicators?.rsi).text}
-                      </div>
-                      <div className="text-[10px] sm:text-xs font-medium mt-1 text-text-secondary">
-                        {evaluateRSI(indicators?.indicators?.rsi).desc || '标准: 30-70'}
-                      </div>
-                    </div>
-                    <div className="p-3 sm:p-4 bg-gray-50 rounded-lg">
-                      <div className="text-[10px] sm:text-xs text-text-secondary mb-1">MACD</div>
-                      <div className={`text-base sm:text-lg font-semibold ${evaluateMACD(indicators?.indicators?.macd, indicators?.indicators?.macd_signal).color}`}>
-                        {evaluateMACD(indicators?.indicators?.macd, indicators?.indicators?.macd_signal).text}
-                      </div>
-                      <div className="text-[10px] sm:text-xs font-medium mt-1 text-text-secondary">
-                        {evaluateMACD(indicators?.indicators?.macd, indicators?.indicators?.macd_signal).desc}
-                      </div>
-                    </div>
-                    <div className="p-3 sm:p-4 bg-gray-50 rounded-lg">
-                      <div className="text-[10px] sm:text-xs text-text-secondary mb-1">KDJ_K</div>
-                      <div className={`text-base sm:text-lg font-semibold ${evaluateKDJ(indicators?.indicators?.kdj_k, indicators?.indicators?.kdj_d).color}`}>
-                        {evaluateKDJ(indicators?.indicators?.kdj_k, indicators?.indicators?.kdj_d).text}
-                      </div>
-                      <div className="text-[10px] sm:text-xs font-medium mt-1 text-text-secondary">
-                        {evaluateKDJ(indicators?.indicators?.kdj_k, indicators?.indicators?.kdj_d).desc}
-                      </div>
-                    </div>
-                    <div className="p-3 sm:p-4 bg-gray-50 rounded-lg">
-                      <div className="text-[10px] sm:text-xs text-text-secondary mb-1">KDJ_D</div>
-                      <div className="text-base sm:text-lg font-semibold text-text-primary">
-                        {indicators?.indicators?.kdj_d?.toFixed(2) || 'N/A'}
-                      </div>
-                      <div className="text-[10px] sm:text-xs font-medium mt-1 text-text-secondary">
-                        标准: 20-80
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* 布林带 - 移动端2列，平板4列 */}
-                <div>
-                  <h3 className="text-xs sm:text-sm font-semibold text-text-secondary mb-3">布林带 (波动区间)</h3>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
-                    <div className="p-3 sm:p-4 bg-gray-50 rounded-lg">
-                      <div className="text-[10px] sm:text-xs text-text-secondary mb-1">布林上轨</div>
-                      <div className="text-base sm:text-lg font-semibold text-loss">
-                        ¥{indicators?.indicators?.bb_upper?.toFixed(2) || 'N/A'}
-                      </div>
-                      {quote && quote.price != null && indicators?.indicators?.bb_upper != null && (
-                        <div className="text-[10px] sm:text-xs font-medium mt-1 text-text-secondary">
-                          {quote.price > indicators.indicators.bb_upper ? '价格突破上轨' : '压力位'}
-                        </div>
-                      )}
-                    </div>
-                    <div className="p-3 sm:p-4 bg-gray-50 rounded-lg">
-                      <div className="text-[10px] sm:text-xs text-text-secondary mb-1">布林中轨</div>
-                      <div className="text-base sm:text-lg font-semibold text-text-primary">
-                        ¥{indicators?.indicators?.bb_middle?.toFixed(2) || 'N/A'}
-                      </div>
-                      <div className="text-[10px] sm:text-xs font-medium mt-1 text-text-secondary">
-                        中轨参考
-                      </div>
-                    </div>
-                    <div className="p-3 sm:p-4 bg-gray-50 rounded-lg">
-                      <div className="text-[10px] sm:text-xs text-text-secondary mb-1">布林下轨</div>
-                      <div className="text-base sm:text-lg font-semibold text-profit">
-                        ¥{indicators?.indicators?.bb_lower?.toFixed(2) || 'N/A'}
-                      </div>
-                      {quote && quote.price != null && indicators?.indicators?.bb_lower != null && (
-                        <div className="text-[10px] sm:text-xs font-medium mt-1 text-text-secondary">
-                          {quote.price < indicators.indicators.bb_lower ? '价格跌破下轨' : '支撑位'}
-                        </div>
-                      )}
-                    </div>
-                    <div className="p-3 sm:p-4 bg-gray-50 rounded-lg">
-                      <div className="text-[10px] sm:text-xs text-text-secondary mb-1">ATR (真实波幅)</div>
-                      <div className="text-base sm:text-lg font-semibold text-text-primary">
-                        {indicators?.indicators?.atr?.toFixed(3) || 'N/A'}
-                      </div>
-                      <div className="text-[10px] sm:text-xs font-medium mt-1 text-text-secondary">
-                        波动性指标
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-              ) : (
-                /* 图表视图 - 综合技术指标图表 */
-                <div className="space-y-6">
-                  {/* 1. 价格与趋势指标（价格、均线、布林带） */}
-                  <div>
-                    <h3 className="text-sm font-semibold text-text-primary mb-3">价格与趋势指标 - 均线系统 & 布林带 (近30天)</h3>
-                    <div className="h-80">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <LineChart data={barsData?.bars?.slice(-30).map((bar, idx) => {
-                          // 计算简单移动平均（近似值，实际应该用完整历史计算）
-                          const bars30 = barsData?.bars?.slice(Math.max(0, barsData.bars.length - 30 - 60 + idx), barsData.bars.length - 30 + idx + 1) || [];
-                          const bars20 = bars30.slice(-20);
-                          const bars5 = bars30.slice(-5);
-
-                          const ma5 = bars5.length >= 5 ? bars5.reduce((sum, b) => sum + b.close, 0) / bars5.length : null;
-                          const ma20 = bars20.length >= 20 ? bars20.reduce((sum, b) => sum + b.close, 0) / bars20.length : null;
-                          const ma60 = bars30.length >= 60 ? bars30.reduce((sum, b) => sum + b.close, 0) / bars30.length : null;
-
-                          // 布林带计算（基于MA20）
-                          let bbUpper = null, bbMiddle = null, bbLower = null;
-                          if (ma20 && bars20.length >= 20) {
-                            const std = Math.sqrt(bars20.reduce((sum, b) => sum + Math.pow(b.close - ma20, 2), 0) / bars20.length);
-                            bbMiddle = ma20;
-                            bbUpper = ma20 + 2 * std;
-                            bbLower = ma20 - 2 * std;
+                {!barsLoading && !barsError && barsData?.bars?.length > 0 ? (
+                  <div className="h-96">
+                    <CandlestickChart
+                      data={barsData.bars}
+                      showMA={true}
+                      showBollingerBands={true}
+                      maValues={{
+                        ma5: barsData.bars.map((bar, idx, arr) => {
+                          const bars = arr.slice(Math.max(0, idx - 4), idx + 1);
+                          const ma = bars.length >= 5 ? bars.reduce((sum, b) => sum + b.close, 0) / bars.length : bar.close;
+                          return {
+                            time: Math.floor(new Date(bar.date).getTime() / 1000),
+                            value: ma,
+                          };
+                        }),
+                        ma20: barsData.bars.map((bar, idx, arr) => {
+                          const bars = arr.slice(Math.max(0, idx - 19), idx + 1);
+                          const ma = bars.length >= 20 ? bars.reduce((sum, b) => sum + b.close, 0) / bars.length : bar.close;
+                          return {
+                            time: Math.floor(new Date(bar.date).getTime() / 1000),
+                            value: ma,
+                          };
+                        }),
+                        ma60: barsData.bars.map((bar, idx, arr) => {
+                          const bars = arr.slice(Math.max(0, idx - 59), idx + 1);
+                          const ma = bars.length >= 60 ? bars.reduce((sum, b) => sum + b.close, 0) / bars.length : bar.close;
+                          return {
+                            time: Math.floor(new Date(bar.date).getTime() / 1000),
+                            value: ma,
+                          };
+                        }),
+                      }}
+                      bbValues={{
+                        upper: barsData.bars.map((bar, idx, arr) => {
+                          const bars = arr.slice(Math.max(0, idx - 19), idx + 1);
+                          if (bars.length >= 20) {
+                            const ma = bars.reduce((sum, b) => sum + b.close, 0) / bars.length;
+                            const std = Math.sqrt(bars.reduce((sum, b) => sum + Math.pow(b.close - ma, 2), 0) / bars.length);
+                            return {
+                              time: Math.floor(new Date(bar.date).getTime() / 1000),
+                              value: ma + 2 * std,
+                            };
                           }
+                          return {
+                            time: Math.floor(new Date(bar.date).getTime() / 1000),
+                            value: bar.close * 1.1,
+                          };
+                        }),
+                        middle: barsData.bars.map((bar, idx, arr) => {
+                          const bars = arr.slice(Math.max(0, idx - 19), idx + 1);
+                          const ma = bars.length >= 20 ? bars.reduce((sum, b) => sum + b.close, 0) / bars.length : bar.close;
+                          return {
+                            time: Math.floor(new Date(bar.date).getTime() / 1000),
+                            value: ma,
+                          };
+                        }),
+                        lower: barsData.bars.map((bar, idx, arr) => {
+                          const bars = arr.slice(Math.max(0, idx - 19), idx + 1);
+                          if (bars.length >= 20) {
+                            const ma = bars.reduce((sum, b) => sum + b.close, 0) / bars.length;
+                            const std = Math.sqrt(bars.reduce((sum, b) => sum + Math.pow(b.close - ma, 2), 0) / bars.length);
+                            return {
+                              time: Math.floor(new Date(bar.date).getTime() / 1000),
+                              value: ma - 2 * std,
+                            };
+                          }
+                          return {
+                            time: Math.floor(new Date(bar.date).getTime() / 1000),
+                            value: bar.close * 0.9,
+                          };
+                        }),
+                      }}
+                    />
+                  </div>
+                ) : !barsLoading && !barsError ? (
+                  <div className="h-96 flex items-center justify-center text-text-secondary">
+                    暂无K线数据
+                  </div>
+                ) : null}
+              </Card>
+
+              {/* 副图：技术指标 */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* MACD指标 */}
+                <Card title="MACD指标" padding="md">
+                  {barsLoading ? (
+                    <div className="h-48 flex items-center justify-center">
+                      <Loading size="sm" text="加载数据..." />
+                    </div>
+                  ) : barsData?.bars?.length > 0 ? (
+                    <div className="h-48">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <LineChart data={barsData.bars.slice(-30).map((bar, idx) => {
+                          // 模拟MACD数据（实际应从后端计算）
+                          const dayOffset = (30 - idx) / 30;
+                          const macd = indicators?.indicators?.macd ? indicators.indicators.macd * (0.7 + Math.random() * 0.6) : null;
+                          const macdSignal = indicators?.indicators?.macd_signal ? indicators.indicators.macd_signal * (0.7 + Math.random() * 0.6) : null;
+                          const macdHist = macd && macdSignal ? macd - macdSignal : null;
 
                           return {
                             date: bar.date.substring(5),
-                            price: bar.close,
-                            ma5,
-                            ma20,
-                            ma60,
-                            bbUpper,
-                            bbMiddle,
-                            bbLower,
+                            macd,
+                            signal: macdSignal,
+                            hist: macdHist,
                           };
-                        }) || []}>
+                        })}>
                           <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                          <XAxis
-                            dataKey="date"
-                            stroke="#6b7280"
-                            tick={{ fontSize: 10 }}
-                            angle={-45}
-                            textAnchor="end"
-                            height={60}
-                          />
-                          <YAxis stroke="#6b7280" domain={['dataMin - 2', 'dataMax + 2']} />
-                          <Tooltip
-                            contentStyle={{
-                              backgroundColor: '#fff',
-                              border: '1px solid #e5e7eb',
-                              borderRadius: '8px',
-                              fontSize: '12px'
-                            }}
-                            formatter={(value: any) => value ? `¥${Number(value).toFixed(2)}` : 'N/A'}
-                          />
-                          <Legend wrapperStyle={{ fontSize: '12px' }} />
-                          {/* 布林带 - 填充区域 */}
-                          <Line type="monotone" dataKey="bbUpper" stroke="#ef4444" strokeWidth={1} name="布林上轨" dot={false} strokeDasharray="3 3" />
-                          <Line type="monotone" dataKey="bbLower" stroke="#10b981" strokeWidth={1} name="布林下轨" dot={false} strokeDasharray="3 3" />
-                          <Line type="monotone" dataKey="bbMiddle" stroke="#9ca3af" strokeWidth={1} name="布林中轨" dot={false} strokeDasharray="2 2" />
-                          {/* 均线 */}
-                          <Line type="monotone" dataKey="ma5" stroke="#22c55e" strokeWidth={1.5} name="MA5" dot={false} />
-                          <Line type="monotone" dataKey="ma20" stroke="#f59e0b" strokeWidth={1.5} name="MA20" dot={false} />
-                          <Line type="monotone" dataKey="ma60" stroke="#8b5cf6" strokeWidth={1.5} name="MA60" dot={false} />
-                          {/* 收盘价 - 最粗的线 */}
-                          <Line type="monotone" dataKey="price" stroke="#3b82f6" strokeWidth={2.5} name="收盘价" dot={false} />
+                          <XAxis dataKey="date" stroke="#6b7280" tick={{ fontSize: 10 }} />
+                          <YAxis stroke="#6b7280" tick={{ fontSize: 10 }} />
+                          <Tooltip contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e7eb', borderRadius: '8px', fontSize: '11px' }} />
+                          <Legend wrapperStyle={{ fontSize: '11px' }} />
+                          <Line type="monotone" dataKey={() => 0} stroke="#e5e7eb" strokeWidth={1} name="零轴" dot={false} />
+                          <Line type="monotone" dataKey="macd" stroke="#3b82f6" strokeWidth={1.5} name="MACD" dot={false} />
+                          <Line type="monotone" dataKey="signal" stroke="#f59e0b" strokeWidth={1.5} name="信号线" dot={false} />
+                          <Bar dataKey="hist" fill="#22c55e" name="柱状图" />
                         </LineChart>
                       </ResponsiveContainer>
                     </div>
-                    <div className="grid grid-cols-3 md:grid-cols-7 gap-2 mt-3">
-                      <div className="p-2 bg-blue-50 rounded text-center">
-                        <div className="text-xs text-blue-600">收盘价</div>
-                        <div className="text-sm font-bold text-blue-700">¥{quote?.price?.toFixed(2) || 'N/A'}</div>
-                      </div>
-                      <div className="p-2 bg-green-50 rounded text-center">
-                        <div className="text-xs text-green-600">MA5</div>
-                        <div className="text-sm font-bold text-green-700">¥{indicators?.indicators?.ma_5?.toFixed(2) || 'N/A'}</div>
-                      </div>
-                      <div className="p-2 bg-orange-50 rounded text-center">
-                        <div className="text-xs text-orange-600">MA20</div>
-                        <div className="text-sm font-bold text-orange-700">¥{indicators?.indicators?.ma_20?.toFixed(2) || 'N/A'}</div>
-                      </div>
-                      <div className="p-2 bg-purple-50 rounded text-center">
-                        <div className="text-xs text-purple-600">MA60</div>
-                        <div className="text-sm font-bold text-purple-700">¥{indicators?.indicators?.ma_60?.toFixed(2) || 'N/A'}</div>
-                      </div>
-                      <div className="p-2 bg-red-50 rounded text-center">
-                        <div className="text-xs text-red-600">BB上轨</div>
-                        <div className="text-sm font-bold text-red-700">¥{indicators?.indicators?.bb_upper?.toFixed(2) || 'N/A'}</div>
-                      </div>
-                      <div className="p-2 bg-gray-50 rounded text-center">
-                        <div className="text-xs text-gray-600">BB中轨</div>
-                        <div className="text-sm font-bold text-gray-700">¥{indicators?.indicators?.bb_middle?.toFixed(2) || 'N/A'}</div>
-                      </div>
-                      <div className="p-2 bg-green-50 rounded text-center">
-                        <div className="text-xs text-green-600">BB下轨</div>
-                        <div className="text-sm font-bold text-green-700">¥{indicators?.indicators?.bb_lower?.toFixed(2) || 'N/A'}</div>
-                      </div>
-                    </div>
-                  </div>
+                  ) : (
+                    <div className="h-48 flex items-center justify-center text-text-secondary">暂无数据</div>
+                  )}
+                </Card>
 
-                  {/* 2. 动量指标（RSI & KDJ） */}
-                  <div>
-                    <h3 className="text-sm font-semibold text-text-primary mb-3">动量指标 - RSI & KDJ (近30天)</h3>
-                    <div className="h-64">
+                {/* RSI & KDJ指标 */}
+                <Card title="RSI & KDJ指标" padding="md">
+                  {barsLoading ? (
+                    <div className="h-48 flex items-center justify-center">
+                      <Loading size="sm" text="加载数据..." />
+                    </div>
+                  ) : barsData?.bars?.length > 0 ? (
+                    <div className="h-48">
                       <ResponsiveContainer width="100%" height="100%">
-                        <LineChart data={barsData?.bars?.slice(-30).map((bar, idx) => {
-                          // 这里使用当前指标值作为示例，实际应该计算每一天的历史指标值
-                          // 为了演示，我们使用随机波动来模拟历史趋势
-                          const dayOffset = (30 - idx) / 30;
+                        <LineChart data={barsData.bars.slice(-30).map((bar, idx) => {
+                          // 模拟RSI和KDJ数据
                           const rsi = indicators?.indicators?.rsi ? indicators.indicators.rsi * (0.8 + Math.random() * 0.4) : null;
                           const kdjK = indicators?.indicators?.kdj_k ? indicators.indicators.kdj_k * (0.8 + Math.random() * 0.4) : null;
                           const kdjD = indicators?.indicators?.kdj_d ? indicators.indicators.kdj_d * (0.8 + Math.random() * 0.4) : null;
@@ -953,172 +669,88 @@ export function Market() {
                             kdjK,
                             kdjD,
                           };
-                        }) || []}>
+                        })}>
                           <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                          <XAxis
-                            dataKey="date"
-                            stroke="#6b7280"
-                            tick={{ fontSize: 10 }}
-                            angle={-45}
-                            textAnchor="end"
-                            height={60}
-                          />
-                          <YAxis stroke="#6b7280" domain={[0, 100]} />
-                          <Tooltip
-                            contentStyle={{
-                              backgroundColor: '#fff',
-                              border: '1px solid #e5e7eb',
-                              borderRadius: '8px',
-                              fontSize: '12px'
-                            }}
-                            formatter={(value: any) => value ? Number(value).toFixed(2) : 'N/A'}
-                          />
-                          <Legend wrapperStyle={{ fontSize: '12px' }} />
-                          {/* 参考线 */}
-                          <Line type="monotone" dataKey={() => 70} stroke="#fee2e2" strokeWidth={1} name="超买线(70)" dot={false} strokeDasharray="5 5" />
-                          <Line type="monotone" dataKey={() => 30} stroke="#dcfce7" strokeWidth={1} name="超卖线(30)" dot={false} strokeDasharray="5 5" />
-                          {/* 指标线 */}
-                          <Line type="monotone" dataKey="rsi" stroke="#3b82f6" strokeWidth={2} name="RSI" dot={false} />
-                          <Line type="monotone" dataKey="kdjK" stroke="#8b5cf6" strokeWidth={2} name="KDJ-K" dot={false} />
-                          <Line type="monotone" dataKey="kdjD" stroke="#ec4899" strokeWidth={2} name="KDJ-D" dot={false} />
+                          <XAxis dataKey="date" stroke="#6b7280" tick={{ fontSize: 10 }} />
+                          <YAxis stroke="#6b7280" domain={[0, 100]} tick={{ fontSize: 10 }} />
+                          <Tooltip contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e7eb', borderRadius: '8px', fontSize: '11px' }} />
+                          <Legend wrapperStyle={{ fontSize: '11px' }} />
+                          <Line type="monotone" dataKey={() => 70} stroke="#fee2e2" strokeWidth={1} name="超买(70)" dot={false} strokeDasharray="3 3" />
+                          <Line type="monotone" dataKey={() => 30} stroke="#dcfce7" strokeWidth={1} name="超卖(30)" dot={false} strokeDasharray="3 3" />
+                          <Line type="monotone" dataKey="rsi" stroke="#3b82f6" strokeWidth={1.5} name="RSI" dot={false} />
+                          <Line type="monotone" dataKey="kdjK" stroke="#8b5cf6" strokeWidth={1.5} name="KDJ-K" dot={false} />
+                          <Line type="monotone" dataKey="kdjD" stroke="#ec4899" strokeWidth={1.5} name="KDJ-D" dot={false} />
                         </LineChart>
                       </ResponsiveContainer>
                     </div>
-                    <div className="grid grid-cols-3 gap-3 mt-3">
-                      <div className="p-3 bg-blue-50 rounded-lg">
-                        <div className="text-xs text-blue-600 mb-1">RSI (相对强弱)</div>
-                        <div className={`text-lg font-bold ${evaluateRSI(indicators?.indicators?.rsi).color}`}>
-                          {evaluateRSI(indicators?.indicators?.rsi).text}
-                        </div>
-                        <div className="text-xs text-blue-600 mt-1">{evaluateRSI(indicators?.indicators?.rsi).desc || '标准: 30-70'}</div>
-                      </div>
-                      <div className="p-3 bg-purple-50 rounded-lg">
-                        <div className="text-xs text-purple-600 mb-1">KDJ-K</div>
-                        <div className={`text-lg font-bold ${evaluateKDJ(indicators?.indicators?.kdj_k, indicators?.indicators?.kdj_d).color}`}>
-                          {evaluateKDJ(indicators?.indicators?.kdj_k, indicators?.indicators?.kdj_d).text}
-                        </div>
-                        <div className="text-xs text-purple-600 mt-1">{evaluateKDJ(indicators?.indicators?.kdj_k, indicators?.indicators?.kdj_d).desc}</div>
-                      </div>
-                      <div className="p-3 bg-pink-50 rounded-lg">
-                        <div className="text-xs text-pink-600 mb-1">KDJ-D</div>
-                        <div className="text-lg font-bold text-pink-700">
-                          {indicators?.indicators?.kdj_d?.toFixed(2) || 'N/A'}
-                        </div>
-                        <div className="text-xs text-pink-600 mt-1">标准: 20-80</div>
-                      </div>
-                    </div>
-                  </div>
+                  ) : (
+                    <div className="h-48 flex items-center justify-center text-text-secondary">暂无数据</div>
+                  )}
+                </Card>
 
-                  {/* 3. MACD指标 */}
-                  <div>
-                    <h3 className="text-sm font-semibold text-text-primary mb-3">MACD指标 (近30天)</h3>
-                    <div className="h-64">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <LineChart data={barsData?.bars?.slice(-30).map((bar, idx) => {
-                          // 模拟MACD历史数据
-                          const dayOffset = (30 - idx) / 30;
-                          const macd = indicators?.indicators?.macd ? indicators.indicators.macd * (0.7 + Math.random() * 0.6) : null;
-                          const macdSignal = indicators?.indicators?.macd_signal ? indicators.indicators.macd_signal * (0.7 + Math.random() * 0.6) : null;
-                          const macdHist = macd && macdSignal ? macd - macdSignal : null;
-
-                          return {
-                            date: bar.date.substring(5),
-                            macd,
-                            macdSignal,
-                            macdHist,
-                          };
-                        }) || []}>
-                          <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                          <XAxis
-                            dataKey="date"
-                            stroke="#6b7280"
-                            tick={{ fontSize: 10 }}
-                            angle={-45}
-                            textAnchor="end"
-                            height={60}
-                          />
-                          <YAxis stroke="#6b7280" />
-                          <Tooltip
-                            contentStyle={{
-                              backgroundColor: '#fff',
-                              border: '1px solid #e5e7eb',
-                              borderRadius: '8px',
-                              fontSize: '12px'
-                            }}
-                            formatter={(value: any) => value ? Number(value).toFixed(3) : 'N/A'}
-                          />
-                          <Legend wrapperStyle={{ fontSize: '12px' }} />
-                          {/* 零轴参考线 */}
-                          <Line type="monotone" dataKey={() => 0} stroke="#e5e7eb" strokeWidth={1} name="零轴" dot={false} />
-                          {/* MACD线 */}
-                          <Line type="monotone" dataKey="macd" stroke="#3b82f6" strokeWidth={2} name="MACD" dot={false} />
-                          <Line type="monotone" dataKey="macdSignal" stroke="#f59e0b" strokeWidth={2} name="信号线" dot={false} />
-                          <Bar dataKey="macdHist" fill="#22c55e" name="柱状图" />
-                        </LineChart>
-                      </ResponsiveContainer>
+                {/* 成交量 */}
+                <Card title="成交量（近30天）" padding="md">
+                  {barsLoading ? (
+                    <div className="h-48 flex items-center justify-center">
+                      <Loading size="sm" text="加载数据..." />
                     </div>
-                    <div className="grid grid-cols-2 gap-3 mt-3">
-                      <div className="p-3 bg-blue-50 rounded-lg">
-                        <div className="text-xs text-blue-600 mb-1">MACD</div>
-                        <div className={`text-lg font-bold ${evaluateMACD(indicators?.indicators?.macd, indicators?.indicators?.macd_signal).color}`}>
-                          {evaluateMACD(indicators?.indicators?.macd, indicators?.indicators?.macd_signal).text}
-                        </div>
-                        <div className="text-xs text-blue-600 mt-1">{evaluateMACD(indicators?.indicators?.macd, indicators?.indicators?.macd_signal).desc}</div>
-                      </div>
-                      <div className="p-3 bg-orange-50 rounded-lg">
-                        <div className="text-xs text-orange-600 mb-1">信号线</div>
-                        <div className="text-lg font-bold text-orange-700">
-                          {indicators?.indicators?.macd_signal?.toFixed(3) || 'N/A'}
-                        </div>
-                        <div className="text-xs text-orange-600 mt-1">
-                          {indicators?.indicators?.macd && indicators?.indicators?.macd_signal
-                            ? (indicators.indicators.macd > indicators.indicators.macd_signal ? '金叉 ↑' : '死叉 ↓')
-                            : 'N/A'}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* 成交量趋势 */}
-                  <div>
-                    <h3 className="text-sm font-semibold text-text-primary mb-3">成交量趋势 (近30天)</h3>
+                  ) : barsData?.bars?.length > 0 ? (
                     <div className="h-48">
                       <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={barsData?.bars?.slice(-30).map(bar => ({
+                        <BarChart data={barsData.bars.slice(-30).map(bar => ({
                           date: bar.date.substring(5),
                           volume: bar.volume / 10000,
-                        })) || []}>
+                        }))}>
                           <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                          <XAxis
-                            dataKey="date"
-                            stroke="#6b7280"
-                            tick={{ fontSize: 10 }}
-                            angle={-45}
-                            textAnchor="end"
-                            height={60}
-                          />
-                          <YAxis stroke="#6b7280" />
-                          <Tooltip
-                            contentStyle={{
-                              backgroundColor: '#fff',
-                              border: '1px solid #e5e7eb',
-                              borderRadius: '8px'
-                            }}
-                          />
-                          <Legend />
+                          <XAxis dataKey="date" stroke="#6b7280" tick={{ fontSize: 10 }} />
+                          <YAxis stroke="#6b7280" tick={{ fontSize: 10 }} />
+                          <Tooltip contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e7eb', borderRadius: '8px', fontSize: '11px' }} />
+                          <Legend wrapperStyle={{ fontSize: '11px' }} />
                           <Bar dataKey="volume" fill="#0ea5e9" name="成交量(万手)" />
                         </BarChart>
                       </ResponsiveContainer>
                     </div>
+                  ) : (
+                    <div className="h-48 flex items-center justify-center text-text-secondary">暂无数据</div>
+                  )}
+                </Card>
+
+                {/* 当前指标值显示 */}
+                <Card title="当前指标值" padding="md">
+                  <div className="h-48 overflow-y-auto">
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="p-2 bg-blue-50 rounded">
+                        <div className="text-xs text-blue-600">RSI</div>
+                        <div className={`text-sm font-bold ${evaluateRSI(indicators?.indicators?.rsi).color}`}>
+                          {evaluateRSI(indicators?.indicators?.rsi).text}
+                        </div>
+                        <div className="text-xs text-blue-600">{evaluateRSI(indicators?.indicators?.rsi).desc}</div>
+                      </div>
+                      <div className="p-2 bg-purple-50 rounded">
+                        <div className="text-xs text-purple-600">KDJ-K</div>
+                        <div className={`text-sm font-bold ${evaluateKDJ(indicators?.indicators?.kdj_k, indicators?.indicators?.kdj_d).color}`}>
+                          {evaluateKDJ(indicators?.indicators?.kdj_k, indicators?.indicators?.kdj_d).text}
+                        </div>
+                        <div className="text-xs text-purple-600">{evaluateKDJ(indicators?.indicators?.kdj_k, indicators?.indicators?.kdj_d).desc}</div>
+                      </div>
+                      <div className="p-2 bg-orange-50 rounded">
+                        <div className="text-xs text-orange-600">MACD</div>
+                        <div className={`text-sm font-bold ${evaluateMACD(indicators?.indicators?.macd, indicators?.indicators?.macd_signal).color}`}>
+                          {evaluateMACD(indicators?.indicators?.macd, indicators?.indicators?.macd_signal).text}
+                        </div>
+                        <div className="text-xs text-orange-600">{evaluateMACD(indicators?.indicators?.macd, indicators?.indicators?.macd_signal).desc}</div>
+                      </div>
+                      <div className="p-2 bg-green-50 rounded">
+                        <div className="text-xs text-green-600">MA趋势</div>
+                        <div className={`text-sm font-bold ${evaluatePrice(quote?.price, indicators?.indicators?.ma_5, indicators?.indicators?.ma_20, indicators?.indicators?.ma_60).color}`}>
+                          {evaluatePrice(quote?.price, indicators?.indicators?.ma_5, indicators?.indicators?.ma_20, indicators?.indicators?.ma_60).desc}
+                        </div>
+                      </div>
+                    </div>
                   </div>
-                </div>
-              )
-            ) : !indicatorsLoading && !indicatorsError ? (
-              <div className="h-64 flex items-center justify-center text-text-secondary">
-                暂无技术指标数据
+                </Card>
               </div>
-            ) : null}
-          </Card>
+            </>
           )}
 
           {/* Deep Analysis Section */}
