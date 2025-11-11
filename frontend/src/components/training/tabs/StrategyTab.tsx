@@ -53,6 +53,8 @@ export function StrategyTab() {
     },
   ];
 
+  return (
+    <div className="space-y-6">
       {/* Strategy Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card title="总策略数" padding="md">
