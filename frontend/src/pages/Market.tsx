@@ -8,7 +8,7 @@ import { CandlestickChart } from '@/components/market/CandlestickChart';
 import { getQuote, getBars, getTechnicalIndicators, getStockInfo } from '@/api/market';
 import { formatProfitLoss, formatPercentage, getChangeColor, detectMarketType, getDirectionColor } from '@/utils/format';
 import { useStreamingAnalysis } from '@/hooks/useStreamingAnalysis';
-import { Search, TrendingUp, TrendingDown, Building2, MapPin, Calendar, AlertCircle, RefreshCw, Brain, FileText, X, ChevronDown, ChevronUp, BarChart2, Table } from 'lucide-react';
+import { Search, TrendingUp, TrendingDown, Building2, MapPin, Calendar, AlertCircle, RefreshCw, Brain, FileText, X, ChevronDown, ChevronUp } from 'lucide-react';
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 
 export function Market() {
@@ -18,7 +18,7 @@ export function Market() {
   const [expandedAgent, setExpandedAgent] = useState<string | null>(null);
   const [collapseBasicInfo, setCollapseBasicInfo] = useState(false);
   const [collapseCharts, setCollapseCharts] = useState(false);
-  const [indicatorViewMode, setIndicatorViewMode] = useState<'table' | 'chart'>('table');
+  const [selectedIndicator, setSelectedIndicator] = useState<'ma' | 'bollinger' | 'macd' | 'none'>('ma');
 
   // Use streaming analysis hook for deep analysis
   const {
@@ -497,8 +497,50 @@ export function Market() {
                 </div>
               )}
 
-              {/* K线图 + 均线 + 布林带 */}
-              <Card title="K线图与趋势指标" padding="md">
+              {/* K线图 + 技术指标（可切换） */}
+              <Card
+                title={
+                  <div className="flex items-center justify-between w-full">
+                    <span>K线图</span>
+                    <div className="flex items-center gap-2">
+                      {/* 指标切换Tab */}
+                      <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
+                        <button
+                          onClick={() => setSelectedIndicator('ma')}
+                          className={`px-3 py-1 rounded text-xs font-medium transition-colors ${
+                            selectedIndicator === 'ma'
+                              ? 'bg-white text-primary-600 shadow-sm'
+                              : 'text-text-secondary hover:text-text-primary'
+                          }`}
+                        >
+                          均线
+                        </button>
+                        <button
+                          onClick={() => setSelectedIndicator('bollinger')}
+                          className={`px-3 py-1 rounded text-xs font-medium transition-colors ${
+                            selectedIndicator === 'bollinger'
+                              ? 'bg-white text-primary-600 shadow-sm'
+                              : 'text-text-secondary hover:text-text-primary'
+                          }`}
+                        >
+                          布林带
+                        </button>
+                        <button
+                          onClick={() => setSelectedIndicator('none')}
+                          className={`px-3 py-1 rounded text-xs font-medium transition-colors ${
+                            selectedIndicator === 'none'
+                              ? 'bg-white text-primary-600 shadow-sm'
+                              : 'text-text-secondary hover:text-text-primary'
+                          }`}
+                        >
+                          仅K线
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                }
+                padding="md"
+              >
                 {barsError && (
                   <div className="mb-3">
                     <div className="bg-red-50 border border-red-200 rounded-lg p-3">
@@ -529,74 +571,82 @@ export function Market() {
                   <div className="h-96">
                     <CandlestickChart
                       data={barsData.bars}
-                      showMA={true}
-                      showBollingerBands={true}
-                      maValues={{
-                        ma5: barsData.bars.map((bar, idx, arr) => {
-                          const bars = arr.slice(Math.max(0, idx - 4), idx + 1);
-                          const ma = bars.length >= 5 ? bars.reduce((sum, b) => sum + b.close, 0) / bars.length : bar.close;
-                          return {
-                            time: Math.floor(new Date(bar.date).getTime() / 1000),
-                            value: ma,
-                          };
-                        }),
-                        ma20: barsData.bars.map((bar, idx, arr) => {
-                          const bars = arr.slice(Math.max(0, idx - 19), idx + 1);
-                          const ma = bars.length >= 20 ? bars.reduce((sum, b) => sum + b.close, 0) / bars.length : bar.close;
-                          return {
-                            time: Math.floor(new Date(bar.date).getTime() / 1000),
-                            value: ma,
-                          };
-                        }),
-                        ma60: barsData.bars.map((bar, idx, arr) => {
-                          const bars = arr.slice(Math.max(0, idx - 59), idx + 1);
-                          const ma = bars.length >= 60 ? bars.reduce((sum, b) => sum + b.close, 0) / bars.length : bar.close;
-                          return {
-                            time: Math.floor(new Date(bar.date).getTime() / 1000),
-                            value: ma,
-                          };
-                        }),
-                      }}
-                      bbValues={{
-                        upper: barsData.bars.map((bar, idx, arr) => {
-                          const bars = arr.slice(Math.max(0, idx - 19), idx + 1);
-                          if (bars.length >= 20) {
-                            const ma = bars.reduce((sum, b) => sum + b.close, 0) / bars.length;
-                            const std = Math.sqrt(bars.reduce((sum, b) => sum + Math.pow(b.close - ma, 2), 0) / bars.length);
-                            return {
-                              time: Math.floor(new Date(bar.date).getTime() / 1000),
-                              value: ma + 2 * std,
-                            };
-                          }
-                          return {
-                            time: Math.floor(new Date(bar.date).getTime() / 1000),
-                            value: bar.close * 1.1,
-                          };
-                        }),
-                        middle: barsData.bars.map((bar, idx, arr) => {
-                          const bars = arr.slice(Math.max(0, idx - 19), idx + 1);
-                          const ma = bars.length >= 20 ? bars.reduce((sum, b) => sum + b.close, 0) / bars.length : bar.close;
-                          return {
-                            time: Math.floor(new Date(bar.date).getTime() / 1000),
-                            value: ma,
-                          };
-                        }),
-                        lower: barsData.bars.map((bar, idx, arr) => {
-                          const bars = arr.slice(Math.max(0, idx - 19), idx + 1);
-                          if (bars.length >= 20) {
-                            const ma = bars.reduce((sum, b) => sum + b.close, 0) / bars.length;
-                            const std = Math.sqrt(bars.reduce((sum, b) => sum + Math.pow(b.close - ma, 2), 0) / bars.length);
-                            return {
-                              time: Math.floor(new Date(bar.date).getTime() / 1000),
-                              value: ma - 2 * std,
-                            };
-                          }
-                          return {
-                            time: Math.floor(new Date(bar.date).getTime() / 1000),
-                            value: bar.close * 0.9,
-                          };
-                        }),
-                      }}
+                      showMA={selectedIndicator === 'ma'}
+                      showBollingerBands={selectedIndicator === 'bollinger'}
+                      maValues={
+                        selectedIndicator === 'ma'
+                          ? {
+                              ma5: barsData.bars.map((bar, idx, arr) => {
+                                const bars = arr.slice(Math.max(0, idx - 4), idx + 1);
+                                const ma = bars.length >= 5 ? bars.reduce((sum, b) => sum + b.close, 0) / bars.length : bar.close;
+                                return {
+                                  time: Math.floor(new Date(bar.date).getTime() / 1000),
+                                  value: ma,
+                                };
+                              }),
+                              ma20: barsData.bars.map((bar, idx, arr) => {
+                                const bars = arr.slice(Math.max(0, idx - 19), idx + 1);
+                                const ma = bars.length >= 20 ? bars.reduce((sum, b) => sum + b.close, 0) / bars.length : bar.close;
+                                return {
+                                  time: Math.floor(new Date(bar.date).getTime() / 1000),
+                                  value: ma,
+                                };
+                              }),
+                              ma60: barsData.bars.map((bar, idx, arr) => {
+                                const bars = arr.slice(Math.max(0, idx - 59), idx + 1);
+                                const ma = bars.length >= 60 ? bars.reduce((sum, b) => sum + b.close, 0) / bars.length : bar.close;
+                                return {
+                                  time: Math.floor(new Date(bar.date).getTime() / 1000),
+                                  value: ma,
+                                };
+                              }),
+                            }
+                          : undefined
+                      }
+                      bbValues={
+                        selectedIndicator === 'bollinger'
+                          ? {
+                              upper: barsData.bars.map((bar, idx, arr) => {
+                                const bars = arr.slice(Math.max(0, idx - 19), idx + 1);
+                                if (bars.length >= 20) {
+                                  const ma = bars.reduce((sum, b) => sum + b.close, 0) / bars.length;
+                                  const std = Math.sqrt(bars.reduce((sum, b) => sum + Math.pow(b.close - ma, 2), 0) / bars.length);
+                                  return {
+                                    time: Math.floor(new Date(bar.date).getTime() / 1000),
+                                    value: ma + 2 * std,
+                                  };
+                                }
+                                return {
+                                  time: Math.floor(new Date(bar.date).getTime() / 1000),
+                                  value: bar.close * 1.1,
+                                };
+                              }),
+                              middle: barsData.bars.map((bar, idx, arr) => {
+                                const bars = arr.slice(Math.max(0, idx - 19), idx + 1);
+                                const ma = bars.length >= 20 ? bars.reduce((sum, b) => sum + b.close, 0) / bars.length : bar.close;
+                                return {
+                                  time: Math.floor(new Date(bar.date).getTime() / 1000),
+                                  value: ma,
+                                };
+                              }),
+                              lower: barsData.bars.map((bar, idx, arr) => {
+                                const bars = arr.slice(Math.max(0, idx - 19), idx + 1);
+                                if (bars.length >= 20) {
+                                  const ma = bars.reduce((sum, b) => sum + b.close, 0) / bars.length;
+                                  const std = Math.sqrt(bars.reduce((sum, b) => sum + Math.pow(b.close - ma, 2), 0) / bars.length);
+                                  return {
+                                    time: Math.floor(new Date(bar.date).getTime() / 1000),
+                                    value: ma - 2 * std,
+                                  };
+                                }
+                                return {
+                                  time: Math.floor(new Date(bar.date).getTime() / 1000),
+                                  value: bar.close * 0.9,
+                                };
+                              }),
+                            }
+                          : undefined
+                      }
                     />
                   </div>
                 ) : !barsLoading && !barsError ? (
@@ -606,8 +656,96 @@ export function Market() {
                 ) : null}
               </Card>
 
+              {/* 当前指标值显示 */}
+              {selectedIndicator !== 'none' && indicators && (
+                <Card title="当前指标值" padding="md">
+                  {selectedIndicator === 'ma' && (
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                      <div className="p-3 bg-blue-50 rounded-lg">
+                        <div className="text-xs text-blue-600 mb-1">当前价格</div>
+                        <div className="text-lg font-semibold text-blue-700">
+                          ¥{quote?.price?.toFixed(2) || 'N/A'}
+                        </div>
+                        <div className={`text-xs font-medium mt-1 ${evaluatePrice(quote?.price, indicators?.indicators?.ma_5, indicators?.indicators?.ma_20, indicators?.indicators?.ma_60).color}`}>
+                          {evaluatePrice(quote?.price, indicators?.indicators?.ma_5, indicators?.indicators?.ma_20, indicators?.indicators?.ma_60).desc}
+                        </div>
+                      </div>
+                      <div className="p-3 bg-green-50 rounded-lg">
+                        <div className="text-xs text-green-600 mb-1">MA5</div>
+                        <div className="text-lg font-semibold text-green-700">
+                          ¥{indicators?.indicators?.ma_5?.toFixed(2) || 'N/A'}
+                        </div>
+                        {quote && quote.price != null && indicators?.indicators?.ma_5 != null && (
+                          <div className={`text-xs font-medium mt-1 ${quote.price > indicators.indicators.ma_5 ? 'text-profit' : 'text-loss'}`}>
+                            {quote.price > indicators.indicators.ma_5 ? '价格在上方 ↑' : '价格在下方 ↓'}
+                          </div>
+                        )}
+                      </div>
+                      <div className="p-3 bg-orange-50 rounded-lg">
+                        <div className="text-xs text-orange-600 mb-1">MA20</div>
+                        <div className="text-lg font-semibold text-orange-700">
+                          ¥{indicators?.indicators?.ma_20?.toFixed(2) || 'N/A'}
+                        </div>
+                        {quote && quote.price != null && indicators?.indicators?.ma_20 != null && (
+                          <div className={`text-xs font-medium mt-1 ${quote.price > indicators.indicators.ma_20 ? 'text-profit' : 'text-loss'}`}>
+                            {quote.price > indicators.indicators.ma_20 ? '价格在上方 ↑' : '价格在下方 ↓'}
+                          </div>
+                        )}
+                      </div>
+                      <div className="p-3 bg-purple-50 rounded-lg">
+                        <div className="text-xs text-purple-600 mb-1">MA60</div>
+                        <div className="text-lg font-semibold text-purple-700">
+                          ¥{indicators?.indicators?.ma_60?.toFixed(2) || 'N/A'}
+                        </div>
+                        {quote && quote.price != null && indicators?.indicators?.ma_60 != null && (
+                          <div className={`text-xs font-medium mt-1 ${quote.price > indicators.indicators.ma_60 ? 'text-profit' : 'text-loss'}`}>
+                            {quote.price > indicators.indicators.ma_60 ? '价格在上方 ↑' : '价格在下方 ↓'}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                  {selectedIndicator === 'bollinger' && (
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                      <div className="p-3 bg-blue-50 rounded-lg">
+                        <div className="text-xs text-blue-600 mb-1">当前价格</div>
+                        <div className="text-lg font-semibold text-blue-700">
+                          ¥{quote?.price?.toFixed(2) || 'N/A'}
+                        </div>
+                        <div className="text-xs text-blue-600 mt-1">
+                          {quote?.price && indicators?.indicators?.bb_upper && quote.price > indicators.indicators.bb_upper ? '突破上轨' :
+                           quote?.price && indicators?.indicators?.bb_lower && quote.price < indicators.indicators.bb_lower ? '跌破下轨' :
+                           '正常区间'}
+                        </div>
+                      </div>
+                      <div className="p-3 bg-red-50 rounded-lg">
+                        <div className="text-xs text-red-600 mb-1">布林上轨</div>
+                        <div className="text-lg font-semibold text-red-700">
+                          ¥{indicators?.indicators?.bb_upper?.toFixed(2) || 'N/A'}
+                        </div>
+                        <div className="text-xs text-red-600 mt-1">压力位</div>
+                      </div>
+                      <div className="p-3 bg-gray-50 rounded-lg">
+                        <div className="text-xs text-gray-600 mb-1">布林中轨</div>
+                        <div className="text-lg font-semibold text-gray-700">
+                          ¥{indicators?.indicators?.bb_middle?.toFixed(2) || 'N/A'}
+                        </div>
+                        <div className="text-xs text-gray-600 mt-1">MA20</div>
+                      </div>
+                      <div className="p-3 bg-green-50 rounded-lg">
+                        <div className="text-xs text-green-600 mb-1">布林下轨</div>
+                        <div className="text-lg font-semibold text-green-700">
+                          ¥{indicators?.indicators?.bb_lower?.toFixed(2) || 'N/A'}
+                        </div>
+                        <div className="text-xs text-green-600 mt-1">支撑位</div>
+                      </div>
+                    </div>
+                  )}
+                </Card>
+              )}
+
               {/* 副图：技术指标 */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 {/* MACD指标 */}
                 <Card title="MACD指标" padding="md">
                   {barsLoading ? (
@@ -713,41 +851,6 @@ export function Market() {
                   ) : (
                     <div className="h-48 flex items-center justify-center text-text-secondary">暂无数据</div>
                   )}
-                </Card>
-
-                {/* 当前指标值显示 */}
-                <Card title="当前指标值" padding="md">
-                  <div className="h-48 overflow-y-auto">
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="p-2 bg-blue-50 rounded">
-                        <div className="text-xs text-blue-600">RSI</div>
-                        <div className={`text-sm font-bold ${evaluateRSI(indicators?.indicators?.rsi).color}`}>
-                          {evaluateRSI(indicators?.indicators?.rsi).text}
-                        </div>
-                        <div className="text-xs text-blue-600">{evaluateRSI(indicators?.indicators?.rsi).desc}</div>
-                      </div>
-                      <div className="p-2 bg-purple-50 rounded">
-                        <div className="text-xs text-purple-600">KDJ-K</div>
-                        <div className={`text-sm font-bold ${evaluateKDJ(indicators?.indicators?.kdj_k, indicators?.indicators?.kdj_d).color}`}>
-                          {evaluateKDJ(indicators?.indicators?.kdj_k, indicators?.indicators?.kdj_d).text}
-                        </div>
-                        <div className="text-xs text-purple-600">{evaluateKDJ(indicators?.indicators?.kdj_k, indicators?.indicators?.kdj_d).desc}</div>
-                      </div>
-                      <div className="p-2 bg-orange-50 rounded">
-                        <div className="text-xs text-orange-600">MACD</div>
-                        <div className={`text-sm font-bold ${evaluateMACD(indicators?.indicators?.macd, indicators?.indicators?.macd_signal).color}`}>
-                          {evaluateMACD(indicators?.indicators?.macd, indicators?.indicators?.macd_signal).text}
-                        </div>
-                        <div className="text-xs text-orange-600">{evaluateMACD(indicators?.indicators?.macd, indicators?.indicators?.macd_signal).desc}</div>
-                      </div>
-                      <div className="p-2 bg-green-50 rounded">
-                        <div className="text-xs text-green-600">MA趋势</div>
-                        <div className={`text-sm font-bold ${evaluatePrice(quote?.price, indicators?.indicators?.ma_5, indicators?.indicators?.ma_20, indicators?.indicators?.ma_60).color}`}>
-                          {evaluatePrice(quote?.price, indicators?.indicators?.ma_5, indicators?.indicators?.ma_20, indicators?.indicators?.ma_60).desc}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
                 </Card>
               </div>
             </>
