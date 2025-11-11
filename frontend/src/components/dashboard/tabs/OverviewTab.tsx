@@ -19,50 +19,59 @@ export function OverviewTab() {
   const { dataRefresh } = useSettingsStore();
 
   // Fetch portfolio summary
-  const { data: summary, isLoading: summaryLoading } = useQuery({
+  const { data: summary, isLoading: summaryLoading, error: summaryError } = useQuery({
     queryKey: ['portfolio', 'summary'],
     queryFn: getPortfolioSummary,
     refetchInterval: dataRefresh.positionDataInterval * 1000,
   });
 
   // Fetch current positions
-  const { data: positions, isLoading: positionsLoading } = useQuery({
+  const { data: positions, isLoading: positionsLoading, error: positionsError } = useQuery({
     queryKey: ['portfolio', 'positions'],
     queryFn: getCurrentPositions,
     refetchInterval: dataRefresh.positionDataInterval * 1000,
   });
 
   // Fetch portfolio history
-  const { data: history, isLoading: historyLoading } = useQuery({
+  const { data: history, isLoading: historyLoading, error: historyError } = useQuery({
     queryKey: ['portfolio', 'history'],
     queryFn: () => getPortfolioHistory(30),
     refetchInterval: dataRefresh.positionDataInterval * 1000 * 2,
   });
 
   // Fetch market indices
-  const { data: hs300 } = useQuery({
+  const { data: hs300, error: hs300Error } = useQuery({
     queryKey: ['market', 'quote', '000300.SH'],
     queryFn: () => getQuote('000300.SH'),
     refetchInterval: dataRefresh.marketDataInterval * 1000,
   });
 
-  const { data: shIndex } = useQuery({
+  const { data: shIndex, error: shIndexError } = useQuery({
     queryKey: ['market', 'quote', '000001.SH'],
     queryFn: () => getQuote('000001.SH'),
     refetchInterval: dataRefresh.marketDataInterval * 1000,
   });
 
-  const { data: szIndex } = useQuery({
+  const { data: szIndex, error: szIndexError } = useQuery({
     queryKey: ['market', 'quote', '399001.SZ'],
     queryFn: () => getQuote('399001.SZ'),
     refetchInterval: dataRefresh.marketDataInterval * 1000,
   });
 
-  const { data: cybIndex } = useQuery({
+  const { data: cybIndex, error: cybIndexError } = useQuery({
     queryKey: ['market', 'quote', '399006.SZ'],
     queryFn: () => getQuote('399006.SZ'),
     refetchInterval: dataRefresh.marketDataInterval * 1000,
   });
+
+  // Log errors to console for debugging
+  if (summaryError) console.error('Portfolio Summary Error:', summaryError);
+  if (positionsError) console.error('Positions Error:', positionsError);
+  if (historyError) console.error('History Error:', historyError);
+  if (hs300Error) console.error('HS300 Error:', hs300Error);
+  if (shIndexError) console.error('SH Index Error:', shIndexError);
+  if (szIndexError) console.error('SZ Index Error:', szIndexError);
+  if (cybIndexError) console.error('CYB Index Error:', cybIndexError);
 
   // Prepare chart data
   const chartData = history?.snapshots.map(snapshot => ({
@@ -155,6 +164,30 @@ export function OverviewTab() {
 
   return (
     <div className="space-y-4">
+      {/* Error Messages */}
+      {(summaryError || positionsError || historyError || hs300Error || shIndexError || szIndexError || cybIndexError) && (
+        <Card padding="md">
+          <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+            <h3 className="text-sm font-semibold text-red-800 mb-2">⚠️ 数据加载错误</h3>
+            <div className="text-sm text-red-700 space-y-1">
+              {summaryError && <p>• 投资组合概览: {(summaryError as any).message || '网络错误'}</p>}
+              {positionsError && <p>• 持仓数据: {(positionsError as any).message || '网络错误'}</p>}
+              {historyError && <p>• 历史数据: {(historyError as any).message || '网络错误'}</p>}
+              {hs300Error && <p>• 沪深300: {(hs300Error as any).message || '网络错误'}</p>}
+              {shIndexError && <p>• 上证指数: {(shIndexError as any).message || '网络错误'}</p>}
+              {szIndexError && <p>• 深证成指: {(szIndexError as any).message || '网络错误'}</p>}
+              {cybIndexError && <p>• 创业板指: {(cybIndexError as any).message || '网络错误'}</p>}
+            </div>
+            <p className="text-xs text-red-600 mt-3">
+              请检查:
+              1. 后端服务是否运行在 {import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'}
+              2. 浏览器控制台查看详细错误
+              3. 网络连接是否正常
+            </p>
+          </div>
+        </Card>
+      )}
+
       {/* 投资绩效卡片 - 改为2列布局 */}
       <div>
         <h2 className="text-base font-semibold text-text-primary mb-3">投资绩效</h2>
