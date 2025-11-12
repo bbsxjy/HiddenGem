@@ -14,6 +14,8 @@ import {
   CheckCircle,
   BarChart3,
   Zap,
+  Layers,
+  Network,
 } from 'lucide-react';
 import axios from 'axios';
 
@@ -34,14 +36,43 @@ interface TrainingStatus {
 export function TrainingTab() {
   const queryClient = useQueryClient();
 
-  // 训练配置
+  // 通用配置
   const [modelType, setModelType] = useState('rl');
   const [symbols, setSymbols] = useState('000001,600519,000858');
-  const [episodes, setEpisodes] = useState(1000);
-  const [learningRate, setLearningRate] = useState(0.0001);
-  const [batchSize, setBatchSize] = useState(32);
   const [startDate, setStartDate] = useState('2020-01-01');
   const [endDate, setEndDate] = useState('2023-12-31');
+
+  // RL模型参数
+  const [rlEpisodes, setRlEpisodes] = useState(1000);
+  const [rlLearningRate, setRlLearningRate] = useState(0.0001);
+  const [rlBatchSize, setRlBatchSize] = useState(32);
+  const [rlGamma, setRlGamma] = useState(0.99);
+  const [rlEpsilon, setRlEpsilon] = useState(0.1);
+  const [rlBufferSize, setRlBufferSize] = useState(10000);
+
+  // LSTM模型参数
+  const [lstmEpochs, setLstmEpochs] = useState(100);
+  const [lstmLearningRate, setLstmLearningRate] = useState(0.001);
+  const [lstmBatchSize, setLstmBatchSize] = useState(64);
+  const [lstmHiddenUnits, setLstmHiddenUnits] = useState(128);
+  const [lstmLookback, setLstmLookback] = useState(60);
+  const [lstmDropout, setLstmDropout] = useState(0.2);
+  const [lstmBidirectional, setLstmBidirectional] = useState(true);
+
+  // Transformer模型参数
+  const [transformerEpochs, setTransformerEpochs] = useState(50);
+  const [transformerLearningRate, setTransformerLearningRate] = useState(0.0001);
+  const [transformerBatchSize, setTransformerBatchSize] = useState(32);
+  const [transformerHeads, setTransformerHeads] = useState(8);
+  const [transformerLayers, setTransformerLayers] = useState(6);
+  const [transformerDimFeedforward, setTransformerDimFeedforward] = useState(2048);
+  const [transformerDropout, setTransformerDropout] = useState(0.1);
+
+  // 集成模型参数
+  const [ensembleModels, setEnsembleModels] = useState<string[]>(['rl', 'lstm']);
+  const [ensembleMethod, setEnsembleMethod] = useState('voting');
+  const [rlWeight, setRlWeight] = useState(0.5);
+  const [lstmWeight, setLstmWeight] = useState(0.5);
 
   // Fetch training status
   const { data: trainingStatus } = useQuery({
@@ -50,22 +81,67 @@ export function TrainingTab() {
       const response = await axios.get(`${API_BASE_URL}/api/v1/training/status`);
       return response.data.data as TrainingStatus;
     },
-    refetchInterval: 10000, // 10秒刷新一次
+    refetchInterval: 10000,
   });
 
   // Start training mutation
   const startMutation = useMutation({
     mutationFn: async () => {
       const symbolList = symbols.split(',').map(s => s.trim()).filter(Boolean);
-      const response = await axios.post(`${API_BASE_URL}/api/v1/training/start`, {
+
+      let config: any = {
         model_type: modelType,
         symbols: symbolList,
-        episodes,
-        learning_rate: learningRate,
-        batch_size: batchSize,
         start_date: startDate,
         end_date: endDate,
-      });
+      };
+
+      // 根据模型类型添加特定参数
+      if (modelType === 'rl') {
+        config = {
+          ...config,
+          episodes: rlEpisodes,
+          learning_rate: rlLearningRate,
+          batch_size: rlBatchSize,
+          gamma: rlGamma,
+          epsilon: rlEpsilon,
+          buffer_size: rlBufferSize,
+        };
+      } else if (modelType === 'lstm') {
+        config = {
+          ...config,
+          epochs: lstmEpochs,
+          learning_rate: lstmLearningRate,
+          batch_size: lstmBatchSize,
+          hidden_units: lstmHiddenUnits,
+          lookback: lstmLookback,
+          dropout: lstmDropout,
+          bidirectional: lstmBidirectional,
+        };
+      } else if (modelType === 'transformer') {
+        config = {
+          ...config,
+          epochs: transformerEpochs,
+          learning_rate: transformerLearningRate,
+          batch_size: transformerBatchSize,
+          num_heads: transformerHeads,
+          num_layers: transformerLayers,
+          dim_feedforward: transformerDimFeedforward,
+          dropout: transformerDropout,
+        };
+      } else if (modelType === 'ensemble') {
+        config = {
+          ...config,
+          sub_models: ensembleModels,
+          ensemble_method: ensembleMethod,
+          weights: {
+            rl: rlWeight,
+            lstm: lstmWeight,
+          },
+        };
+      }
+
+      const response = await axios.post(`${API_BASE_URL}/api/v1/training/start`, config);
       return response.data;
     },
     onSuccess: () => {
@@ -88,6 +164,417 @@ export function TrainingTab() {
   const progress = trainingStatus?.total_episodes
     ? ((trainingStatus.current_episode || 0) / trainingStatus.total_episodes) * 100
     : 0;
+
+  // 渲染模型特定参数配置
+  const renderModelConfig = () => {
+    switch (modelType) {
+      case 'rl':
+        return (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-text-primary mb-2">
+                Episodes 数量
+              </label>
+              <Input
+                type="number"
+                placeholder="1000"
+                value={rlEpisodes}
+                onChange={(e) => setRlEpisodes(Number(e.target.value))}
+              />
+              <p className="text-xs text-text-secondary mt-1">训练的总轮数</p>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-text-primary mb-2">
+                学习率 (Learning Rate)
+              </label>
+              <Input
+                type="number"
+                step="0.00001"
+                placeholder="0.0001"
+                value={rlLearningRate}
+                onChange={(e) => setRlLearningRate(Number(e.target.value))}
+              />
+              <p className="text-xs text-text-secondary mt-1">神经网络的学习速度</p>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-text-primary mb-2">
+                批次大小 (Batch Size)
+              </label>
+              <Input
+                type="number"
+                placeholder="32"
+                value={rlBatchSize}
+                onChange={(e) => setRlBatchSize(Number(e.target.value))}
+              />
+              <p className="text-xs text-text-secondary mt-1">每次训练的样本数量</p>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-text-primary mb-2">
+                折扣因子 (Gamma)
+              </label>
+              <Input
+                type="number"
+                step="0.01"
+                placeholder="0.99"
+                value={rlGamma}
+                onChange={(e) => setRlGamma(Number(e.target.value))}
+              />
+              <p className="text-xs text-text-secondary mt-1">未来奖励的折扣率 (0-1)</p>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-text-primary mb-2">
+                探索率 (Epsilon)
+              </label>
+              <Input
+                type="number"
+                step="0.01"
+                placeholder="0.1"
+                value={rlEpsilon}
+                onChange={(e) => setRlEpsilon(Number(e.target.value))}
+              />
+              <p className="text-xs text-text-secondary mt-1">探索vs利用的平衡 (0-1)</p>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-text-primary mb-2">
+                经验回放缓冲区大小
+              </label>
+              <Input
+                type="number"
+                placeholder="10000"
+                value={rlBufferSize}
+                onChange={(e) => setRlBufferSize(Number(e.target.value))}
+              />
+              <p className="text-xs text-text-secondary mt-1">存储的历史经验数量</p>
+            </div>
+          </div>
+        );
+
+      case 'lstm':
+        return (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-text-primary mb-2">
+                训练轮数 (Epochs)
+              </label>
+              <Input
+                type="number"
+                placeholder="100"
+                value={lstmEpochs}
+                onChange={(e) => setLstmEpochs(Number(e.target.value))}
+              />
+              <p className="text-xs text-text-secondary mt-1">遍历全部数据的次数</p>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-text-primary mb-2">
+                学习率
+              </label>
+              <Input
+                type="number"
+                step="0.0001"
+                placeholder="0.001"
+                value={lstmLearningRate}
+                onChange={(e) => setLstmLearningRate(Number(e.target.value))}
+              />
+              <p className="text-xs text-text-secondary mt-1">优化器的学习速度</p>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-text-primary mb-2">
+                批次大小
+              </label>
+              <Input
+                type="number"
+                placeholder="64"
+                value={lstmBatchSize}
+                onChange={(e) => setLstmBatchSize(Number(e.target.value))}
+              />
+              <p className="text-xs text-text-secondary mt-1">每批训练的样本数</p>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-text-primary mb-2">
+                隐藏单元数
+              </label>
+              <Input
+                type="number"
+                placeholder="128"
+                value={lstmHiddenUnits}
+                onChange={(e) => setLstmHiddenUnits(Number(e.target.value))}
+              />
+              <p className="text-xs text-text-secondary mt-1">LSTM层的神经元数量</p>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-text-primary mb-2">
+                时间步长 (Lookback)
+              </label>
+              <Input
+                type="number"
+                placeholder="60"
+                value={lstmLookback}
+                onChange={(e) => setLstmLookback(Number(e.target.value))}
+              />
+              <p className="text-xs text-text-secondary mt-1">输入序列的历史天数</p>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-text-primary mb-2">
+                Dropout率
+              </label>
+              <Input
+                type="number"
+                step="0.1"
+                placeholder="0.2"
+                value={lstmDropout}
+                onChange={(e) => setLstmDropout(Number(e.target.value))}
+              />
+              <p className="text-xs text-text-secondary mt-1">防止过拟合 (0-1)</p>
+            </div>
+
+            <div className="md:col-span-2">
+              <label className="flex items-center cursor-pointer">
+                <input
+                  type="checkbox"
+                  className="w-4 h-4 text-primary-500 border-gray-300 rounded focus:ring-primary-500"
+                  checked={lstmBidirectional}
+                  onChange={(e) => setLstmBidirectional(e.target.checked)}
+                />
+                <span className="ml-2 text-sm font-medium text-text-primary">
+                  使用双向LSTM
+                </span>
+              </label>
+              <p className="text-xs text-text-secondary mt-1 ml-6">
+                同时从前向后和从后向前学习序列特征
+              </p>
+            </div>
+          </div>
+        );
+
+      case 'transformer':
+        return (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-text-primary mb-2">
+                训练轮数 (Epochs)
+              </label>
+              <Input
+                type="number"
+                placeholder="50"
+                value={transformerEpochs}
+                onChange={(e) => setTransformerEpochs(Number(e.target.value))}
+              />
+              <p className="text-xs text-text-secondary mt-1">训练迭代次数</p>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-text-primary mb-2">
+                学习率
+              </label>
+              <Input
+                type="number"
+                step="0.00001"
+                placeholder="0.0001"
+                value={transformerLearningRate}
+                onChange={(e) => setTransformerLearningRate(Number(e.target.value))}
+              />
+              <p className="text-xs text-text-secondary mt-1">优化器的学习速度</p>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-text-primary mb-2">
+                批次大小
+              </label>
+              <Input
+                type="number"
+                placeholder="32"
+                value={transformerBatchSize}
+                onChange={(e) => setTransformerBatchSize(Number(e.target.value))}
+              />
+              <p className="text-xs text-text-secondary mt-1">每批处理的样本数</p>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-text-primary mb-2">
+                注意力头数 (Attention Heads)
+              </label>
+              <Input
+                type="number"
+                placeholder="8"
+                value={transformerHeads}
+                onChange={(e) => setTransformerHeads(Number(e.target.value))}
+              />
+              <p className="text-xs text-text-secondary mt-1">多头注意力机制的头数</p>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-text-primary mb-2">
+                编码器层数
+              </label>
+              <Input
+                type="number"
+                placeholder="6"
+                value={transformerLayers}
+                onChange={(e) => setTransformerLayers(Number(e.target.value))}
+              />
+              <p className="text-xs text-text-secondary mt-1">Transformer编码器的层数</p>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-text-primary mb-2">
+                前馈网络维度
+              </label>
+              <Input
+                type="number"
+                placeholder="2048"
+                value={transformerDimFeedforward}
+                onChange={(e) => setTransformerDimFeedforward(Number(e.target.value))}
+              />
+              <p className="text-xs text-text-secondary mt-1">FFN层的隐藏维度</p>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-text-primary mb-2">
+                Dropout率
+              </label>
+              <Input
+                type="number"
+                step="0.1"
+                placeholder="0.1"
+                value={transformerDropout}
+                onChange={(e) => setTransformerDropout(Number(e.target.value))}
+              />
+              <p className="text-xs text-text-secondary mt-1">防止过拟合</p>
+            </div>
+          </div>
+        );
+
+      case 'ensemble':
+        return (
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-text-primary mb-3">
+                选择子模型
+              </label>
+              <div className="space-y-2">
+                <label className="flex items-center cursor-pointer">
+                  <input
+                    type="checkbox"
+                    className="w-4 h-4 text-primary-500 border-gray-300 rounded focus:ring-primary-500"
+                    checked={ensembleModels.includes('rl')}
+                    onChange={(e) => {
+                      if (e.target.checked) {
+                        setEnsembleModels([...ensembleModels, 'rl']);
+                      } else {
+                        setEnsembleModels(ensembleModels.filter(m => m !== 'rl'));
+                      }
+                    }}
+                  />
+                  <span className="ml-2 text-sm text-text-primary">深度强化学习 (RL)</span>
+                </label>
+
+                <label className="flex items-center cursor-pointer">
+                  <input
+                    type="checkbox"
+                    className="w-4 h-4 text-primary-500 border-gray-300 rounded focus:ring-primary-500"
+                    checked={ensembleModels.includes('lstm')}
+                    onChange={(e) => {
+                      if (e.target.checked) {
+                        setEnsembleModels([...ensembleModels, 'lstm']);
+                      } else {
+                        setEnsembleModels(ensembleModels.filter(m => m !== 'lstm'));
+                      }
+                    }}
+                  />
+                  <span className="ml-2 text-sm text-text-primary">LSTM时序预测</span>
+                </label>
+
+                <label className="flex items-center cursor-pointer">
+                  <input
+                    type="checkbox"
+                    className="w-4 h-4 text-primary-500 border-gray-300 rounded focus:ring-primary-500"
+                    checked={ensembleModels.includes('transformer')}
+                    onChange={(e) => {
+                      if (e.target.checked) {
+                        setEnsembleModels([...ensembleModels, 'transformer']);
+                      } else {
+                        setEnsembleModels(ensembleModels.filter(m => m !== 'transformer'));
+                      }
+                    }}
+                  />
+                  <span className="ml-2 text-sm text-text-primary">Transformer模型</span>
+                </label>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-text-primary mb-2">
+                集成方法
+              </label>
+              <select
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+                value={ensembleMethod}
+                onChange={(e) => setEnsembleMethod(e.target.value)}
+              >
+                <option value="voting">投票法 (Voting)</option>
+                <option value="averaging">平均法 (Averaging)</option>
+                <option value="weighted">加权平均 (Weighted)</option>
+                <option value="stacking">堆叠法 (Stacking)</option>
+              </select>
+              <p className="text-xs text-text-secondary mt-1">子模型预测结果的组合方式</p>
+            </div>
+
+            {ensembleMethod === 'weighted' && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-text-primary mb-2">
+                    RL模型权重
+                  </label>
+                  <Input
+                    type="number"
+                    step="0.1"
+                    min="0"
+                    max="1"
+                    placeholder="0.5"
+                    value={rlWeight}
+                    onChange={(e) => setRlWeight(Number(e.target.value))}
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-text-primary mb-2">
+                    LSTM模型权重
+                  </label>
+                  <Input
+                    type="number"
+                    step="0.1"
+                    min="0"
+                    max="1"
+                    placeholder="0.5"
+                    value={lstmWeight}
+                    onChange={(e) => setLstmWeight(Number(e.target.value))}
+                  />
+                </div>
+              </div>
+            )}
+
+            <div className="p-3 bg-purple-50 border border-purple-200 rounded-lg text-sm text-purple-800">
+              <strong>提示：</strong>
+              集成模型将组合多个子模型的预测结果，通常能获得更好的性能和鲁棒性。
+              请确保已训练好各个子模型。
+            </div>
+          </div>
+        );
+
+      default:
+        return null;
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -117,7 +604,7 @@ export function TrainingTab() {
               <div className="flex items-center justify-between mb-2">
                 <span className="text-sm text-text-secondary">训练进度</span>
                 <span className="text-sm font-medium text-text-primary">
-                  Episode {trainingStatus.current_episode} / {trainingStatus.total_episodes}
+                  {trainingStatus.model_type === 'rl' ? 'Episode' : 'Epoch'} {trainingStatus.current_episode} / {trainingStatus.total_episodes}
                 </span>
               </div>
               <div className="w-full bg-gray-200 rounded-full h-3">
@@ -146,20 +633,20 @@ export function TrainingTab() {
               <div className="bg-white p-3 rounded-lg border border-gray-200">
                 <div className="flex items-center gap-2 text-xs text-text-secondary mb-1">
                   <TrendingUp size={14} className="text-profit" />
-                  当前奖励
+                  当前{trainingStatus.model_type === 'rl' ? '奖励' : '损失'}
                 </div>
                 <div className="text-lg font-bold text-profit">
-                  {trainingStatus.current_reward?.toFixed(2) || '0.00'}
+                  {trainingStatus.current_reward?.toFixed(4) || '0.0000'}
                 </div>
               </div>
 
               <div className="bg-white p-3 rounded-lg border border-gray-200">
                 <div className="flex items-center gap-2 text-xs text-text-secondary mb-1">
                   <BarChart3 size={14} className="text-primary-500" />
-                  平均奖励
+                  平均{trainingStatus.model_type === 'rl' ? '奖励' : '损失'}
                 </div>
                 <div className="text-lg font-bold text-primary-600">
-                  {trainingStatus.average_reward?.toFixed(2) || '0.00'}
+                  {trainingStatus.average_reward?.toFixed(4) || '0.0000'}
                 </div>
               </div>
 
@@ -217,176 +704,120 @@ export function TrainingTab() {
         </div>
       )}
 
-      {/* 训练时显示监控信息 */}
-      {isTraining && (
-        <>
-          <Card title="训练监控" padding="md">
-            <div className="space-y-4">
-              <div className="flex items-center gap-2 text-sm text-blue-600 bg-blue-50 p-3 rounded-lg">
-                <Activity className="animate-pulse" size={16} />
-                <span>模型正在训练中，实时数据每10秒更新一次...</span>
-              </div>
-
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                <div className="p-4 border border-gray-200 rounded-lg">
-                  <h3 className="font-semibold text-text-primary mb-3">训练配置</h3>
-                  <div className="space-y-2 text-sm">
-                    <div className="flex justify-between">
-                      <span className="text-text-secondary">模型类型:</span>
-                      <span className="font-medium text-text-primary">
-                        {trainingStatus.model_type?.toUpperCase() || 'RL'}
-                      </span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-text-secondary">总Episodes:</span>
-                      <span className="font-medium text-text-primary">
-                        {trainingStatus.total_episodes || 0}
-                      </span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-text-secondary">学习率:</span>
-                      <span className="font-medium text-text-primary">
-                        {trainingStatus.config?.learning_rate || learningRate}
-                      </span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-text-secondary">批次大小:</span>
-                      <span className="font-medium text-text-primary">
-                        {trainingStatus.config?.batch_size || batchSize}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="p-4 border border-gray-200 rounded-lg">
-                  <h3 className="font-semibold text-text-primary mb-3">实时指标</h3>
-                  <div className="space-y-2 text-sm">
-                    <div className="flex justify-between">
-                      <span className="text-text-secondary">当前Episode:</span>
-                      <span className="font-medium text-text-primary">
-                        {trainingStatus.current_episode || 0}
-                      </span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-text-secondary">当前奖励:</span>
-                      <span className={`font-medium ${(trainingStatus.current_reward || 0) >= 0 ? 'text-profit' : 'text-loss'}`}>
-                        {trainingStatus.current_reward?.toFixed(4) || '0.0000'}
-                      </span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-text-secondary">平均奖励:</span>
-                      <span className={`font-medium ${(trainingStatus.average_reward || 0) >= 0 ? 'text-profit' : 'text-loss'}`}>
-                        {trainingStatus.average_reward?.toFixed(4) || '0.0000'}
-                      </span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-text-secondary">已训练时长:</span>
-                      <span className="font-medium text-text-primary">
-                        {trainingStatus.training_time
-                          ? `${Math.floor(trainingStatus.training_time / 3600)}h ${Math.floor((trainingStatus.training_time % 3600) / 60)}m`
-                          : '0h 0m'}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </Card>
-        </>
-      )}
-
       {/* 停止时显示配置面板 */}
       {!isTraining && (
         <>
           {/* Training Configuration */}
           <Card title="训练配置" padding="md">
-            <div className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-text-primary mb-2">
-                    模型类型
-                  </label>
-                  <select
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
-                    value={modelType}
-                    onChange={(e) => setModelType(e.target.value)}
+            <div className="space-y-6">
+              {/* 模型类型选择 */}
+              <div>
+                <label className="block text-sm font-medium text-text-primary mb-3">
+                  选择模型类型
+                </label>
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                  <button
+                    onClick={() => setModelType('rl')}
+                    className={`p-4 border-2 rounded-lg transition-all ${
+                      modelType === 'rl'
+                        ? 'border-primary-500 bg-primary-50'
+                        : 'border-gray-200 hover:border-primary-300'
+                    }`}
                   >
-                    <option value="rl">深度强化学习 (DQN/PPO)</option>
-                    <option value="lstm">LSTM时序预测</option>
-                    <option value="transformer">Transformer模型</option>
-                    <option value="ensemble">集成模型</option>
-                  </select>
-                </div>
+                    <Brain className={`w-8 h-8 mx-auto mb-2 ${modelType === 'rl' ? 'text-primary-500' : 'text-gray-400'}`} />
+                    <p className="text-sm font-semibold text-text-primary">深度强化学习</p>
+                    <p className="text-xs text-text-secondary mt-1">DQN/PPO</p>
+                  </button>
 
-                <div>
-                  <label className="block text-sm font-medium text-text-primary mb-2">
-                    训练股票列表 <span className="text-xs text-text-secondary">(逗号分隔)</span>
-                  </label>
-                  <Input
-                    placeholder="例如: 000001,600519,000858"
-                    value={symbols}
-                    onChange={(e) => setSymbols(e.target.value)}
-                  />
-                </div>
+                  <button
+                    onClick={() => setModelType('lstm')}
+                    className={`p-4 border-2 rounded-lg transition-all ${
+                      modelType === 'lstm'
+                        ? 'border-primary-500 bg-primary-50'
+                        : 'border-gray-200 hover:border-primary-300'
+                    }`}
+                  >
+                    <Activity className={`w-8 h-8 mx-auto mb-2 ${modelType === 'lstm' ? 'text-primary-500' : 'text-gray-400'}`} />
+                    <p className="text-sm font-semibold text-text-primary">LSTM</p>
+                    <p className="text-xs text-text-secondary mt-1">时序预测</p>
+                  </button>
 
-                <div>
-                  <label className="block text-sm font-medium text-text-primary mb-2">
-                    训练Episodes
-                  </label>
-                  <Input
-                    type="number"
-                    placeholder="1000"
-                    value={episodes}
-                    onChange={(e) => setEpisodes(Number(e.target.value))}
-                  />
-                </div>
+                  <button
+                    onClick={() => setModelType('transformer')}
+                    className={`p-4 border-2 rounded-lg transition-all ${
+                      modelType === 'transformer'
+                        ? 'border-primary-500 bg-primary-50'
+                        : 'border-gray-200 hover:border-primary-300'
+                    }`}
+                  >
+                    <Network className={`w-8 h-8 mx-auto mb-2 ${modelType === 'transformer' ? 'text-primary-500' : 'text-gray-400'}`} />
+                    <p className="text-sm font-semibold text-text-primary">Transformer</p>
+                    <p className="text-xs text-text-secondary mt-1">注意力机制</p>
+                  </button>
 
-                <div>
-                  <label className="block text-sm font-medium text-text-primary mb-2">
-                    学习率
-                  </label>
-                  <Input
-                    type="number"
-                    step="0.00001"
-                    placeholder="0.0001"
-                    value={learningRate}
-                    onChange={(e) => setLearningRate(Number(e.target.value))}
-                  />
+                  <button
+                    onClick={() => setModelType('ensemble')}
+                    className={`p-4 border-2 rounded-lg transition-all ${
+                      modelType === 'ensemble'
+                        ? 'border-primary-500 bg-primary-50'
+                        : 'border-gray-200 hover:border-primary-300'
+                    }`}
+                  >
+                    <Layers className={`w-8 h-8 mx-auto mb-2 ${modelType === 'ensemble' ? 'text-primary-500' : 'text-gray-400'}`} />
+                    <p className="text-sm font-semibold text-text-primary">集成模型</p>
+                    <p className="text-xs text-text-secondary mt-1">多模型融合</p>
+                  </button>
                 </div>
+              </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-text-primary mb-2">
-                    批次大小
-                  </label>
-                  <Input
-                    type="number"
-                    placeholder="32"
-                    value={batchSize}
-                    onChange={(e) => setBatchSize(Number(e.target.value))}
-                  />
-                </div>
+              {/* 通用配置 */}
+              <div className="border-t border-gray-200 pt-4">
+                <h3 className="text-sm font-semibold text-text-primary mb-4">通用配置</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="md:col-span-2">
+                    <label className="block text-sm font-medium text-text-primary mb-2">
+                      训练股票列表 <span className="text-xs text-text-secondary">(逗号分隔)</span>
+                    </label>
+                    <Input
+                      placeholder="例如: 000001,600519,000858"
+                      value={symbols}
+                      onChange={(e) => setSymbols(e.target.value)}
+                    />
+                  </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-text-primary mb-2">
-                    训练数据起始日期
-                  </label>
-                  <Input
-                    type="date"
-                    value={startDate}
-                    onChange={(e) => setStartDate(e.target.value)}
-                  />
-                </div>
+                  <div>
+                    <label className="block text-sm font-medium text-text-primary mb-2">
+                      训练数据起始日期
+                    </label>
+                    <Input
+                      type="date"
+                      value={startDate}
+                      onChange={(e) => setStartDate(e.target.value)}
+                    />
+                  </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-text-primary mb-2">
-                    训练数据结束日期
-                  </label>
-                  <Input
-                    type="date"
-                    value={endDate}
-                    onChange={(e) => setEndDate(e.target.value)}
-                  />
+                  <div>
+                    <label className="block text-sm font-medium text-text-primary mb-2">
+                      训练数据结束日期
+                    </label>
+                    <Input
+                      type="date"
+                      value={endDate}
+                      onChange={(e) => setEndDate(e.target.value)}
+                    />
+                  </div>
                 </div>
+              </div>
+
+              {/* 模型特定参数 */}
+              <div className="border-t border-gray-200 pt-4">
+                <h3 className="text-sm font-semibold text-text-primary mb-4">
+                  {modelType === 'rl' && 'RL模型参数'}
+                  {modelType === 'lstm' && 'LSTM模型参数'}
+                  {modelType === 'transformer' && 'Transformer模型参数'}
+                  {modelType === 'ensemble' && '集成模型参数'}
+                </h3>
+                {renderModelConfig()}
               </div>
 
               <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-800">
@@ -406,10 +837,10 @@ export function TrainingTab() {
                 </div>
                 <div>
                   <h3 className="text-sm font-semibold text-text-primary mb-1">
-                    深度强化学习
+                    多种模型支持
                   </h3>
                   <p className="text-xs text-text-secondary">
-                    使用DQN或PPO算法训练智能交易Agent，通过奖励机制学习最优交易策略
+                    支持RL、LSTM、Transformer等多种深度学习模型，每种模型有专属的参数配置
                   </p>
                 </div>
               </div>
