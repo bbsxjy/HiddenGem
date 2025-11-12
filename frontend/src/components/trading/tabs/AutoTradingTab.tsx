@@ -3,7 +3,9 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card } from '@/components/common/Card';
 import { Button } from '@/components/common/Button';
 import { Input } from '@/components/common/Input';
+import { Loading } from '@/components/common/Loading';
 import { useSettingsStore } from '@/store/useSettingsStore';
+import { getStrategies } from '@/api/strategies';
 import {
   Play,
   Square,
@@ -16,6 +18,9 @@ import {
   AlertCircle,
   CheckCircle,
   XCircle,
+  Edit,
+  Save,
+  X,
 } from 'lucide-react';
 import axios from 'axios';
 
@@ -34,17 +39,53 @@ interface StockDecision {
   confidence?: number;
 }
 
+interface RiskParams {
+  // 买入条件
+  buyPriceChangeMin: number;      // 涨幅阈值 (%)
+  buyVolumeRatioMin: number;      // 量比要求
+  buyAmplitudeMax: number;        // 振幅控制 (%)
+  buyTurnoverRateMax: number;     // 换手率控制 (%)
+  // 卖出条件
+  minHoldingDays: number;         // 最小持仓天数
+  stopLossPct: number;            // 止损阈值 (%)
+  takeProfitPct: number;          // 止盈阈值 (%)
+  maxPositionPct: number;         // 单个仓位限制 (%)
+}
+
 export function AutoTradingTab() {
   const queryClient = useQueryClient();
 
-  // Get refresh intervals from settings
-  const { dataRefresh } = useSettingsStore();
+  // Get refresh intervals and risk settings from settings store
+  const { dataRefresh, riskControl } = useSettingsStore();
 
   // 自动交易配置
   const [symbols, setSymbols] = useState('000001,600519,000858');
   const [initialCash, setInitialCash] = useState(100000);
   const [checkInterval, setCheckInterval] = useState(5);
   const [useMultiAgent, setUseMultiAgent] = useState(true);
+
+  // 策略选择
+  const [selectedStrategies, setSelectedStrategies] = useState<string[]>([]);
+
+  // 风险控制参数
+  const [isEditingRisk, setIsEditingRisk] = useState(false);
+  const [riskParams, setRiskParams] = useState<RiskParams>({
+    buyPriceChangeMin: 3,
+    buyVolumeRatioMin: 1.2,
+    buyAmplitudeMax: 8,
+    buyTurnoverRateMax: 15,
+    minHoldingDays: 1,
+    stopLossPct: riskControl.defaultStopLossPct || 5,
+    takeProfitPct: riskControl.defaultTakeProfitPct || 8,
+    maxPositionPct: riskControl.maxPositionPct || 5,
+  });
+
+  // Fetch strategies from training center
+  const { data: strategies, isLoading: strategiesLoading } = useQuery({
+    queryKey: ['strategies'],
+    queryFn: getStrategies,
+    refetchInterval: dataRefresh.strategyListInterval * 1000,
+  });
 
   // Fetch auto trading status
   const { data: autoTradingStatus } = useQuery({
@@ -89,7 +130,8 @@ export function AutoTradingTab() {
         initial_cash: initialCash,
         check_interval: checkInterval,
         use_multi_agent: useMultiAgent,
-        strategies: ['rl', 'multi_agent']
+        strategies: selectedStrategies.length > 0 ? selectedStrategies : ['simple_rule'],
+        risk_params: riskParams,
       });
       return response.data;
     },
@@ -108,6 +150,17 @@ export function AutoTradingTab() {
       queryClient.invalidateQueries({ queryKey: ['autoTradingStatus'] });
     },
   });
+
+  // Toggle strategy selection
+  const toggleStrategy = (strategyName: string) => {
+    setSelectedStrategies(prev => {
+      if (prev.includes(strategyName)) {
+        return prev.filter(s => s !== strategyName);
+      } else {
+        return [...prev, strategyName];
+      }
+    });
+  };
 
   const isRunning = autoTradingStatus?.is_running || false;
   const isTradingHours = autoTradingStatus?.is_trading_hours || false;
@@ -554,96 +607,257 @@ export function AutoTradingTab() {
 
           {/* Strategy Selection */}
           <Card title="策略选择" padding="md">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="p-4 border border-gray-200 rounded-lg">
-                <div className="flex items-center gap-2 mb-2">
-                  <input
-                    type="checkbox"
-                    className="w-4 h-4 text-primary-500 border-gray-300 rounded focus:ring-primary-500"
-                    defaultChecked
-                    disabled
-                  />
-                  <span className="font-semibold text-text-primary">RL策略</span>
-                </div>
-                <p className="text-sm text-text-secondary">深度强化学习策略</p>
+            {strategiesLoading ? (
+              <div className="flex items-center justify-center py-12">
+                <Loading size="md" text="加载策略列表..." />
               </div>
-
-              <div className="p-4 border border-gray-200 rounded-lg">
-                <div className="flex items-center gap-2 mb-2">
-                  <input
-                    type="checkbox"
-                    className="w-4 h-4 text-primary-500 border-gray-300 rounded focus:ring-primary-500"
-                    defaultChecked
-                    disabled
-                  />
-                  <span className="font-semibold text-text-primary">Multi-Agent策略</span>
+            ) : strategies && strategies.length > 0 ? (
+              <>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  {strategies.map((strategy) => (
+                    <div
+                      key={strategy.name}
+                      className={`p-4 border-2 rounded-lg cursor-pointer transition-all ${
+                        selectedStrategies.includes(strategy.name)
+                          ? 'border-primary-500 bg-primary-50'
+                          : 'border-gray-200 hover:border-primary-300'
+                      }`}
+                      onClick={() => toggleStrategy(strategy.name)}
+                    >
+                      <div className="flex items-center gap-2 mb-2">
+                        <input
+                          type="checkbox"
+                          className="w-4 h-4 text-primary-500 border-gray-300 rounded focus:ring-primary-500"
+                          checked={selectedStrategies.includes(strategy.name)}
+                          onChange={() => {}} // Handled by parent div onClick
+                        />
+                        <span className="font-semibold text-text-primary">{strategy.name}</span>
+                      </div>
+                      <p className="text-sm text-text-secondary">
+                        {strategy.strategy_type === 'swing_trading' ? '波段交易' : '趋势跟踪'}
+                      </p>
+                      <div className="mt-2 text-xs text-text-secondary">
+                        <span className={strategy.enabled ? 'text-profit' : 'text-gray-500'}>
+                          {strategy.enabled ? '已启用' : '已停用'}
+                        </span>
+                        <span className="mx-2">•</span>
+                        <span>持仓: {strategy.num_positions || 0}</span>
+                      </div>
+                    </div>
+                  ))}
                 </div>
-                <p className="text-sm text-text-secondary">多Agent智能分析</p>
-              </div>
-
-              <div className="p-4 border border-gray-200 rounded-lg bg-gray-50">
-                <div className="flex items-center gap-2 mb-2">
-                  <input
-                    type="checkbox"
-                    className="w-4 h-4 text-primary-500 border-gray-300 rounded focus:ring-primary-500"
-                    defaultChecked
-                    checked
-                    readOnly
-                  />
-                  <span className="font-semibold text-text-primary">简化规则策略</span>
+                <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-800">
+                  <strong>提示：</strong>
+                  已选择 <strong>{selectedStrategies.length}</strong> 个策略。点击策略卡片进行选择/取消。
+                  选择的策略将在自动交易中同时运行。
                 </div>
-                <p className="text-sm text-text-secondary">当前使用</p>
+              </>
+            ) : (
+              <div className="text-center py-12 text-text-secondary">
+                <Activity size={48} className="mx-auto mb-3 text-gray-300" />
+                <p>暂无可用策略</p>
+                <p className="text-sm mt-2">
+                  请前往"训练中心"创建和训练策略
+                </p>
               </div>
-            </div>
+            )}
           </Card>
 
           {/* Risk Control */}
-          <Card title="风险控制（T+1制度）" padding="md">
+          <Card
+            title="风险控制（T+1制度）"
+            padding="md"
+            headerAction={
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setIsEditingRisk(!isEditingRisk)}
+              >
+                {isEditingRisk ? (
+                  <>
+                    <X size={14} className="mr-1" />
+                    取消
+                  </>
+                ) : (
+                  <>
+                    <Edit size={14} className="mr-1" />
+                    编辑
+                  </>
+                )}
+              </Button>
+            }
+          >
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="p-4 border border-gray-200 rounded-lg">
-                <h3 className="font-semibold text-text-primary mb-3">买入条件（更严格）</h3>
-                <div className="space-y-2 text-sm">
-                  <div className="flex justify-between">
-                    <span className="text-text-secondary">涨幅阈值:</span>
-                    <span className="font-semibold text-text-primary">&gt; 3%</span>
+                <h3 className="font-semibold text-text-primary mb-3">买入条件</h3>
+                <div className="space-y-3 text-sm">
+                  <div className="flex justify-between items-center">
+                    <span className="text-text-secondary">涨幅阈值 (%):</span>
+                    {isEditingRisk ? (
+                      <Input
+                        type="number"
+                        className="w-24 text-right"
+                        value={riskParams.buyPriceChangeMin}
+                        onChange={(e) => setRiskParams({ ...riskParams, buyPriceChangeMin: Number(e.target.value) })}
+                        min={0}
+                        max={20}
+                        step={0.1}
+                      />
+                    ) : (
+                      <span className="font-semibold text-text-primary">&gt; {riskParams.buyPriceChangeMin}%</span>
+                    )}
                   </div>
-                  <div className="flex justify-between">
+                  <div className="flex justify-between items-center">
                     <span className="text-text-secondary">量比要求:</span>
-                    <span className="font-semibold text-text-primary">&gt; 1.2</span>
+                    {isEditingRisk ? (
+                      <Input
+                        type="number"
+                        className="w-24 text-right"
+                        value={riskParams.buyVolumeRatioMin}
+                        onChange={(e) => setRiskParams({ ...riskParams, buyVolumeRatioMin: Number(e.target.value) })}
+                        min={0.5}
+                        max={5}
+                        step={0.1}
+                      />
+                    ) : (
+                      <span className="font-semibold text-text-primary">&gt; {riskParams.buyVolumeRatioMin}</span>
+                    )}
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-text-secondary">振幅控制:</span>
-                    <span className="font-semibold text-text-primary">&lt; 8%</span>
+                  <div className="flex justify-between items-center">
+                    <span className="text-text-secondary">振幅控制 (%):</span>
+                    {isEditingRisk ? (
+                      <Input
+                        type="number"
+                        className="w-24 text-right"
+                        value={riskParams.buyAmplitudeMax}
+                        onChange={(e) => setRiskParams({ ...riskParams, buyAmplitudeMax: Number(e.target.value) })}
+                        min={1}
+                        max={20}
+                        step={0.1}
+                      />
+                    ) : (
+                      <span className="font-semibold text-text-primary">&lt; {riskParams.buyAmplitudeMax}%</span>
+                    )}
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-text-secondary">换手率控制:</span>
-                    <span className="font-semibold text-text-primary">&lt; 15%</span>
+                  <div className="flex justify-between items-center">
+                    <span className="text-text-secondary">换手率控制 (%):</span>
+                    {isEditingRisk ? (
+                      <Input
+                        type="number"
+                        className="w-24 text-right"
+                        value={riskParams.buyTurnoverRateMax}
+                        onChange={(e) => setRiskParams({ ...riskParams, buyTurnoverRateMax: Number(e.target.value) })}
+                        min={1}
+                        max={50}
+                        step={0.5}
+                      />
+                    ) : (
+                      <span className="font-semibold text-text-primary">&lt; {riskParams.buyTurnoverRateMax}%</span>
+                    )}
                   </div>
                 </div>
               </div>
 
               <div className="p-4 border border-gray-200 rounded-lg">
-                <h3 className="font-semibold text-text-primary mb-3">卖出条件（T+1限制）</h3>
-                <div className="space-y-2 text-sm">
-                  <div className="flex justify-between">
+                <h3 className="font-semibold text-text-primary mb-3">卖出条件</h3>
+                <div className="space-y-3 text-sm">
+                  <div className="flex justify-between items-center">
                     <span className="text-text-secondary">最小持仓天数:</span>
-                    <span className="font-semibold text-text-primary">1天</span>
+                    {isEditingRisk ? (
+                      <Input
+                        type="number"
+                        className="w-24 text-right"
+                        value={riskParams.minHoldingDays}
+                        onChange={(e) => setRiskParams({ ...riskParams, minHoldingDays: Number(e.target.value) })}
+                        min={1}
+                        max={30}
+                      />
+                    ) : (
+                      <span className="font-semibold text-text-primary">{riskParams.minHoldingDays}天</span>
+                    )}
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-text-secondary">止损阈值:</span>
-                    <span className="font-semibold text-loss">-5%</span>
+                  <div className="flex justify-between items-center">
+                    <span className="text-text-secondary">止损阈值 (%):</span>
+                    {isEditingRisk ? (
+                      <Input
+                        type="number"
+                        className="w-24 text-right"
+                        value={riskParams.stopLossPct}
+                        onChange={(e) => setRiskParams({ ...riskParams, stopLossPct: Number(e.target.value) })}
+                        min={1}
+                        max={50}
+                        step={0.5}
+                      />
+                    ) : (
+                      <span className="font-semibold text-loss">-{riskParams.stopLossPct}%</span>
+                    )}
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-text-secondary">止盈阈值:</span>
-                    <span className="font-semibold text-profit">+8%</span>
+                  <div className="flex justify-between items-center">
+                    <span className="text-text-secondary">止盈阈值 (%):</span>
+                    {isEditingRisk ? (
+                      <Input
+                        type="number"
+                        className="w-24 text-right"
+                        value={riskParams.takeProfitPct}
+                        onChange={(e) => setRiskParams({ ...riskParams, takeProfitPct: Number(e.target.value) })}
+                        min={1}
+                        max={100}
+                        step={0.5}
+                      />
+                    ) : (
+                      <span className="font-semibold text-profit">+{riskParams.takeProfitPct}%</span>
+                    )}
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-text-secondary">单个仓位限制:</span>
-                    <span className="font-semibold text-text-primary">5%</span>
+                  <div className="flex justify-between items-center">
+                    <span className="text-text-secondary">单个仓位限制 (%):</span>
+                    {isEditingRisk ? (
+                      <Input
+                        type="number"
+                        className="w-24 text-right"
+                        value={riskParams.maxPositionPct}
+                        onChange={(e) => setRiskParams({ ...riskParams, maxPositionPct: Number(e.target.value) })}
+                        min={1}
+                        max={100}
+                        step={0.5}
+                      />
+                    ) : (
+                      <span className="font-semibold text-text-primary">{riskParams.maxPositionPct}%</span>
+                    )}
                   </div>
                 </div>
               </div>
             </div>
+
+            {isEditingRisk && (
+              <div className="mt-4 flex justify-end gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    setRiskParams({
+                      buyPriceChangeMin: 3,
+                      buyVolumeRatioMin: 1.2,
+                      buyAmplitudeMax: 8,
+                      buyTurnoverRateMax: 15,
+                      minHoldingDays: 1,
+                      stopLossPct: riskControl.defaultStopLossPct || 5,
+                      takeProfitPct: riskControl.defaultTakeProfitPct || 8,
+                      maxPositionPct: riskControl.maxPositionPct || 5,
+                    });
+                    setIsEditingRisk(false);
+                  }}
+                >
+                  恢复默认
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={() => setIsEditingRisk(false)}
+                >
+                  <Save size={14} className="mr-1" />
+                  保存
+                </Button>
+              </div>
+            )}
 
             <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg text-sm text-yellow-800">
               <strong>T+1制度说明：</strong>
