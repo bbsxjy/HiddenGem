@@ -23,16 +23,27 @@ import { startTraining as startRLTraining, type TrainingConfig } from '@/api/rl'
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
 
-interface TrainingStatus {
-  is_training: boolean;
-  model_type?: string;
-  current_episode?: number;
-  total_episodes?: number;
-  current_reward?: number;
-  average_reward?: number;
-  training_time?: number;
+interface TrainingInfo {
+  training_id: string;
+  status: string;
+  created_at: string;
   started_at?: string;
-  config?: any;
+  completed_at?: string;
+  error_message?: string;
+  config?: {
+    stock_pool: string;
+    max_stocks: number;
+    total_timesteps: number;
+    model_name?: string;
+  };
+}
+
+interface TrainingStatusResponse {
+  trainings: TrainingInfo[];
+  total: number;
+  running: number;
+  completed: number;
+  failed: number;
 }
 
 export function TrainingTab() {
@@ -85,11 +96,11 @@ export function TrainingTab() {
   const [lstmWeight, setLstmWeight] = useState(0.5);
 
   // Fetch training status
-  const { data: trainingStatus } = useQuery({
+  const { data: trainingStatusData } = useQuery({
     queryKey: ['trainingStatus'],
     queryFn: async () => {
-      const response = await axios.get(`${API_BASE_URL}/api/v1/training/status`);
-      return response.data.data as TrainingStatus;
+      const response = await axios.get(`${API_BASE_URL}/api/v1/rl/training/status`);
+      return response.data.data as TrainingStatusResponse;
     },
     refetchInterval: 10000,
   });
@@ -190,17 +201,23 @@ export function TrainingTab() {
   // Stop training mutation
   const stopMutation = useMutation({
     mutationFn: async () => {
-      const response = await axios.post(`${API_BASE_URL}/api/v1/training/stop`);
-      return response.data;
+      // Find the running training
+      const currentRunning = trainingStatusData?.trainings?.find(t => t.status === 'running');
+      if (currentRunning) {
+        const response = await axios.post(`${API_BASE_URL}/api/v1/rl/training/stop/${currentRunning.training_id}`);
+        return response.data;
+      }
+      throw new Error('No running training to stop');
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['trainingStatus'] });
     },
   });
 
-  const isTraining = trainingStatus?.is_training || false;
-  const progress = trainingStatus?.total_episodes
-    ? ((trainingStatus.current_episode || 0) / trainingStatus.total_episodes) * 100
+  const isTraining = (trainingStatusData?.running || 0) > 0;
+  const runningTraining = trainingStatusData?.trainings?.find(t => t.status === 'running');
+  const progress = runningTraining?.config?.total_timesteps
+    ? 50  // Since we don't have current timesteps, show 50% as placeholder
     : 0;
 
   // 渲染模型特定参数配置
@@ -748,31 +765,31 @@ export function TrainingTab() {
               训练状态: {isTraining ? '训练中' : '未启动'}
             </h3>
           </div>
-          {isTraining && trainingStatus?.started_at && (
+          {isTraining && runningTraining?.started_at && (
             <span className="text-xs text-text-secondary">
-              启动于: {new Date(trainingStatus.started_at).toLocaleString('zh-CN')}
+              启动于: {new Date(runningTraining.started_at).toLocaleString('zh-CN')}
             </span>
           )}
         </div>
 
-        {isTraining && trainingStatus && (
+        {isTraining && runningTraining && (
           <div className="space-y-4">
             {/* Progress Bar */}
             <div>
               <div className="flex items-center justify-between mb-2">
                 <span className="text-sm text-text-secondary">训练进度</span>
                 <span className="text-sm font-medium text-text-primary">
-                  {trainingStatus.model_type === 'rl' ? 'Episode' : 'Epoch'} {trainingStatus.current_episode} / {trainingStatus.total_episodes}
+                  目标步数: {runningTraining.config?.total_timesteps?.toLocaleString() || 'N/A'}
                 </span>
               </div>
               <div className="w-full bg-gray-200 rounded-full h-3">
                 <div
-                  className="bg-primary-500 h-3 rounded-full transition-all duration-500"
+                  className="bg-primary-500 h-3 rounded-full transition-all duration-500 animate-pulse"
                   style={{ width: `${progress}%` }}
                 />
               </div>
               <div className="text-right mt-1">
-                <span className="text-xs text-text-secondary">{progress.toFixed(1)}%</span>
+                <span className="text-xs text-text-secondary">训练中...</span>
               </div>
             </div>
 
@@ -781,42 +798,40 @@ export function TrainingTab() {
               <div className="bg-white p-3 rounded-lg border border-gray-200">
                 <div className="flex items-center gap-2 text-xs text-text-secondary mb-1">
                   <Brain size={14} />
-                  模型类型
+                  训练ID
                 </div>
-                <div className="text-lg font-bold text-text-primary">
-                  {trainingStatus.model_type?.toUpperCase() || 'RL'}
+                <div className="text-sm font-bold text-text-primary truncate">
+                  {runningTraining.training_id}
                 </div>
               </div>
 
               <div className="bg-white p-3 rounded-lg border border-gray-200">
                 <div className="flex items-center gap-2 text-xs text-text-secondary mb-1">
                   <TrendingUp size={14} className="text-profit" />
-                  当前{trainingStatus.model_type === 'rl' ? '奖励' : '损失'}
+                  股票池
                 </div>
-                <div className="text-lg font-bold text-profit">
-                  {trainingStatus.current_reward?.toFixed(4) || '0.0000'}
+                <div className="text-lg font-bold text-text-primary">
+                  {runningTraining.config?.stock_pool?.toUpperCase() || 'N/A'}
                 </div>
               </div>
 
               <div className="bg-white p-3 rounded-lg border border-gray-200">
                 <div className="flex items-center gap-2 text-xs text-text-secondary mb-1">
                   <BarChart3 size={14} className="text-primary-500" />
-                  平均{trainingStatus.model_type === 'rl' ? '奖励' : '损失'}
+                  最大股票数
                 </div>
                 <div className="text-lg font-bold text-primary-600">
-                  {trainingStatus.average_reward?.toFixed(4) || '0.0000'}
+                  {runningTraining.config?.max_stocks || 'N/A'}
                 </div>
               </div>
 
               <div className="bg-white p-3 rounded-lg border border-gray-200">
                 <div className="flex items-center gap-2 text-xs text-text-secondary mb-1">
                   <Clock size={14} />
-                  训练时间
+                  状态
                 </div>
-                <div className="text-lg font-bold text-text-primary">
-                  {trainingStatus.training_time
-                    ? `${Math.floor(trainingStatus.training_time / 60)}m ${Math.floor(trainingStatus.training_time % 60)}s`
-                    : '0m 0s'}
+                <div className="text-lg font-bold text-profit">
+                  {runningTraining.status}
                 </div>
               </div>
             </div>
