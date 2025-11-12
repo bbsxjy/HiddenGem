@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card } from '@/components/common/Card';
 import { Input } from '@/components/common/Input';
 import { Button } from '@/components/common/Button';
 import { EquityCurveChart } from '@/components/strategy/EquityCurveChart';
 import { runBacktest } from '@/api/strategies';
+import { listModels, startQFLibBacktest, type ModelInfo } from '@/api/rl';
 import type { BacktestResult } from '@/types/strategy';
 import {
   Timer,
@@ -15,6 +16,8 @@ import {
   DollarSign,
   BarChart3,
   Activity,
+  RefreshCw,
+  CheckCircle2,
 } from 'lucide-react';
 
 export function BacktestTab() {
@@ -28,9 +31,39 @@ export function BacktestTab() {
   const [results, setResults] = useState<BacktestResult | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  // RL模型相关状态
+  const [models, setModels] = useState<ModelInfo[]>([]);
+  const [modelsLoading, setModelsLoading] = useState(false);
+  const [selectedModelPath, setSelectedModelPath] = useState<string>('');
+
+  // 加载RL训练好的模型列表
+  useEffect(() => {
+    loadModels();
+  }, []);
+
+  const loadModels = async () => {
+    setModelsLoading(true);
+    try {
+      const response = await listModels();
+      if (response.success) {
+        setModels(response.data.models || []);
+      }
+    } catch (error) {
+      console.error('Failed to load models:', error);
+    } finally {
+      setModelsLoading(false);
+    }
+  };
+
   const handleRunBacktest = async () => {
     if (!symbol || !startDate || !endDate) {
       alert('请填写所有必需字段');
+      return;
+    }
+
+    // 如果选择了RL策略但没有选择模型，提示用户
+    if (strategyType === 'rl' && selectedModelPath && !selectedModelPath.trim()) {
+      alert('请选择一个训练好的RL模型');
       return;
     }
 
@@ -38,18 +71,50 @@ export function BacktestTab() {
     setError(null);
 
     try {
-      // 调用后端 API
-      const result = await runBacktest(
-        strategyType,
-        symbol,
-        {
+      // 如果选择了RL模型，使用RL回测API
+      if (strategyType === 'rl' && selectedModelPath) {
+        const symbols = symbol.split(',').map(s => s.trim()).filter(Boolean);
+        const response = await startQFLibBacktest({
+          model_path: selectedModelPath,
+          symbols,
           start_date: startDate,
           end_date: endDate,
           initial_capital: parseFloat(initialCash),
-        }
-      );
+          commission_rate: 0.0003,
+        });
 
-      setResults(result);
+        if (response.success && response.data) {
+          // 转换RL回测结果格式以匹配BacktestResult类型
+          const rlResults = response.data;
+          setResults({
+            total_return: rlResults.summary?.final_value - rlResults.summary?.initial_capital || 0,
+            total_return_pct: (rlResults.summary?.total_return || 0) * 100,
+            sharpe_ratio: rlResults.summary?.sharpe_ratio || 0,
+            max_drawdown: (rlResults.summary?.max_drawdown || 0) * 100,
+            win_rate: rlResults.summary?.win_rate || 0,
+            total_trades: rlResults.summary?.total_trades || 0,
+            avg_holding_days: 0, // RL回测可能不提供这个
+            initial_capital: rlResults.summary?.initial_capital || parseFloat(initialCash),
+            final_value: rlResults.summary?.final_value || parseFloat(initialCash),
+            equity_curve: rlResults.equity_curve || [],
+          });
+        } else {
+          setError(response.message || 'RL回测失败');
+        }
+      } else {
+        // 使用原有的回测API
+        const result = await runBacktest(
+          strategyType,
+          symbol,
+          {
+            start_date: startDate,
+            end_date: endDate,
+            initial_capital: parseFloat(initialCash),
+          }
+        );
+
+        setResults(result);
+      }
     } catch (err) {
       console.error('回测失败:', err);
       setError(err instanceof Error ? err.message : '回测失败，请稍后重试');
@@ -126,6 +191,52 @@ export function BacktestTab() {
                   <option value="multi-agent">多Agent综合策略</option>
                 </select>
               </div>
+
+              {/* 如果选择了RL策略,显示模型选择 */}
+              {strategyType === 'rl' && (
+                <div>
+                  <label className="block text-sm font-medium text-text-primary mb-2 flex items-center gap-2">
+                    选择训练好的模型
+                    <button
+                      type="button"
+                      onClick={loadModels}
+                      disabled={modelsLoading}
+                      className="text-primary-500 hover:text-primary-600"
+                      title="刷新模型列表"
+                    >
+                      <RefreshCw size={14} className={modelsLoading ? 'animate-spin' : ''} />
+                    </button>
+                  </label>
+                  <select
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+                    value={selectedModelPath}
+                    onChange={(e) => setSelectedModelPath(e.target.value)}
+                    disabled={modelsLoading}
+                  >
+                    <option value="">-- 选择模型 --</option>
+                    {models.map((model) => (
+                      <option key={model.model_id} value={model.model_path}>
+                        {model.model_name} ({model.model_type})
+                        {model.best_reward !== undefined && ` - 最佳奖励: ${model.best_reward.toFixed(2)}`}
+                      </option>
+                    ))}
+                  </select>
+                  {models.length === 0 && !modelsLoading && (
+                    <p className="text-xs text-orange-600 mt-1 flex items-center gap-1">
+                      <AlertCircle size={12} />
+                      暂无可用模型,请先训练RL模型
+                    </p>
+                  )}
+                  {selectedModelPath && (
+                    <div className="mt-2 p-2 bg-green-50 border border-green-200 rounded text-xs">
+                      <div className="flex items-center gap-1 text-green-700">
+                        <CheckCircle2 size={12} />
+                        <span>已选择: {models.find(m => m.model_path === selectedModelPath)?.model_name}</span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
 
               <div>
                 <label className="block text-sm font-medium text-text-primary mb-2">
