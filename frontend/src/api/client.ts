@@ -106,10 +106,12 @@ function convertNumericFields(data: any): any {
       // Convert string numbers to actual numbers for known numeric fields
       const numericFields = [
         // Quote fields
-        'price', 'open', 'high', 'low', 'volume', 'close', 'change_pct',
+        'price', 'last_price', 'open', 'high', 'low', 'volume', 'close',
+        'change', 'change_pct', 'change_percent',
         // Portfolio fields
         'total_value', 'cash', 'positions_value', 'total_pnl', 'daily_pnl',
         'market_value', 'unrealized_pnl', 'avg_cost', 'current_price',
+        'unrealized_pnl_pct', 'num_positions',
         // Trading fields
         'entry_price', 'target_price', 'stop_loss_price', 'confidence',
         'strength', 'score', 'position_size',
@@ -120,7 +122,7 @@ function convertNumericFields(data: any): any {
         'bb_upper', 'bb_middle', 'bb_lower',
         'atr', 'adx',
         // Count fields
-        'count', 'calculated_from_days'
+        'count', 'calculated_from_days', 'quantity'
       ];
 
       // Skip date fields - keep as strings
