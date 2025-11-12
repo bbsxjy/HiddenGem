@@ -192,7 +192,7 @@ export function Settings() {
       <Card
         title={<div className="flex items-center gap-2"><Database size={18} />风险控制设置</div>}
         padding="md"
-        extra={
+        headerAction={
           <div className="flex gap-2">
             {!isEditingRisk ? (
               <Button size="sm" variant="outline" onClick={() => setIsEditingRisk(true)}>
@@ -304,7 +304,7 @@ export function Settings() {
       <Card
         title={<div className="flex items-center gap-2"><Database size={18} />订单设置</div>}
         padding="md"
-        extra={
+        headerAction={
           <div className="flex gap-2">
             {!isEditingOrder ? (
               <Button size="sm" variant="outline" onClick={() => setIsEditingOrder(true)}>
@@ -393,7 +393,7 @@ export function Settings() {
       <Card
         title={<div className="flex items-center gap-2"><RefreshCw size={18} />数据刷新设置</div>}
         padding="md"
-        extra={
+        headerAction={
           <div className="flex gap-2">
             {!isEditingRefresh ? (
               <Button size="sm" variant="outline" onClick={() => setIsEditingRefresh(true)}>
