@@ -23,6 +23,7 @@ export function BacktestTab() {
   const [endDate, setEndDate] = useState('');
   const [initialCash, setInitialCash] = useState('100000');
   const [strategyType, setStrategyType] = useState('rl');
+  const [backtestEngine, setBacktestEngine] = useState<'simple' | 'qflib'>('simple');
   const [isRunning, setIsRunning] = useState(false);
   const [results, setResults] = useState<BacktestResult | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -124,6 +125,31 @@ export function BacktestTab() {
                   <option value="fundamental">基本面策略</option>
                   <option value="multi-agent">多Agent综合策略</option>
                 </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-text-primary mb-2">
+                  回测引擎
+                </label>
+                <select
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  value={backtestEngine}
+                  onChange={(e) => setBacktestEngine(e.target.value as 'simple' | 'qflib')}
+                >
+                  <option value="simple">简单回测（快速验证）</option>
+                  <option value="qflib">QF-Lib回测（专业级，防Look-Ahead）</option>
+                </select>
+                <p className="text-xs text-text-secondary mt-1">
+                  {backtestEngine === 'qflib' ? (
+                    <span className="text-profit">
+                      ✅ 事件驱动回测，天然防护Look-Ahead Bias，接近实盘表现
+                    </span>
+                  ) : (
+                    <span className="text-primary-600">
+                      ⚡ 向量化回测，速度快，适合快速验证
+                    </span>
+                  )}
+                </p>
               </div>
 
               <Button
