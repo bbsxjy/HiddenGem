@@ -86,17 +86,25 @@ export function BacktestTab() {
         if (response.success && response.data) {
           // 转换RL回测结果格式以匹配BacktestResult类型
           const rlResults = response.data;
+
+          // 转换资金曲线数据格式: portfolio_value -> value
+          const equityCurve = (rlResults.equity_curve || []).map((point: any) => ({
+            date: point.date,
+            value: point.portfolio_value, // 后端返回portfolio_value，前端图表需要value
+            daily_return: point.daily_return,
+          }));
+
           setResults({
             total_return: rlResults.summary?.final_value - rlResults.summary?.initial_capital || 0,
             total_return_pct: (rlResults.summary?.total_return || 0) * 100,
             sharpe_ratio: rlResults.summary?.sharpe_ratio || 0,
             max_drawdown: (rlResults.summary?.max_drawdown || 0) * 100,
-            win_rate: (rlResults.summary?.win_rate || 0) * 100, // 后端返回0-1,前端需要0-100
+            win_rate: rlResults.summary?.win_rate || 0, // 后端返回0-1,前端显示时会处理
             total_trades: rlResults.summary?.total_trades || 0,
             avg_holding_days: rlResults.summary?.avg_holding_days || 0,
             initial_capital: rlResults.summary?.initial_capital || parseFloat(initialCash),
             final_value: rlResults.summary?.final_value || parseFloat(initialCash),
-            equity_curve: rlResults.equity_curve || [],
+            equity_curve: equityCurve,
           });
         } else {
           setError(response.message || 'RL回测失败');
