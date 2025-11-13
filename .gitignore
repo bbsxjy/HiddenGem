@@ -1,2 +1,2 @@
-backend/
-nul
+# backend/ - removed to allow tracking backend code
+# nul - removed (Windows temp file)
