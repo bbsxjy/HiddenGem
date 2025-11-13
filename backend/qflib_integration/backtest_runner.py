@@ -415,6 +415,10 @@ class QFLibBacktestRunner:
         logger.info(f" Final Value: ¥{final_value:,.2f}")
         logger.info(f" Total Return: {total_return*100:.2f}%")
         logger.info(f" Max Drawdown: {max_dd*100:.2f}%")
+        logger.info(f" Sharpe Ratio: {sharpe_ratio:.2f}")
+        logger.info(f" Win Rate: {win_rate*100:.1f}%")
+        logger.info(f" Avg Holding Days: {avg_holding_days:.1f} days")
+        logger.info(f" Total Trades: {len(trades)}")
 
         return results
 
@@ -474,12 +478,17 @@ class QFLibBacktestRunner:
             ticker = trade['ticker']
             action = trade['action']
 
+            # 将字符串日期转换为datetime对象（如果需要）
+            trade_date = trade['date']
+            if isinstance(trade_date, str):
+                trade_date = datetime.strptime(trade_date, '%Y-%m-%d')
+
             if action in ['BUY_25', 'BUY_50']:
                 # 记录买入
                 if ticker not in buy_trades:
                     buy_trades[ticker] = []
                 buy_trades[ticker].append({
-                    'date': trade['date'],
+                    'date': trade_date,
                     'price': trade['price'],
                     'shares': trade['shares']
                 })
@@ -490,7 +499,7 @@ class QFLibBacktestRunner:
                     buy_trade = buy_trades[ticker][0]  # FIFO
 
                     # 计算持仓天数
-                    holding_days = (trade['date'] - buy_trade['date']).days
+                    holding_days = (trade_date - buy_trade['date']).days
                     total_holding_days += holding_days
 
                     # 判断是否盈利
