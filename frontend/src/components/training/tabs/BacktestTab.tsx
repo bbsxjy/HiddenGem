@@ -91,9 +91,9 @@ export function BacktestTab() {
             total_return_pct: (rlResults.summary?.total_return || 0) * 100,
             sharpe_ratio: rlResults.summary?.sharpe_ratio || 0,
             max_drawdown: (rlResults.summary?.max_drawdown || 0) * 100,
-            win_rate: rlResults.summary?.win_rate || 0,
+            win_rate: (rlResults.summary?.win_rate || 0) * 100, // 后端返回0-1,前端需要0-100
             total_trades: rlResults.summary?.total_trades || 0,
-            avg_holding_days: 0, // RL回测可能不提供这个
+            avg_holding_days: rlResults.summary?.avg_holding_days || 0,
             initial_capital: rlResults.summary?.initial_capital || parseFloat(initialCash),
             final_value: rlResults.summary?.final_value || parseFloat(initialCash),
             equity_curve: rlResults.equity_curve || [],
