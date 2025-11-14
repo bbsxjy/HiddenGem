@@ -206,9 +206,12 @@ def _format_response(final_state: dict, processed_signal: Any, symbol: str) -> d
     risk_analysts = {}
     if risk_debate_state:
         # 从risk_debate_state中提取三个风险分析师的反馈
-        risky_report = risk_debate_state.get('risky_analyst_report', '')
-        neutral_report = risk_debate_state.get('neutral_analyst_report', '')
-        safe_report = risk_debate_state.get('safe_analyst_report', '')
+        # 注意：字段名是 current_risky_response, current_safe_response, current_neutral_response
+        risky_report = risk_debate_state.get('current_risky_response', '')
+        neutral_report = risk_debate_state.get('current_neutral_response', '')
+        safe_report = risk_debate_state.get('current_safe_response', '')
+
+        logger.debug(f"[Risk Analysts] risky: {len(risky_report)} chars, neutral: {len(neutral_report)} chars, safe: {len(safe_report)} chars")
 
         if risky_report:
             risk_analysts['risky'] = {
@@ -237,23 +240,33 @@ def _format_response(final_state: dict, processed_signal: Any, symbol: str) -> d
 
     # 构建LLM分析
     # 注意区分三个不同的内容：
-    # 1. reasoning: 投资辩论结果的总结（judge_decision）
-    # 2. risk_assessment: 风险评估的简短摘要（从judge_decision提取风险相关内容）
-    # 3. risk_manager_decision: 风险管理者的完整决策报告
-    # 4. signal_processor_summary: Signal Processor的最终决策摘要
+    # 1. reasoning: 投资辩论结果的总结（judge_decision from investment_debate_state）
+    # 2. risk_assessment: 风险评估的简短摘要（judge_decision from risk_debate_state，前300字）
+    # 3. risk_manager_decision: 风险管理者的完整决策报告（judge_decision from risk_debate_state，完整内容）
+    # 4. signal_processor_summary: Signal Processor的最终决策摘要（final_trade_decision，完整内容）
 
     judge_decision_full = debate_state.get('judge_decision', '')
     risk_judge_decision_full = risk_debate_state.get('judge_decision', '')
     final_trade_decision_full = final_state.get('final_trade_decision', '')
 
+    # 添加日志以调试
+    logger.debug(f"[Data Sources] judge_decision: {len(judge_decision_full)} chars")
+    logger.debug(f"[Data Sources] risk_judge_decision: {len(risk_judge_decision_full)} chars")
+    logger.debug(f"[Data Sources] final_trade_decision: {len(final_trade_decision_full)} chars")
+
+    # 如果final_trade_decision为空，使用risk_judge_decision作为fallback
+    if not final_trade_decision_full and risk_judge_decision_full:
+        logger.warning("[Data Sources] final_trade_decision is empty, using risk_judge_decision as fallback")
+        final_trade_decision_full = risk_judge_decision_full
+
     # 提取风险评估的简短摘要（只取前300字）
-    risk_assessment_short = risk_judge_decision_full[:300] if risk_judge_decision_full else '无风险评估'
+    risk_assessment_short = risk_judge_decision_full[:300] + '...' if len(risk_judge_decision_full) > 300 else risk_judge_decision_full or '无风险评估'
 
     llm_analysis = {
         "recommended_direction": _extract_direction(judge_decision_full),
         "confidence": 0.85,
         "reasoning": judge_decision_full[:500] if judge_decision_full else '无投资辩论结果',  # 投资辩论结果摘要
-        "risk_assessment": risk_assessment_short,  # 风险评估简短摘要
+        "risk_assessment": risk_assessment_short,  # 风险评估简短摘要（300字）
         "key_factors": _extract_key_factors(final_state),
         "risk_score": _calculate_risk_score(risk_debate_state),
         "risk_analysts": risk_analysts if risk_analysts else None,
