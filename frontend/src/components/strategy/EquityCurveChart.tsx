@@ -47,10 +47,7 @@ export function EquityCurveChart({
     console.log('🔍 EquityCurveChart - Trades:', trades);
 
     const formattedData = data.map((point) => ({
-      date: new Date(point.date).toLocaleDateString('zh-CN', {
-        month: 'numeric',
-        day: 'numeric',
-      }),
+      date: point.date, // 🔧 使用原始日期字符串，不要格式化
       fullDate: point.date,
       value: point.value,
       return_pct: ((point.value - initialCapital) / initialCapital) * 100,
@@ -65,16 +62,11 @@ export function EquityCurveChart({
         return null;
       }
 
-      const formattedDate = new Date(trade.date).toLocaleDateString('zh-CN', {
-        month: 'numeric',
-        day: 'numeric',
-      });
-
       return {
-        date: formattedDate,
+        date: trade.date, // 🔧 使用原始日期字符串
         fullDate: trade.date,
         value: matchingPoint.value,
-        return_pct: ((matchingPoint.value - initialCapital) / initialCapital) * 100, // 🆕 添加return_pct
+        return_pct: ((matchingPoint.value - initialCapital) / initialCapital) * 100,
         action: trade.action,
         ticker: trade.ticker,
         shares: trade.shares,
@@ -127,6 +119,16 @@ export function EquityCurveChart({
   // 格式化收益率
   const formatReturn = (value: number) => {
     return `${value >= 0 ? '+' : ''}${value.toFixed(2)}%`;
+  };
+
+  // 🔧 格式化X轴日期显示
+  const formatXAxisDate = (dateStr: string) => {
+    try {
+      const date = new Date(dateStr);
+      return `${date.getMonth() + 1}/${date.getDate()}`;
+    } catch {
+      return dateStr;
+    }
   };
 
   // 自定义 Tooltip
@@ -241,6 +243,7 @@ export function EquityCurveChart({
             dataKey="date"
             tick={{ fontSize: 12, fill: '#6b7280' }}
             stroke="#9ca3af"
+            tickFormatter={formatXAxisDate}
           />
           <YAxis
             domain={[minValue, maxValue]}
