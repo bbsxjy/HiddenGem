@@ -45,6 +45,16 @@ export function EquityCurveChart({
   trades = [],
   className = '',
 }: EquityCurveChartProps) {
+  // 🔍 调试：检查接收到的原始数据
+  console.log('🔍 EquityCurveChart - 接收到的原始数据:', {
+    dataLength: data?.length,
+    firstPoint: data?.[0],
+    lastPoint: data?.[data.length - 1],
+    sampleDates: data?.slice(0, 5).map(d => d.date),
+    sampleValues: data?.slice(0, 5).map(d => d.value),
+    initialCapital,
+  });
+
   // 处理数据：直接使用原始数据，不做复杂转换
   const { chartData, tradePoints, yAxisDomain } = useMemo(() => {
     if (!data || data.length === 0) {
@@ -57,6 +67,15 @@ export function EquityCurveChart({
       value: point.value, // 账户总价值
       return_pct: ((point.value - initialCapital) / initialCapital) * 100,
     }));
+
+    // 🔍 调试：检查映射后的数据
+    console.log('🔍 mappedData sample:', {
+      first: mappedData[0],
+      last: mappedData[mappedData.length - 1],
+      dateType: typeof mappedData[0]?.date,
+      valueType: typeof mappedData[0]?.value,
+      allDatesUnique: new Set(mappedData.map(d => d.date)).size === mappedData.length,
+    });
 
     // 映射交易点
     const mappedTrades = trades.map((trade) => {
@@ -89,6 +108,14 @@ export function EquityCurveChart({
       Math.max(0, min - padding),
       max + padding
     ];
+
+    // 🔍 调试：Y轴和最终数据
+    console.log('🔍 Y-axis and final data:', {
+      valueRange: { min, max },
+      domain,
+      chartDataLength: mappedData.length,
+      tradePointsLength: mappedTrades.length,
+    });
 
     return {
       chartData: mappedData,
@@ -207,6 +234,18 @@ export function EquityCurveChart({
   const finalValue = chartData[chartData.length - 1]?.value || initialCapital;
   const lineColor = finalValue >= initialCapital ? '#16a34a' : '#dc2626';
 
+  // 🔍 调试：渲染前的最终检查
+  console.log('🔍 Before render:', {
+    chartDataLength: chartData.length,
+    hasData: chartData.length > 0,
+    firstDate: chartData[0]?.date,
+    lastDate: chartData[chartData.length - 1]?.date,
+    firstValue: chartData[0]?.value,
+    lastValue: chartData[chartData.length - 1]?.value,
+    lineColor,
+    yAxisDomain,
+  });
+
   return (
     <div className={className}>
       <ResponsiveContainer width="100%" height={320}>
@@ -217,12 +256,14 @@ export function EquityCurveChart({
           <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
           <XAxis
             dataKey="date"
+            type="category"
             tick={{ fontSize: 12, fill: '#6b7280' }}
             stroke="#9ca3af"
             tickFormatter={formatXAxisDate}
           />
           <YAxis
             domain={yAxisDomain}
+            type="number"
             tick={{ fontSize: 12, fill: '#6b7280' }}
             stroke="#9ca3af"
             tickFormatter={formatCurrency}
