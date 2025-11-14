@@ -57,7 +57,7 @@ class QFLibBacktestRunner:
         start_date: datetime,
         end_date: datetime,
         initial_capital: float = 1000000.0,
-        commission_rate: float = 0.0003
+        commission_rate: float = 0.00013
     ):
         """初始化回测运行器
 
@@ -175,18 +175,6 @@ class QFLibBacktestRunner:
                 if not current_prices:
                     continue
 
-                # 计算当前总资产
-                portfolio_value = cash
-                for ticker, shares in positions.items():
-                    if shares > 0 and ticker in current_prices:
-                        portfolio_value += shares * current_prices[ticker]
-
-                equity_curve.append({
-                    'date': current_date.strftime('%Y-%m-%d'),  # 转换为字符串格式
-                    'portfolio_value': portfolio_value,
-                    'cash': cash
-                })
-
                 # ===== 生成交易信号（使用 RL 模型） =====
                 for ticker in tickers:
                     if ticker not in current_prices:
@@ -248,63 +236,63 @@ class QFLibBacktestRunner:
                         current_position = positions[ticker]
 
                         # 根据信号决定交易动作
-                        if action == 1:  # BUY_25 - 用25%资金买入
-                            if current_position == 0:  # 只在没有持仓时买入
-                                position_size = 0.25  # 25% 资金买入
-                                max_investment = portfolio_value * position_size
-                                shares_to_buy = int(max_investment / current_price / 100) * 100  # A股100股为1手
+                        if action == 1:  # BUY_25 - 用25%资金买入（支持加仓）
+                            # ✅ 允许加仓：用剩余资金的25%买入
+                            position_size = 0.25  # 25% 资金买入
+                            max_investment = cash * position_size  # 使用现金而非总资产
+                            shares_to_buy = int(max_investment / current_price / 100) * 100  # A股100股为1手
 
-                                if shares_to_buy > 0:
-                                    cost = shares_to_buy * current_price
-                                    commission = max(cost * self.commission_rate, 5.0)  # 最低5元
-                                    total_cost = cost + commission
+                            if shares_to_buy > 0:
+                                cost = shares_to_buy * current_price
+                                commission = max(cost * self.commission_rate, 5.0)  # 最低5元
+                                total_cost = cost + commission
 
-                                    if total_cost <= cash:
-                                        # 执行买入
-                                        cash -= total_cost
-                                        positions[ticker] += shares_to_buy
+                                if total_cost <= cash:
+                                    # 执行买入
+                                    cash -= total_cost
+                                    positions[ticker] += shares_to_buy
 
-                                        trades.append({
-                                            'date': current_date.strftime('%Y-%m-%d'),
-                                            'ticker': str(ticker),
-                                            'action': 'BUY_25',
-                                            'shares': shares_to_buy,
-                                            'price': current_price,
-                                            'cost': cost,
-                                            'commission': commission,
-                                            'total_cost': total_cost
-                                        })
+                                    trades.append({
+                                        'date': current_date.strftime('%Y-%m-%d'),
+                                        'ticker': str(ticker),
+                                        'action': 'BUY_25',
+                                        'shares': shares_to_buy,
+                                        'price': current_price,
+                                        'cost': cost,
+                                        'commission': commission,
+                                        'total_cost': total_cost
+                                    })
 
-                                        logger.info(f"✅ BUY_25: {ticker} | {shares_to_buy} shares @ ¥{current_price:.2f} | Cost: ¥{total_cost:,.2f}")
+                                    logger.info(f"✅ BUY_25: {ticker} | {shares_to_buy} shares @ ¥{current_price:.2f} | Cost: ¥{total_cost:,.2f} | Position: {positions[ticker]}")
 
-                        elif action == 2:  # BUY_50 - 用50%资金买入
-                            if current_position == 0:  # 只在没有持仓时买入
-                                position_size = 0.50  # 50% 资金买入
-                                max_investment = portfolio_value * position_size
-                                shares_to_buy = int(max_investment / current_price / 100) * 100  # A股100股为1手
+                        elif action == 2:  # BUY_50 - 用50%资金买入（支持加仓）
+                            # ✅ 允许加仓：用剩余资金的50%买入
+                            position_size = 0.50  # 50% 资金买入
+                            max_investment = cash * position_size  # 使用现金而非总资产
+                            shares_to_buy = int(max_investment / current_price / 100) * 100  # A股100股为1手
 
-                                if shares_to_buy > 0:
-                                    cost = shares_to_buy * current_price
-                                    commission = max(cost * self.commission_rate, 5.0)  # 最低5元
-                                    total_cost = cost + commission
+                            if shares_to_buy > 0:
+                                cost = shares_to_buy * current_price
+                                commission = max(cost * self.commission_rate, 5.0)  # 最低5元
+                                total_cost = cost + commission
 
-                                    if total_cost <= cash:
-                                        # 执行买入
-                                        cash -= total_cost
-                                        positions[ticker] += shares_to_buy
+                                if total_cost <= cash:
+                                    # 执行买入
+                                    cash -= total_cost
+                                    positions[ticker] += shares_to_buy
 
-                                        trades.append({
-                                            'date': current_date.strftime('%Y-%m-%d'),
-                                            'ticker': str(ticker),
-                                            'action': 'BUY_50',
-                                            'shares': shares_to_buy,
-                                            'price': current_price,
-                                            'cost': cost,
-                                            'commission': commission,
-                                            'total_cost': total_cost
-                                        })
+                                    trades.append({
+                                        'date': current_date.strftime('%Y-%m-%d'),
+                                        'ticker': str(ticker),
+                                        'action': 'BUY_50',
+                                        'shares': shares_to_buy,
+                                        'price': current_price,
+                                        'cost': cost,
+                                        'commission': commission,
+                                        'total_cost': total_cost
+                                    })
 
-                                        logger.info(f"✅ BUY_50: {ticker} | {shares_to_buy} shares @ ¥{current_price:.2f} | Cost: ¥{total_cost:,.2f}")
+                                    logger.info(f"✅ BUY_50: {ticker} | {shares_to_buy} shares @ ¥{current_price:.2f} | Cost: ¥{total_cost:,.2f} | Position: {positions[ticker]}")
 
                         elif action == 3 and current_position > 0:  # SELL_50 - 卖出50%持仓
                             shares_to_sell = int(current_position * 0.5 / 100) * 100  # 卖出50%，取整到手
@@ -362,6 +350,19 @@ class QFLibBacktestRunner:
                     except Exception as e:
                         logger.error(f"Error generating signal for {ticker} on {current_date}: {e}", exc_info=True)
                         continue
+
+                # ===== 在所有交易执行完后，记录当天的资金曲线 =====
+                # 重新计算当前总资产（包含交易后的持仓市值）
+                portfolio_value = cash
+                for ticker, shares in positions.items():
+                    if shares > 0 and ticker in current_prices:
+                        portfolio_value += shares * current_prices[ticker]
+
+                equity_curve.append({
+                    'date': current_date.strftime('%Y-%m-%d'),
+                    'portfolio_value': portfolio_value,
+                    'cash': cash
+                })
 
             except Exception as e:
                 logger.warning(f"Error on {current_date}: {e}")
@@ -469,10 +470,16 @@ class QFLibBacktestRunner:
             return 0.0, 0.0
 
         # 统计买入和卖出交易，计算每笔交易的盈亏
-        buy_trades = {}  # {ticker: {'date': date, 'price': price, 'shares': shares}}
+        buy_trades = {}  # {ticker: [{'date': date, 'price': price, 'shares': shares}]}
         profitable_trades = 0
         total_closed_trades = 0
         total_holding_days = 0
+
+        # 获取最后交易日期（用于计算未平仓持仓天数）
+        last_trade_date = None
+        if len(trades) > 0:
+            last_date_str = trades[-1]['date']
+            last_trade_date = datetime.strptime(last_date_str, '%Y-%m-%d') if isinstance(last_date_str, str) else last_date_str
 
         for trade in trades:
             ticker = trade['ticker']
@@ -510,6 +517,14 @@ class QFLibBacktestRunner:
 
                     # 移除已卖出的买入记录
                     buy_trades[ticker].pop(0)
+
+        # ✅ 修复：如果有未平仓持仓，计算其持仓天数（从买入到最后交易日）
+        if last_trade_date:
+            for ticker, positions in buy_trades.items():
+                for position in positions:
+                    holding_days = (last_trade_date - position['date']).days
+                    total_holding_days += holding_days
+                    total_closed_trades += 1  # 将未平仓也计入（作为"未完成交易"）
 
         # 计算胜率
         win_rate = profitable_trades / total_closed_trades if total_closed_trades > 0 else 0.0
