@@ -74,6 +74,7 @@ export function EquityCurveChart({
         date: formattedDate,
         fullDate: trade.date,
         value: matchingPoint.value,
+        return_pct: ((matchingPoint.value - initialCapital) / initialCapital) * 100, // 🆕 添加return_pct
         action: trade.action,
         ticker: trade.ticker,
         shares: trade.shares,
@@ -102,6 +103,15 @@ export function EquityCurveChart({
     const min = Math.min(...values);
     const max = Math.max(...values);
     const padding = (max - min) * 0.1 || initialCapital * 0.1;
+
+    console.log('🔍 Y-axis calculation:', {
+      values: values.length,
+      min,
+      max,
+      padding,
+      finalMin: Math.max(0, min - padding),
+      finalMax: max + padding
+    });
 
     return {
       minValue: Math.max(0, min - padding),
