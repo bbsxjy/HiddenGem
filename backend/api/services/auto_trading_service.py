@@ -143,38 +143,47 @@ class AutoTradingService:
                             market_prices[symbol] = 15.0  # 回退价格
 
                         # 获取历史数据（用于RL策略）
-                        # 获取最近30天的日线数据
-                        from datetime import datetime, timedelta
-                        end_date = datetime.now().strftime('%Y-%m-%d')
-                        start_date = (datetime.now() - timedelta(days=30)).strftime('%Y-%m-%d')
+                        # 尝试从多个数据源获取
+                        hist_data = None
 
-                        from trading.market_data_feed import MarketDataFeed
-                        data_feed = MarketDataFeed()
-                        hist_data = data_feed.get_stock_data(symbol, start_date, end_date)
+                        # 方法1: 尝试使用 utils.data_fetch
+                        try:
+                            from utils.data_fetch import get_stock_data
+                            from datetime import datetime, timedelta
+                            end_date = datetime.now().strftime('%Y%m%d')
+                            start_date = (datetime.now() - timedelta(days=60)).strftime('%Y%m%d')
+                            hist_data = get_stock_data(symbol, start_date, end_date)
+                        except Exception as e1:
+                            logger.debug(f"[{symbol}] utils.data_fetch 失败: {e1}")
 
-                        if hist_data is not None and not hist_data.empty:
-                            stock_data[symbol] = hist_data
-                        else:
-                            # 如果无法获取历史数据，创建模拟数据
+                        # 方法2: 如果失败，创建足够大的模拟数据（至少50行供技术指标计算）
+                        if hist_data is None or (hasattr(hist_data, 'empty') and hist_data.empty):
                             current_price = market_prices[symbol]
+                            # 生成50行模拟数据以支持所有技术指标计算（RSI需要14，MA20需要20，ATR需要14）
+                            n_rows = 50
                             stock_data[symbol] = pd.DataFrame({
-                                'close': [current_price] * 30,
-                                'high': [current_price * 1.02] * 30,
-                                'low': [current_price * 0.98] * 30,
-                                'open': [current_price] * 30,
-                                'volume': [1000000] * 30
+                                'close': [current_price * (1 + np.random.randn() * 0.02) for _ in range(n_rows)],
+                                'high': [current_price * (1 + np.random.rand() * 0.03) for _ in range(n_rows)],
+                                'low': [current_price * (1 - np.random.rand() * 0.03) for _ in range(n_rows)],
+                                'open': [current_price * (1 + np.random.randn() * 0.01) for _ in range(n_rows)],
+                                'volume': [1000000 * (1 + np.random.rand()) for _ in range(n_rows)]
                             })
-                            logger.warning(f"⚠️ [{symbol}] 使用模拟历史数据")
+                            logger.warning(f"⚠️ [{symbol}] 使用模拟历史数据（{n_rows}行）")
+                        else:
+                            stock_data[symbol] = hist_data
+                            logger.info(f"✓ [{symbol}] 获取历史数据成功（{len(hist_data)}行）")
 
                     except Exception as e:
                         logger.error(f"❌ [{symbol}] 获取数据失败: {e}")
                         market_prices[symbol] = 15.0
+                        # 创建50行模拟数据
+                        n_rows = 50
                         stock_data[symbol] = pd.DataFrame({
-                            'close': [15.0] * 30,
-                            'high': [15.3] * 30,
-                            'low': [14.7] * 30,
-                            'open': [15.0] * 30,
-                            'volume': [1000000] * 30
+                            'close': [15.0 * (1 + np.random.randn() * 0.02) for _ in range(n_rows)],
+                            'high': [15.3 * (1 + np.random.rand() * 0.03) for _ in range(n_rows)],
+                            'low': [14.7 * (1 - np.random.rand() * 0.03) for _ in range(n_rows)],
+                            'open': [15.0 * (1 + np.random.randn() * 0.01) for _ in range(n_rows)],
+                            'volume': [1000000 * (1 + np.random.rand()) for _ in range(n_rows)]
                         })
 
                 # 对每个股票生成信号并执行
