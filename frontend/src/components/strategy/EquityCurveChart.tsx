@@ -61,12 +61,35 @@ export function EquityCurveChart({
       return { chartData: [], tradePoints: [], yAxisDomain: [initialCapital * 0.9, initialCapital * 1.1] };
     }
 
-    // 简单映射：确保每个点都有必需的字段
-    const mappedData = data.map((point) => ({
-      date: point.date,  // 保持原始日期格式 "2025-01-02"
-      value: point.value, // 账户总价值
-      return_pct: ((point.value - initialCapital) / initialCapital) * 100,
-    }));
+    // 简单映射：确保每个点都有必需的字段，并合并交易信息
+    const mappedData = data.map((point) => {
+      // 查找该日期是否有交易
+      const trade = trades.find(t => t.date === point.date);
+
+      const baseData = {
+        date: point.date,  // 保持原始日期格式 "2025-01-02"
+        value: point.value, // 账户总价值
+        return_pct: ((point.value - initialCapital) / initialCapital) * 100,
+      };
+
+      // 如果有交易，合并交易信息
+      if (trade) {
+        return {
+          ...baseData,
+          action: trade.action,
+          ticker: trade.ticker,
+          shares: trade.shares,
+          price: trade.price,
+          cost: trade.cost,
+          revenue: trade.revenue,
+          commission: trade.commission,
+          total_cost: trade.total_cost,
+          total_revenue: trade.total_revenue,
+        };
+      }
+
+      return baseData;
+    });
 
     // 🔍 调试：检查映射后的数据
     console.log('🔍 mappedData sample:', {
@@ -75,6 +98,7 @@ export function EquityCurveChart({
       dateType: typeof mappedData[0]?.date,
       valueType: typeof mappedData[0]?.value,
       allDatesUnique: new Set(mappedData.map(d => d.date)).size === mappedData.length,
+      pointsWithTrades: mappedData.filter(d => d.action).length,
     });
 
     // 映射交易点
@@ -148,13 +172,7 @@ export function EquityCurveChart({
   const CustomTooltip = ({ active, payload }: any) => {
     if (!active || !payload || payload.length === 0) return null;
 
-    // 尝试找到交易点数据
-    let data = payload[0].payload;
-    const tradePayload = payload.find((p: any) => p.payload && p.payload.action);
-    if (tradePayload) {
-      data = tradePayload.payload;
-    }
-
+    const data = payload[0].payload;
     const isProfit = data.value >= initialCapital;
     const isTrade = data.action !== undefined;
 
@@ -294,11 +312,10 @@ export function EquityCurveChart({
             dot={(props: any) => {
               const { cx, cy, payload } = props;
 
-              // 检查这个日期是否有交易
-              const trade = tradePoints.find(t => t.date === payload.date);
-              if (!trade) return null;
+              // 检查这个点是否有交易（交易信息已合并到payload中）
+              if (!payload.action) return null;
 
-              const isBuy = trade.action.includes('BUY');
+              const isBuy = payload.action.includes('BUY');
               const color = isBuy ? '#16a34a' : '#dc2626';
 
               return (
