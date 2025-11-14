@@ -1069,37 +1069,119 @@ export function Market() {
           )}
 
           {/* LLM Analysis */}
-          {showDeepAnalysis && finalResult?.llm_analysis && (
+          {showDeepAnalysis && finalResult?.llm_analysis && console.log(finalResult?.llm_analysis) && (
             <Card title="🤖 AI综合分析" padding="md">
               <div className="space-y-6">
-                {/* 综合观点 - 短小精悍 */}
-                <div className="p-6 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg border-2 border-blue-200">
-                  <div className="flex items-center justify-between mb-4">
-                    <h4 className="text-base font-bold text-text-primary flex items-center gap-2">
-                      <span className="text-2xl">💡</span>
-                      综合决策
-                    </h4>
-                    <div className="text-xs text-text-secondary">
-                      {new Date(finalResult.llm_analysis.analysis_timestamp).toLocaleString('zh-CN')}
+                {/* 1. 综合决策（方向 + 目标价格） */}
+                <div className="space-y-4">
+                  {/* 方向和置信度 */}
+                  <div className="p-6 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg border-2 border-blue-200">
+                    <div className="flex items-center justify-between mb-4">
+                      <h4 className="text-base font-bold text-text-primary flex items-center gap-2">
+                        <span className="text-2xl">💡</span>
+                        综合决策
+                      </h4>
+                      <div className="text-xs text-text-secondary">
+                        {new Date(finalResult.llm_analysis.analysis_timestamp).toLocaleString('zh-CN')}
+                      </div>
                     </div>
-                  </div>
-                  <div className="flex items-center gap-4">
-                    <div className={`text-3xl font-bold ${
-                      getDirectionColor(finalResult.llm_analysis.recommended_direction as 'long' | 'short' | 'hold', selectedSymbol)
-                    }`}>
-                      {finalResult.llm_analysis.recommended_direction === 'long' ? '📈 看多' :
-                       finalResult.llm_analysis.recommended_direction === 'short' ? '📉 看空' : '➡️ 持有'}
-                    </div>
-                    <div className="flex-1">
-                      <div className="text-sm text-text-secondary mb-1">综合置信度</div>
-                      <div className="text-2xl font-bold text-text-primary">
-                        {(finalResult.llm_analysis.confidence * 100).toFixed(1)}%
+                    <div className="flex items-center gap-4">
+                      <div className={`text-3xl font-bold ${
+                        getDirectionColor(finalResult.llm_analysis.recommended_direction as 'long' | 'short' | 'hold', selectedSymbol)
+                      }`}>
+                        {finalResult.llm_analysis.recommended_direction === 'long' ? '📈 看多' :
+                         finalResult.llm_analysis.recommended_direction === 'short' ? '📉 看空' : '➡️ 持有'}
+                      </div>
+                      <div className="flex-1">
+                        <div className="text-sm text-text-secondary mb-1">综合置信度</div>
+                        <div className="text-2xl font-bold text-text-primary">
+                          {(finalResult.llm_analysis.confidence * 100).toFixed(1)}%
+                        </div>
                       </div>
                     </div>
                   </div>
+
+                  {/* 价格目标（止盈、止损） */}
+                  {finalResult.llm_analysis.price_targets &&
+                   (finalResult.llm_analysis.price_targets.entry ||
+                    finalResult.llm_analysis.price_targets.stop_loss ||
+                    finalResult.llm_analysis.price_targets.take_profit) && (
+                    <div>
+                      <h4 className="text-sm font-semibold text-text-primary mb-3 flex items-center gap-2">
+                        <span className="w-2 h-2 bg-green-500 rounded-full"></span>
+                        💰 价格目标
+                      </h4>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        {finalResult.llm_analysis.price_targets.entry && (
+                          <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
+                            <div className="flex items-center justify-between mb-2">
+                              <div className="text-xs text-blue-600 font-medium">建议入场价</div>
+                              <div className="text-xs px-2 py-0.5 bg-blue-100 text-blue-700 rounded">
+                                Entry
+                              </div>
+                            </div>
+                            <div className="text-2xl font-bold text-blue-700">
+                              ¥{finalResult.llm_analysis.price_targets.entry.toFixed(2)}
+                            </div>
+                          </div>
+                        )}
+
+                        {finalResult.llm_analysis.price_targets.stop_loss && (
+                          <div className="p-4 bg-red-50 rounded-lg border border-red-200">
+                            <div className="flex items-center justify-between mb-2">
+                              <div className="text-xs text-red-600 font-medium">止损价</div>
+                              <div className="text-xs px-2 py-0.5 bg-red-100 text-red-700 rounded">
+                                Stop Loss
+                              </div>
+                            </div>
+                            <div className="text-2xl font-bold text-red-700">
+                              ¥{finalResult.llm_analysis.price_targets.stop_loss.toFixed(2)}
+                            </div>
+                            {finalResult.llm_analysis.price_targets.entry && (
+                              <div className="text-xs text-red-600 mt-1">
+                                {((finalResult.llm_analysis.price_targets.stop_loss / finalResult.llm_analysis.price_targets.entry - 1) * 100).toFixed(1)}%
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        {finalResult.llm_analysis.price_targets.take_profit && (
+                          <div className="p-4 bg-green-50 rounded-lg border border-green-200">
+                            <div className="flex items-center justify-between mb-2">
+                              <div className="text-xs text-green-600 font-medium">止盈价</div>
+                              <div className="text-xs px-2 py-0.5 bg-green-100 text-green-700 rounded">
+                                Take Profit
+                              </div>
+                            </div>
+                            <div className="text-2xl font-bold text-green-700">
+                              ¥{finalResult.llm_analysis.price_targets.take_profit.toFixed(2)}
+                            </div>
+                            {finalResult.llm_analysis.price_targets.entry && (
+                              <div className="text-xs text-green-600 mt-1">
+                                +{((finalResult.llm_analysis.price_targets.take_profit / finalResult.llm_analysis.price_targets.entry - 1) * 100).toFixed(1)}%
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
 
-                {/* 风险分析师意见 */}
+                {/* 2. 详细分析总结（signal_processor_summary） */}
+                {finalResult.llm_analysis.signal_processor_summary && (
+                  <div>
+                    <h4 className="text-sm font-semibold text-text-primary mb-2 flex items-center gap-2">
+                      <span className="w-2 h-2 bg-primary-500 rounded-full"></span>
+                      📋 详细分析总结
+                    </h4>
+                    <div className="p-4 bg-blue-50 rounded-lg border border-blue-100">
+                      <Markdown content={finalResult.llm_analysis.signal_processor_summary} />
+                    </div>
+                  </div>
+                )}
+
+                {/* 3. 风险分析师意见（risk_analysts） */}
                 {finalResult.llm_analysis.risk_analysts &&
                  Object.keys(finalResult.llm_analysis.risk_analysts).length > 0 && (
                   <div>
@@ -1240,103 +1322,7 @@ export function Market() {
                   </div>
                 )}
 
-                {/* 详细分析推理 - 使用 Markdown 渲染 */}
-                {finalResult.llm_analysis.signal_processor_summary && (
-                  <div>
-                    <h4 className="text-sm font-semibold text-text-primary mb-2 flex items-center gap-2">
-                      <span className="w-2 h-2 bg-primary-500 rounded-full"></span>
-                      📋 详细分析报告
-                    </h4>
-                    <div className="p-4 bg-blue-50 rounded-lg border border-blue-100">
-                      <Markdown content={finalResult.llm_analysis.signal_processor_summary} />
-                    </div>
-                  </div>
-                )}
-
-                {/* 价格目标 */}
-                {finalResult.llm_analysis.price_targets &&
-                 (finalResult.llm_analysis.price_targets.entry ||
-                  finalResult.llm_analysis.price_targets.stop_loss ||
-                  finalResult.llm_analysis.price_targets.take_profit) && (
-                  <div>
-                    <h4 className="text-sm font-semibold text-text-primary mb-3 flex items-center gap-2">
-                      <span className="w-2 h-2 bg-green-500 rounded-full"></span>
-                      💰 价格目标
-                    </h4>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                      {finalResult.llm_analysis.price_targets.entry && (
-                        <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
-                          <div className="flex items-center justify-between mb-2">
-                            <div className="text-xs text-blue-600 font-medium">建议入场价</div>
-                            <div className="text-xs px-2 py-0.5 bg-blue-100 text-blue-700 rounded">
-                              Entry
-                            </div>
-                          </div>
-                          <div className="text-2xl font-bold text-blue-700">
-                            ¥{finalResult.llm_analysis.price_targets.entry.toFixed(2)}
-                          </div>
-                        </div>
-                      )}
-
-                      {finalResult.llm_analysis.price_targets.stop_loss && (
-                        <div className="p-4 bg-red-50 rounded-lg border border-red-200">
-                          <div className="flex items-center justify-between mb-2">
-                            <div className="text-xs text-red-600 font-medium">止损价</div>
-                            <div className="text-xs px-2 py-0.5 bg-red-100 text-red-700 rounded">
-                              Stop Loss
-                            </div>
-                          </div>
-                          <div className="text-2xl font-bold text-red-700">
-                            ¥{finalResult.llm_analysis.price_targets.stop_loss.toFixed(2)}
-                          </div>
-                          {finalResult.llm_analysis.price_targets.entry && (
-                            <div className="text-xs text-red-600 mt-1">
-                              {((finalResult.llm_analysis.price_targets.stop_loss / finalResult.llm_analysis.price_targets.entry - 1) * 100).toFixed(1)}%
-                            </div>
-                          )}
-                        </div>
-                      )}
-
-                      {finalResult.llm_analysis.price_targets.take_profit && (
-                        <div className="p-4 bg-green-50 rounded-lg border border-green-200">
-                          <div className="flex items-center justify-between mb-2">
-                            <div className="text-xs text-green-600 font-medium">止盈价</div>
-                            <div className="text-xs px-2 py-0.5 bg-green-100 text-green-700 rounded">
-                              Take Profit
-                            </div>
-                          </div>
-                          <div className="text-2xl font-bold text-green-700">
-                            ¥{finalResult.llm_analysis.price_targets.take_profit.toFixed(2)}
-                          </div>
-                          {finalResult.llm_analysis.price_targets.entry && (
-                            <div className="text-xs text-green-600 mt-1">
-                              +{((finalResult.llm_analysis.price_targets.take_profit / finalResult.llm_analysis.price_targets.entry - 1) * 100).toFixed(1)}%
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
-
-                {/* 注意事项 - 从 aggregated_signal 中获取 */}
-                {finalResult.aggregated_signal?.warnings && finalResult.aggregated_signal.warnings.length > 0 && (
-                  <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
-                    <div className="flex items-start gap-2">
-                      <span className="text-yellow-600 mt-0.5 text-lg">⚠️</span>
-                      <div className="flex-1">
-                        <p className="text-sm font-semibold text-yellow-800 mb-2">⚠️ 注意事项</p>
-                        <ul className="text-sm text-yellow-700 space-y-1">
-                          {finalResult.aggregated_signal.warnings.map((warning: string, idx: number) => (
-                            <li key={idx}>• {warning}</li>
-                          ))}
-                        </ul>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* 风险管理器最终决策 */}
+                {/* 4. 风险管理器最终决策（risk_manager_decision） */}
                 {finalResult.llm_analysis.risk_manager_decision && (
                   <div>
                     <h4 className="text-sm font-semibold text-text-primary mb-3 flex items-center gap-2">
