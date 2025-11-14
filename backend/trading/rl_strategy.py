@@ -54,12 +54,16 @@ class RLStrategy(BaseStrategy):
             signal = self._action_to_signal(action)
             return signal
         except Exception as e:
-            logger.error(f'RL signal generation failed: {e}')
+            logger.error(f'RL signal generation failed: {e}', exc_info=True)
             return self._simple_fallback(current_data, portfolio_state)
 
     def _prepare_observation(self, current_data: pd.DataFrame, portfolio_state: Dict[str, Any]) -> np.ndarray:
         """准备观察空间，匹配训练环境的14维"""
         df = current_data.copy()
+
+        # 检查数据行数
+        if len(df) < 30:
+            logger.warning(f"数据行数不足（{len(df)}行），建议至少30行以保证技术指标准确性")
 
         # 计算技术指标
         delta = df['close'].diff()
@@ -83,6 +87,10 @@ class RLStrategy(BaseStrategy):
         df['atr'] = df['true_range'].rolling(window=14).mean()
 
         df.fillna(0, inplace=True)
+
+        # 确保有数据
+        if len(df) == 0:
+            raise ValueError("DataFrame为空，无法生成观察")
 
         latest = df.iloc[-1]
         close = latest['close']
@@ -140,16 +148,27 @@ class RLStrategy(BaseStrategy):
 
     def _action_to_signal(self, action: int) -> Dict[str, Any]:
         action_names = ['HOLD', 'BUY', 'SELL']
-        action_name = action_names[int(action)]
-        
-        if action == 0:
+
+        # 安全地转换action为整数并进行边界检查
+        try:
+            action_int = int(action)
+            if action_int < 0 or action_int >= len(action_names):
+                logger.warning(f'Invalid action value: {action_int}, defaulting to HOLD')
+                action_int = 0
+            action_name = action_names[action_int]
+        except (ValueError, TypeError) as e:
+            logger.error(f'Failed to convert action to int: {action}, error: {e}')
+            action_int = 0
+            action_name = 'HOLD'
+
+        if action_int == 0:
             return {'action': 'hold', 'reason': f'RL: {action_name}'}
-        elif action == 1:
+        elif action_int == 1:
             if not self.has_position:
                 return {'action': 'buy', 'reason': f'RL: {action_name}'}
             else:
                 return {'action': 'hold', 'reason': f'RL: {action_name} but already holding'}
-        elif action == 2:
+        elif action_int == 2:
             if self.has_position:
                 return {'action': 'sell', 'reason': f'RL: {action_name}'}
             else:
