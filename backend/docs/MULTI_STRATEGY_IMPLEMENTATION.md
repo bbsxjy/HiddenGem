@@ -354,7 +354,7 @@ Order(symbol=symbol, side=OrderSide.BUY, quantity=100, order_type=OrderType.MARK
 
 ### Bug 3: RL模型路径错误
 
-**错误**: `Model file not found: models/production/ppo_trading_agent.zip`
+**错误**: `Model file not found: models/production/final_model.zip`
 
 **修复**: 更新为 `models/production/final_model.zip`
 
