@@ -249,21 +249,19 @@ export function EquityCurveChart({
   return (
     <div className={className}>
       <ResponsiveContainer width="100%" height={320}>
-        <ComposedChart
+        <LineChart
           data={chartData}
           margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
         >
           <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
           <XAxis
             dataKey="date"
-            type="category"
             tick={{ fontSize: 12, fill: '#6b7280' }}
             stroke="#9ca3af"
             tickFormatter={formatXAxisDate}
           />
           <YAxis
             domain={yAxisDomain}
-            type="number"
             tick={{ fontSize: 12, fill: '#6b7280' }}
             stroke="#9ca3af"
             tickFormatter={formatCurrency}
@@ -293,41 +291,34 @@ export function EquityCurveChart({
             dataKey="value"
             stroke={lineColor}
             strokeWidth={2}
-            dot={false}
+            dot={(props: any) => {
+              const { cx, cy, payload } = props;
+
+              // 检查这个日期是否有交易
+              const trade = tradePoints.find(t => t.date === payload.date);
+              if (!trade) return null;
+
+              const isBuy = trade.action.includes('BUY');
+              const color = isBuy ? '#16a34a' : '#dc2626';
+
+              return (
+                <g key={`trade-${payload.date}`}>
+                  <path
+                    d={isBuy
+                      ? `M ${cx} ${cy - 8} L ${cx - 6} ${cy + 4} L ${cx + 6} ${cy + 4} Z`
+                      : `M ${cx} ${cy + 8} L ${cx - 6} ${cy - 4} L ${cx + 6} ${cy - 4} Z`
+                    }
+                    fill={color}
+                    stroke="#ffffff"
+                    strokeWidth={1.5}
+                  />
+                </g>
+              );
+            }}
             name="账户价值"
             activeDot={{ r: 6, strokeWidth: 0 }}
           />
-
-          {/* 买卖点标记 */}
-          {tradePoints.length > 0 && (
-            <Scatter
-              data={tradePoints}
-              dataKey="value"
-              name="交易点"
-              shape={(props: any) => {
-                const { cx, cy, payload } = props;
-                if (!payload || !payload.action) return null;
-
-                const isBuy = payload.action.includes('BUY');
-                const color = isBuy ? '#16a34a' : '#dc2626';
-
-                return (
-                  <g>
-                    <path
-                      d={isBuy
-                        ? `M ${cx} ${cy - 8} L ${cx - 6} ${cy + 4} L ${cx + 6} ${cy + 4} Z`
-                        : `M ${cx} ${cy + 8} L ${cx - 6} ${cy - 4} L ${cx + 6} ${cy - 4} Z`
-                      }
-                      fill={color}
-                      stroke="#ffffff"
-                      strokeWidth={1.5}
-                    />
-                  </g>
-                );
-              }}
-            />
-          )}
-        </ComposedChart>
+        </LineChart>
       </ResponsiveContainer>
 
       {/* 图例说明 */}
