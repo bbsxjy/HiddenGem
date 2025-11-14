@@ -94,7 +94,19 @@ export function EquityCurveChart({
       valueRange: `${Math.min(...values).toFixed(2)} - ${Math.max(...values).toFixed(2)}`
     });
 
-    return { chartData: formattedData, tradePoints: tradeMarkers };
+    // 🔧 过滤空仓期：如果前面有超过10%的数据点都是初始资金，则只保留第一个点和后续有变化的数据
+    let filteredData = formattedData;
+    if (firstChangeIdx > 0 && firstChangeIdx / formattedData.length > 0.1) {
+      // 保留：第一个点（初始资金） + 有变化的数据
+      filteredData = [
+        formattedData[0], // 保留起点
+        ...formattedData.slice(firstChangeIdx) // 保留有变化的部分
+      ];
+      console.log(`🔧 Filtered out ${firstChangeIdx - 1} days of no-trading period (${formattedData[firstChangeIdx - 1].date})`);
+      console.log(`🔧 Chart now shows: ${filteredData.length} points (from ${filteredData[0].date} to ${filteredData[filteredData.length - 1].date})`);
+    }
+
+    return { chartData: filteredData, tradePoints: tradeMarkers };
   }, [data, trades, initialCapital]);
 
   // 计算最大值和最小值用于Y轴范围
