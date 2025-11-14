@@ -239,41 +239,47 @@ def _format_response(final_state: dict, processed_signal: Any, symbol: str) -> d
             }
 
     # 构建LLM分析
-    # 注意区分三个不同的内容：
-    # 1. reasoning: 投资辩论结果的总结（judge_decision from investment_debate_state）
-    # 2. risk_assessment: 风险评估的简短摘要（judge_decision from risk_debate_state，前300字）
-    # 3. risk_manager_decision: 风险管理者的完整决策报告（judge_decision from risk_debate_state，完整内容）
-    # 4. signal_processor_summary: Signal Processor的最终决策摘要（final_trade_decision，完整内容）
+    # 注意数据来源：
+    # 1. reasoning: 投资辩论结果（investment_debate_state.judge_decision）- 来自Research Manager
+    # 2. risk_assessment: 风险评估简短摘要（risk_debate_state.judge_decision前300字）- 来自Risk Manager
+    # 3. risk_manager_decision: 风险管理者完整决策（risk_debate_state.judge_decision）- 来自Risk Manager
+    # 4. signal_processor_summary: 最终交易决策（final_trade_decision）- 来自Risk Manager
+    #
+    # 注意：在当前TradingAgents架构中，risk_manager_decision 和 signal_processor_summary
+    # 是相同的内容，因为 final_trade_decision 就是由 Risk Manager 设置的。
+    # 未来如果添加单独的Signal Processor节点，可以在那里设置不同的内容。
 
-    judge_decision_full = debate_state.get('judge_decision', '')
-    risk_judge_decision_full = risk_debate_state.get('judge_decision', '')
-    final_trade_decision_full = final_state.get('final_trade_decision', '')
+    judge_decision_full = debate_state.get('judge_decision', '')  # Research Manager的决策
+    risk_judge_decision_full = risk_debate_state.get('judge_decision', '')  # Risk Manager的决策
+    final_trade_decision_full = final_state.get('final_trade_decision', '')  # 也是Risk Manager设置的
 
     # 添加日志以调试
-    logger.debug(f"[Data Sources] judge_decision: {len(judge_decision_full)} chars")
-    logger.debug(f"[Data Sources] risk_judge_decision: {len(risk_judge_decision_full)} chars")
+    logger.debug(f"[Data Sources] investment judge_decision: {len(judge_decision_full)} chars")
+    logger.debug(f"[Data Sources] risk judge_decision: {len(risk_judge_decision_full)} chars")
     logger.debug(f"[Data Sources] final_trade_decision: {len(final_trade_decision_full)} chars")
 
-    # 如果final_trade_decision为空，使用risk_judge_decision作为fallback
+    # final_trade_decision应该与risk_judge_decision相同，因为它们来自同一个节点
     if not final_trade_decision_full and risk_judge_decision_full:
-        logger.warning("[Data Sources] final_trade_decision is empty, using risk_judge_decision as fallback")
+        logger.warning("[Data Sources] final_trade_decision is empty, using risk_judge_decision")
         final_trade_decision_full = risk_judge_decision_full
+    elif final_trade_decision_full != risk_judge_decision_full:
+        logger.warning("[Data Sources] final_trade_decision differs from risk_judge_decision, this is unexpected")
 
     # 提取风险评估的简短摘要（只取前300字）
     risk_assessment_short = risk_judge_decision_full[:300] + '...' if len(risk_judge_decision_full) > 300 else risk_judge_decision_full or '无风险评估'
 
     llm_analysis = {
-        "recommended_direction": _extract_direction(judge_decision_full),
+        "recommended_direction": _extract_direction(judge_decision_full or risk_judge_decision_full),
         "confidence": 0.85,
-        "reasoning": judge_decision_full[:500] if judge_decision_full else '无投资辩论结果',  # 投资辩论结果摘要
+        "reasoning": judge_decision_full[:500] if judge_decision_full else risk_judge_decision_full[:500],  # 投资辩论结果摘要
         "risk_assessment": risk_assessment_short,  # 风险评估简短摘要（300字）
         "key_factors": _extract_key_factors(final_state),
         "risk_score": _calculate_risk_score(risk_debate_state),
         "risk_analysts": risk_analysts if risk_analysts else None,
-        "risk_manager_decision": risk_judge_decision_full,  # 完整的风险管理者决策
+        "risk_manager_decision": risk_judge_decision_full,  # Risk Manager完整决策
         "price_targets": _extract_price_targets(final_state),
         "analysis_timestamp": datetime.now().isoformat(),
-        "signal_processor_summary": final_trade_decision_full  # 完整的Signal Processor总结
+        "signal_processor_summary": final_trade_decision_full  # 最终交易决策（与risk_manager_decision相同）
     }
 
     # 提取最终决策
