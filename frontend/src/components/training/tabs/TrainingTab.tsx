@@ -16,10 +16,19 @@ import {
   Zap,
   Layers,
   Network,
-  Rocket,
 } from 'lucide-react';
 import axios from 'axios';
 import { startTraining as startRLTraining, type TrainingConfig } from '@/api/rl';
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ResponsiveContainer,
+} from 'recharts';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
 
@@ -58,18 +67,12 @@ export function TrainingTab() {
   // RL Production 专用配置
   const [stockPool, setStockPool] = useState<'hs300' | 'custom'>('hs300');
   const [maxStocks, setMaxStocks] = useState(50);
+  const [trainStartDate, setTrainStartDate] = useState('2020-01-01');
+  const [trainEndDate, setTrainEndDate] = useState('2023-12-31');
   const [valStartDate, setValStartDate] = useState('2024-01-01');
   const [valEndDate, setValEndDate] = useState('2024-12-31');
   const [totalTimesteps, setTotalTimesteps] = useState(500000);
   const [useGpu, setUseGpu] = useState(true);
-
-  // RL模型参数
-  const [rlEpisodes, setRlEpisodes] = useState(1000);
-  const [rlLearningRate, setRlLearningRate] = useState(0.0001);
-  const [rlBatchSize, setRlBatchSize] = useState(32);
-  const [rlGamma, setRlGamma] = useState(0.99);
-  const [rlEpsilon, setRlEpsilon] = useState(0.1);
-  const [rlBufferSize, setRlBufferSize] = useState(10000);
 
   // LSTM模型参数
   const [lstmEpochs, setLstmEpochs] = useState(100);
@@ -105,6 +108,20 @@ export function TrainingTab() {
     refetchInterval: 10000,
   });
 
+  const runningTrainingId = trainingStatusData?.trainings?.find(t => t.status === 'running')?.training_id;
+
+  // Fetch training metrics (for charts)
+  const { data: metricsData } = useQuery({
+    queryKey: ['trainingMetrics', runningTrainingId],
+    queryFn: async () => {
+      if (!runningTrainingId) return null;
+      const response = await axios.get(`${API_BASE_URL}/api/v1/rl/training/metrics/${runningTrainingId}`);
+      return response.data.data;
+    },
+    enabled: !!runningTrainingId,
+    refetchInterval: 10000,
+  });
+
   // Start training mutation
   const startMutation = useMutation({
     mutationFn: async () => {
@@ -114,8 +131,8 @@ export function TrainingTab() {
           stock_pool: stockPool,
           custom_symbols: stockPool === 'custom' ? symbols.split(',').map(s => s.trim()).filter(Boolean) : undefined,
           max_stocks: maxStocks,
-          train_start: startDate,
-          train_end: endDate,
+          train_start: trainStartDate,
+          train_end: trainEndDate,
           val_start: valStartDate,
           val_end: valEndDate,
           initial_cash: 100000,
@@ -135,7 +152,7 @@ export function TrainingTab() {
         return response;
       }
 
-      // 原有的训练逻辑
+      // 原有的训练逻辑（用于其他模型）
       const symbolList = symbols.split(',').map(s => s.trim()).filter(Boolean);
 
       let config: any = {
@@ -146,17 +163,7 @@ export function TrainingTab() {
       };
 
       // 根据模型类型添加特定参数
-      if (modelType === 'rl') {
-        config = {
-          ...config,
-          episodes: rlEpisodes,
-          learning_rate: rlLearningRate,
-          batch_size: rlBatchSize,
-          gamma: rlGamma,
-          epsilon: rlEpsilon,
-          buffer_size: rlBufferSize,
-        };
-      } else if (modelType === 'lstm') {
+      if (modelType === 'lstm') {
         config = {
           ...config,
           epochs: lstmEpochs,
@@ -216,9 +223,9 @@ export function TrainingTab() {
 
   const isTraining = (trainingStatusData?.running || 0) > 0;
   const runningTraining = trainingStatusData?.trainings?.find(t => t.status === 'running');
-  const progress = runningTraining?.config?.total_timesteps
-    ? 50  // Since we don't have current timesteps, show 50% as placeholder
-    : 0;
+  const progress = runningTraining?.progress?.progress_pct || 0;  // 使用API返回的实际进度
+  const currentTimesteps = runningTraining?.progress?.timesteps || 0;
+  const runningTotalTimesteps = runningTraining?.config?.total_timesteps || 0;
 
   // 渲染模型特定参数配置
   const renderModelConfig = () => {
@@ -271,6 +278,29 @@ export function TrainingTab() {
                 <span>50</span>
                 <span>100</span>
                 <span>300</span>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-text-primary mb-2">
+                  训练开始日期
+                </label>
+                <Input
+                  type="date"
+                  value={trainStartDate}
+                  onChange={(e) => setTrainStartDate(e.target.value)}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-text-primary mb-2">
+                  训练结束日期
+                </label>
+                <Input
+                  type="date"
+                  value={trainEndDate}
+                  onChange={(e) => setTrainEndDate(e.target.value)}
+                />
               </div>
             </div>
 
@@ -338,93 +368,7 @@ export function TrainingTab() {
             <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-800">
               <strong>说明：</strong>
               这是生产级RL训练系统，支持沪深300和自定义股票池，包含T+1限制、手续费和印花税等真实市场约束。
-              训练完成后模型可直接用于回测和实盘交易。
-            </div>
-          </div>
-        );
-
-      case 'rl':
-        return (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-text-primary mb-2">
-                Episodes 数量
-              </label>
-              <Input
-                type="number"
-                placeholder="1000"
-                value={rlEpisodes}
-                onChange={(e) => setRlEpisodes(Number(e.target.value))}
-              />
-              <p className="text-xs text-text-secondary mt-1">训练的总轮数</p>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-text-primary mb-2">
-                学习率 (Learning Rate)
-              </label>
-              <Input
-                type="number"
-                step="0.00001"
-                placeholder="0.0001"
-                value={rlLearningRate}
-                onChange={(e) => setRlLearningRate(Number(e.target.value))}
-              />
-              <p className="text-xs text-text-secondary mt-1">神经网络的学习速度</p>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-text-primary mb-2">
-                批次大小 (Batch Size)
-              </label>
-              <Input
-                type="number"
-                placeholder="32"
-                value={rlBatchSize}
-                onChange={(e) => setRlBatchSize(Number(e.target.value))}
-              />
-              <p className="text-xs text-text-secondary mt-1">每次训练的样本数量</p>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-text-primary mb-2">
-                折扣因子 (Gamma)
-              </label>
-              <Input
-                type="number"
-                step="0.01"
-                placeholder="0.99"
-                value={rlGamma}
-                onChange={(e) => setRlGamma(Number(e.target.value))}
-              />
-              <p className="text-xs text-text-secondary mt-1">未来奖励的折扣率 (0-1)</p>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-text-primary mb-2">
-                探索率 (Epsilon)
-              </label>
-              <Input
-                type="number"
-                step="0.01"
-                placeholder="0.1"
-                value={rlEpsilon}
-                onChange={(e) => setRlEpsilon(Number(e.target.value))}
-              />
-              <p className="text-xs text-text-secondary mt-1">探索vs利用的平衡 (0-1)</p>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-text-primary mb-2">
-                经验回放缓冲区大小
-              </label>
-              <Input
-                type="number"
-                placeholder="10000"
-                value={rlBufferSize}
-                onChange={(e) => setRlBufferSize(Number(e.target.value))}
-              />
-              <p className="text-xs text-text-secondary mt-1">存储的历史经验数量</p>
+              训练数据用于模型学习，验证数据用于评估模型性能。训练完成后模型可直接用于回测和实盘交易。
             </div>
           </div>
         );
@@ -779,17 +723,26 @@ export function TrainingTab() {
               <div className="flex items-center justify-between mb-2">
                 <span className="text-sm text-text-secondary">训练进度</span>
                 <span className="text-sm font-medium text-text-primary">
-                  目标步数: {runningTraining.config?.total_timesteps?.toLocaleString() || 'N/A'}
+                  {currentTimesteps.toLocaleString()} / {runningTotalTimesteps.toLocaleString()} 步 ({progress.toFixed(1)}%)
                 </span>
               </div>
               <div className="w-full bg-gray-200 rounded-full h-3">
                 <div
-                  className="bg-primary-500 h-3 rounded-full transition-all duration-500 animate-pulse"
-                  style={{ width: `${progress}%` }}
+                  className="bg-primary-500 h-3 rounded-full transition-all duration-500"
+                  style={{ width: `${Math.min(progress, 100)}%` }}
                 />
               </div>
-              <div className="text-right mt-1">
-                <span className="text-xs text-text-secondary">训练中...</span>
+              <div className="flex justify-between mt-1">
+                <span className="text-xs text-text-secondary">
+                  {runningTraining.progress?.ep_rew_mean !== null && runningTraining.progress?.ep_rew_mean !== undefined
+                    ? `奖励: ${runningTraining.progress.ep_rew_mean.toFixed(2)}`
+                    : '等待数据...'}
+                </span>
+                <span className="text-xs text-text-secondary">
+                  {runningTraining.progress?.fps
+                    ? `速度: ${runningTraining.progress.fps.toFixed(0)} it/s`
+                    : ''}
+                </span>
               </div>
             </div>
 
@@ -808,33 +761,181 @@ export function TrainingTab() {
               <div className="bg-white p-3 rounded-lg border border-gray-200">
                 <div className="flex items-center gap-2 text-xs text-text-secondary mb-1">
                   <TrendingUp size={14} className="text-profit" />
-                  股票池
+                  平均奖励
                 </div>
                 <div className="text-lg font-bold text-text-primary">
-                  {runningTraining.config?.stock_pool?.toUpperCase() || 'N/A'}
+                  {runningTraining.progress?.ep_rew_mean !== null && runningTraining.progress?.ep_rew_mean !== undefined
+                    ? runningTraining.progress.ep_rew_mean.toFixed(2)
+                    : 'N/A'}
                 </div>
               </div>
 
               <div className="bg-white p-3 rounded-lg border border-gray-200">
                 <div className="flex items-center gap-2 text-xs text-text-secondary mb-1">
                   <BarChart3 size={14} className="text-primary-500" />
-                  最大股票数
+                  已用时间
                 </div>
                 <div className="text-lg font-bold text-primary-600">
-                  {runningTraining.config?.max_stocks || 'N/A'}
+                  {runningTraining.progress?.elapsed_time
+                    ? `${Math.floor(runningTraining.progress.elapsed_time / 60)}m ${Math.floor(runningTraining.progress.elapsed_time % 60)}s`
+                    : 'N/A'}
                 </div>
               </div>
 
               <div className="bg-white p-3 rounded-lg border border-gray-200">
                 <div className="flex items-center gap-2 text-xs text-text-secondary mb-1">
                   <Clock size={14} />
-                  状态
+                  预计剩余
                 </div>
                 <div className="text-lg font-bold text-profit">
-                  {runningTraining.status}
+                  {runningTraining.progress?.estimated_remaining
+                    ? `${Math.floor(runningTraining.progress.estimated_remaining / 60)}m`
+                    : 'N/A'}
                 </div>
               </div>
             </div>
+
+            {/* Training Charts */}
+            {metricsData?.metrics && metricsData.metrics.length > 0 && (
+              <div className="space-y-4 mt-6">
+                <div className="flex items-center gap-2 text-sm font-medium text-text-primary">
+                  <Activity size={16} className="text-primary-500" />
+                  训练曲线
+                </div>
+
+                {/* Reward Chart */}
+                <div className="bg-white p-4 rounded-lg border border-gray-200">
+                  <h4 className="text-sm font-medium text-text-secondary mb-3">平均奖励 (Episode Reward)</h4>
+                  <ResponsiveContainer width="100%" height={200}>
+                    <LineChart data={metricsData.metrics}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                      <XAxis
+                        dataKey="timesteps"
+                        stroke="#6b7280"
+                        style={{ fontSize: '12px' }}
+                        tickFormatter={(value) => `${(value / 1000).toFixed(0)}k`}
+                      />
+                      <YAxis
+                        stroke="#6b7280"
+                        style={{ fontSize: '12px' }}
+                      />
+                      <Tooltip
+                        contentStyle={{
+                          backgroundColor: '#fff',
+                          border: '1px solid #e5e7eb',
+                          borderRadius: '8px',
+                          fontSize: '12px'
+                        }}
+                        formatter={(value: any) => [value?.toFixed(2), '平均奖励']}
+                        labelFormatter={(label) => `步数: ${label.toLocaleString()}`}
+                      />
+                      <Legend
+                        wrapperStyle={{ fontSize: '12px' }}
+                      />
+                      <Line
+                        type="monotone"
+                        dataKey="ep_rew_mean"
+                        stroke="#0ea5e9"
+                        strokeWidth={2}
+                        dot={false}
+                        name="平均奖励"
+                      />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+
+                {/* Loss Chart */}
+                <div className="bg-white p-4 rounded-lg border border-gray-200">
+                  <h4 className="text-sm font-medium text-text-secondary mb-3">训练损失 (Training Loss)</h4>
+                  <ResponsiveContainer width="100%" height={200}>
+                    <LineChart data={metricsData.metrics}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                      <XAxis
+                        dataKey="timesteps"
+                        stroke="#6b7280"
+                        style={{ fontSize: '12px' }}
+                        tickFormatter={(value) => `${(value / 1000).toFixed(0)}k`}
+                      />
+                      <YAxis
+                        stroke="#6b7280"
+                        style={{ fontSize: '12px' }}
+                      />
+                      <Tooltip
+                        contentStyle={{
+                          backgroundColor: '#fff',
+                          border: '1px solid #e5e7eb',
+                          borderRadius: '8px',
+                          fontSize: '12px'
+                        }}
+                        formatter={(value: any) => [value?.toFixed(6), '']}
+                        labelFormatter={(label) => `步数: ${label.toLocaleString()}`}
+                      />
+                      <Legend
+                        wrapperStyle={{ fontSize: '12px' }}
+                      />
+                      <Line
+                        type="monotone"
+                        dataKey="policy_loss"
+                        stroke="#f59e0b"
+                        strokeWidth={2}
+                        dot={false}
+                        name="Policy Loss"
+                      />
+                      <Line
+                        type="monotone"
+                        dataKey="value_loss"
+                        stroke="#ef4444"
+                        strokeWidth={2}
+                        dot={false}
+                        name="Value Loss"
+                      />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+
+                {/* Explained Variance Chart */}
+                <div className="bg-white p-4 rounded-lg border border-gray-200">
+                  <h4 className="text-sm font-medium text-text-secondary mb-3">解释方差 (Explained Variance)</h4>
+                  <ResponsiveContainer width="100%" height={200}>
+                    <LineChart data={metricsData.metrics}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                      <XAxis
+                        dataKey="timesteps"
+                        stroke="#6b7280"
+                        style={{ fontSize: '12px' }}
+                        tickFormatter={(value) => `${(value / 1000).toFixed(0)}k`}
+                      />
+                      <YAxis
+                        stroke="#6b7280"
+                        style={{ fontSize: '12px' }}
+                        domain={[-1, 1]}
+                      />
+                      <Tooltip
+                        contentStyle={{
+                          backgroundColor: '#fff',
+                          border: '1px solid #e5e7eb',
+                          borderRadius: '8px',
+                          fontSize: '12px'
+                        }}
+                        formatter={(value: any) => [value?.toFixed(4), '解释方差']}
+                        labelFormatter={(label) => `步数: ${label.toLocaleString()}`}
+                      />
+                      <Legend
+                        wrapperStyle={{ fontSize: '12px' }}
+                      />
+                      <Line
+                        type="monotone"
+                        dataKey="explained_variance"
+                        stroke="#10b981"
+                        strokeWidth={2}
+                        dot={false}
+                        name="解释方差"
+                      />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -888,7 +989,7 @@ export function TrainingTab() {
                 <label className="block text-sm font-medium text-text-primary mb-3">
                   选择模型类型
                 </label>
-                <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
                   <button
                     onClick={() => setModelType('rl_production')}
                     className={`p-4 border-2 rounded-lg transition-all ${
@@ -897,22 +998,9 @@ export function TrainingTab() {
                         : 'border-gray-200 hover:border-primary-300'
                     }`}
                   >
-                    <Rocket className={`w-8 h-8 mx-auto mb-2 ${modelType === 'rl_production' ? 'text-primary-500' : 'text-gray-400'}`} />
-                    <p className="text-sm font-semibold text-text-primary">RL生产版</p>
-                    <p className="text-xs text-text-secondary mt-1">沪深300/PPO</p>
-                  </button>
-
-                  <button
-                    onClick={() => setModelType('rl')}
-                    className={`p-4 border-2 rounded-lg transition-all ${
-                      modelType === 'rl'
-                        ? 'border-primary-500 bg-primary-50'
-                        : 'border-gray-200 hover:border-primary-300'
-                    }`}
-                  >
-                    <Brain className={`w-8 h-8 mx-auto mb-2 ${modelType === 'rl' ? 'text-primary-500' : 'text-gray-400'}`} />
+                    <Brain className={`w-8 h-8 mx-auto mb-2 ${modelType === 'rl_production' ? 'text-primary-500' : 'text-gray-400'}`} />
                     <p className="text-sm font-semibold text-text-primary">深度强化学习</p>
-                    <p className="text-xs text-text-secondary mt-1">DQN/PPO</p>
+                    <p className="text-xs text-text-secondary mt-1">沪深300/PPO</p>
                   </button>
 
                   <button
@@ -1000,8 +1088,7 @@ export function TrainingTab() {
               {/* 模型特定参数 */}
               <div className="border-t border-gray-200 pt-4">
                 <h3 className="text-sm font-semibold text-text-primary mb-4">
-                  {modelType === 'rl_production' && 'RL生产版配置'}
-                  {modelType === 'rl' && 'RL模型参数'}
+                  {modelType === 'rl_production' && '强化学习模型参数'}
                   {modelType === 'lstm' && 'LSTM模型参数'}
                   {modelType === 'transformer' && 'Transformer模型参数'}
                   {modelType === 'ensemble' && '集成模型参数'}
