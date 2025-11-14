@@ -9,23 +9,40 @@ import {
   Legend,
   ResponsiveContainer,
   ReferenceLine,
+  Scatter,
+  ComposedChart,
 } from 'recharts';
 import type { EquityCurvePoint } from '@/types/strategy';
+
+interface Trade {
+  date: string;
+  ticker: string;
+  action: string;
+  shares: number;
+  price: number;
+  cost?: number;
+  revenue?: number;
+  commission: number;
+  total_cost?: number;
+  total_revenue?: number;
+}
 
 interface EquityCurveChartProps {
   data: EquityCurvePoint[];
   initialCapital: number;
+  trades?: Trade[];
   className?: string;
 }
 
 export function EquityCurveChart({
   data,
   initialCapital,
+  trades = [],
   className = '',
 }: EquityCurveChartProps) {
-  // 格式化数据
-  const chartData = useMemo(() => {
-    return data.map((point) => ({
+  // 格式化数据并合并交易点
+  const { chartData, tradePoints } = useMemo(() => {
+    const formattedData = data.map((point) => ({
       date: new Date(point.date).toLocaleDateString('zh-CN', {
         month: 'numeric',
         day: 'numeric',
@@ -34,7 +51,36 @@ export function EquityCurveChart({
       value: point.value,
       return_pct: ((point.value - initialCapital) / initialCapital) * 100,
     }));
-  }, [data, initialCapital]);
+
+    // 将交易点映射到资金曲线上
+    const tradeMarkers = trades.map((trade) => {
+      // 找到对应日期的资金值
+      const matchingPoint = data.find(p => p.date === trade.date);
+      if (!matchingPoint) return null;
+
+      const formattedDate = new Date(trade.date).toLocaleDateString('zh-CN', {
+        month: 'numeric',
+        day: 'numeric',
+      });
+
+      return {
+        date: formattedDate,
+        fullDate: trade.date,
+        value: matchingPoint.value,
+        action: trade.action,
+        ticker: trade.ticker,
+        shares: trade.shares,
+        price: trade.price,
+        cost: trade.cost,
+        revenue: trade.revenue,
+        commission: trade.commission,
+        total_cost: trade.total_cost,
+        total_revenue: trade.total_revenue,
+      };
+    }).filter(Boolean); // 过滤掉null值
+
+    return { chartData: formattedData, tradePoints: tradeMarkers };
+  }, [data, trades, initialCapital]);
 
   // 计算最大值和最小值用于Y轴范围
   const { minValue, maxValue } = useMemo(() => {
@@ -69,6 +115,9 @@ export function EquityCurveChart({
       const data = payload[0].payload;
       const isProfit = data.value >= initialCapital;
 
+      // 检查是否是交易点
+      const isTrade = data.action !== undefined;
+
       return (
         <div className="bg-white border border-gray-200 rounded-lg shadow-lg p-3">
           <p className="text-sm text-text-secondary mb-2">{data.fullDate}</p>
@@ -89,6 +138,49 @@ export function EquityCurveChart({
                 {formatReturn(data.return_pct)}
               </span>
             </div>
+
+            {/* 🆕 交易详情 */}
+            {isTrade && (
+              <>
+                <div className="border-t border-gray-100 my-2"></div>
+                <div className="flex justify-between gap-4">
+                  <span className="text-sm font-semibold text-text-primary">
+                    {data.action.includes('BUY') ? '📈 买入' : '📉 卖出'}
+                  </span>
+                  <span className="text-sm font-medium text-primary-600">
+                    {data.ticker}
+                  </span>
+                </div>
+                <div className="flex justify-between gap-4">
+                  <span className="text-xs text-text-secondary">价格:</span>
+                  <span className="text-xs font-medium text-text-primary">
+                    ¥{data.price.toFixed(2)}
+                  </span>
+                </div>
+                <div className="flex justify-between gap-4">
+                  <span className="text-xs text-text-secondary">数量:</span>
+                  <span className="text-xs font-medium text-text-primary">
+                    {data.shares.toLocaleString()} 股
+                  </span>
+                </div>
+                <div className="flex justify-between gap-4">
+                  <span className="text-xs text-text-secondary">金额:</span>
+                  <span className="text-xs font-medium text-text-primary">
+                    {data.total_cost
+                      ? `¥${data.total_cost.toLocaleString('zh-CN', { maximumFractionDigits: 2 })}`
+                      : data.total_revenue
+                      ? `¥${data.total_revenue.toLocaleString('zh-CN', { maximumFractionDigits: 2 })}`
+                      : 'N/A'}
+                  </span>
+                </div>
+                <div className="flex justify-between gap-4">
+                  <span className="text-xs text-text-secondary">手续费:</span>
+                  <span className="text-xs text-loss">
+                    ¥{data.commission.toFixed(2)}
+                  </span>
+                </div>
+              </>
+            )}
           </div>
         </div>
       );
@@ -111,7 +203,7 @@ export function EquityCurveChart({
   return (
     <div className={className}>
       <ResponsiveContainer width="100%" height={320}>
-        <LineChart
+        <ComposedChart
           data={chartData}
           margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
         >
@@ -156,7 +248,38 @@ export function EquityCurveChart({
             name="账户价值"
             activeDot={{ r: 6, strokeWidth: 0 }}
           />
-        </LineChart>
+
+          {/* 买卖点标记 */}
+          {tradePoints.length > 0 && (
+            <Scatter
+              data={tradePoints}
+              dataKey="value"
+              name="交易点"
+              shape={(props: any) => {
+                const { cx, cy, payload } = props;
+                if (!payload || !payload.action) return null;
+
+                const isBuy = payload.action.includes('BUY');
+                const color = isBuy ? '#16a34a' : '#dc2626';
+
+                return (
+                  <g>
+                    {/* 三角形标记 */}
+                    <path
+                      d={isBuy
+                        ? `M ${cx} ${cy - 8} L ${cx - 6} ${cy + 4} L ${cx + 6} ${cy + 4} Z`  // 向上三角
+                        : `M ${cx} ${cy + 8} L ${cx - 6} ${cy - 4} L ${cx + 6} ${cy - 4} Z`  // 向下三角
+                      }
+                      fill={color}
+                      stroke="#ffffff"
+                      strokeWidth={1.5}
+                    />
+                  </g>
+                );
+              }}
+            />
+          )}
+        </ComposedChart>
       </ResponsiveContainer>
 
       {/* 图例说明 */}

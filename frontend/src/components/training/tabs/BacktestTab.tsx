@@ -105,6 +105,7 @@ export function BacktestTab() {
             initial_capital: rlResults.summary?.initial_capital || parseFloat(initialCash),
             final_value: rlResults.summary?.final_value || parseFloat(initialCash),
             equity_curve: equityCurve,
+            trades: rlResults.trades || [], // 🆕 添加交易记录
           });
         } else {
           setError(response.message || 'RL回测失败');
@@ -416,6 +417,7 @@ export function BacktestTab() {
                     <EquityCurveChart
                       data={results.equity_curve}
                       initialCapital={results.initial_capital}
+                      trades={results.trades || []}
                     />
                   ) : (
                     <div className="h-64 bg-gray-50 rounded-lg flex items-center justify-center">
