@@ -252,7 +252,7 @@ class StrategyFactory:
     @staticmethod
     def create_strategy(
         mode_id: str,
-        rl_model_path: str = "models/production/ppo_trading_agent.zip"
+        rl_model_path: str = "models/production/final_model.zip"
     ) -> BaseStrategy:
         """创建策略实例
 
@@ -277,7 +277,7 @@ class StrategyFactory:
     @staticmethod
     def create_multi_strategies(
         mode_ids: List[str],
-        rl_model_path: str = "models/production/ppo_trading_agent.zip"
+        rl_model_path: str = "models/production/final_model.zip"
     ) -> Dict[str, BaseStrategy]:
         """创建多个策略实例
 
