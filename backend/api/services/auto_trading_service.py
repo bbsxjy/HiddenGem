@@ -119,6 +119,7 @@ class AutoTradingService:
 
             import time
             import pandas as pd
+            import numpy as np
             from api.services.realtime_data_service import realtime_data_service
 
             check_interval_seconds = self.config.get("check_interval", 5) * 60
