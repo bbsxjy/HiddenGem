@@ -428,9 +428,21 @@ class QFLibBacktestRunner:
         # 🔍 DEBUG: 打印equity_curve样本数据
         logger.info(f"🔍 [EQUITY CURVE] Total points: {len(equity_df)}")
         if len(equity_df) > 0:
-            logger.info(f"🔍 [EQUITY CURVE] First 3 points:\n{equity_df.head(3)}")
-            logger.info(f"🔍 [EQUITY CURVE] Last 3 points:\n{equity_df.tail(3)}")
+            logger.info(f"🔍 [EQUITY CURVE] First 3 points:")
+            for idx, row in equity_df.head(3).iterrows():
+                logger.info(f"   {row['date']}: portfolio_value={row['portfolio_value']:.2f}, cash={row['cash']:.2f}")
+            logger.info(f"🔍 [EQUITY CURVE] Last 3 points:")
+            for idx, row in equity_df.tail(3).iterrows():
+                logger.info(f"   {row['date']}: portfolio_value={row['portfolio_value']:.2f}, cash={row['cash']:.2f}")
             logger.info(f"🔍 [EQUITY CURVE] Portfolio value range: ¥{equity_df['portfolio_value'].min():,.2f} - ¥{equity_df['portfolio_value'].max():,.2f}")
+
+            # 统计有多少个唯一值
+            unique_values = equity_df['portfolio_value'].nunique()
+            logger.info(f"🔍 [EQUITY CURVE] Unique portfolio values: {unique_values} out of {len(equity_df)}")
+
+            # 找出值变化的次数
+            value_changes = (equity_df['portfolio_value'].diff() != 0).sum()
+            logger.info(f"🔍 [EQUITY CURVE] Value changes: {value_changes} times")
 
         return results
 

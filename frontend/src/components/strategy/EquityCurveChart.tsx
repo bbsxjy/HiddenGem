@@ -231,6 +231,16 @@ export function EquityCurveChart({
   const finalValue = chartData[chartData.length - 1]?.value || initialCapital;
   const lineColor = finalValue >= initialCapital ? '#16a34a' : '#dc2626';
 
+  // 🔍 调试：检查渲染前的最终数据
+  console.log('🔍 Chart rendering with:', {
+    dataPoints: chartData.length,
+    firstValue: chartData[0]?.value,
+    lastValue: chartData[chartData.length - 1]?.value,
+    lineColor,
+    yAxisMin: minValue,
+    yAxisMax: maxValue
+  });
+
   return (
     <div className={className}>
       <ResponsiveContainer width="100%" height={320}>
@@ -246,10 +256,11 @@ export function EquityCurveChart({
             tickFormatter={formatXAxisDate}
           />
           <YAxis
-            domain={[minValue, maxValue]}
+            domain={['dataMin - 10000', 'dataMax + 10000']}
             tick={{ fontSize: 12, fill: '#6b7280' }}
             stroke="#9ca3af"
             tickFormatter={formatCurrency}
+            scale="linear"
           />
           <Tooltip content={<CustomTooltip />} />
           <Legend
@@ -272,13 +283,14 @@ export function EquityCurveChart({
 
           {/* 资金曲线 */}
           <Line
-            type="monotone"
+            type="linear"
             dataKey="value"
             stroke={lineColor}
             strokeWidth={2}
             dot={false}
             name="账户价值"
             activeDot={{ r: 6, strokeWidth: 0 }}
+            isAnimationActive={false}
           />
 
           {/* 买卖点标记 */}
