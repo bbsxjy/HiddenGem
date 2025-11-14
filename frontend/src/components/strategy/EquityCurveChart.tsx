@@ -82,6 +82,18 @@ export function EquityCurveChart({
     console.log('🔍 EquityCurveChart - Formatted chartData:', formattedData);
     console.log('🔍 EquityCurveChart - Trade markers:', tradeMarkers);
 
+    // 🔍 分析数据分布
+    const values = formattedData.map(d => d.value);
+    const count100k = values.filter(v => v === 100000).length;
+    const firstChangeIdx = values.findIndex(v => v !== 100000);
+    console.log('🔍 Data Analysis:', {
+      totalPoints: values.length,
+      points_at_100k: count100k,
+      percentage_at_100k: `${(count100k/values.length*100).toFixed(1)}%`,
+      firstChangeAt: firstChangeIdx >= 0 ? `Day ${firstChangeIdx} (${formattedData[firstChangeIdx].date})` : 'No change',
+      valueRange: `${Math.min(...values).toFixed(2)} - ${Math.max(...values).toFixed(2)}`
+    });
+
     return { chartData: formattedData, tradePoints: tradeMarkers };
   }, [data, trades, initialCapital]);
 
