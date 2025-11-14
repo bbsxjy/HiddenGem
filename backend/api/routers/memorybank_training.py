@@ -147,58 +147,117 @@ async def run_memorybank_training_async(
         backend_dir = Path(__file__).parent.parent.parent
         sys.path.insert(0, str(backend_dir))
 
-        from memory.episodic_memory import EpisodicMemoryBank
-        from memory.memory_manager import MemoryManager, MemoryMode
+        from scripts.enhanced_time_travel_training import EnhancedTimeTravelTrainer
         import time
 
-        # 创建MemoryBank实例
+        # 创建训练输出目录
         episode_dir = get_memorybank_directory() / training_id
         episode_dir.mkdir(parents=True, exist_ok=True)
 
-        memory_bank = EpisodicMemoryBank(
-            persist_directory=str(episode_dir),
-            embedding_model=config.embedding_model
-        )
-        # Note: max_capacity不是EpisodicMemoryBank的参数，由ChromaDB自动管理容量
-
-        # 模拟训练过程（实际应该从历史数据中提取案例）
-        # 这里先创建一个简单的训练流程框架
+        # 记录开始时间
         start_time = time.time()
-        total_episodes = len(config.symbols) * 100  # 假设每个股票有100个案例
 
         # 在线程池中运行训练
         loop = asyncio.get_event_loop()
 
         def training_worker():
-            """训练工作函数"""
-            for idx in range(total_episodes):
-                # 模拟处理每个案例
-                time.sleep(0.01)  # 模拟处理时间
-
-                # 更新进度
-                elapsed = time.time() - start_time
-                progress_pct = (idx + 1) / total_episodes * 100
-                remaining = (elapsed / (idx + 1)) * (total_episodes - idx - 1) if idx > 0 else 0
-
-                progress = MemoryBankProgress(
-                    processed_episodes=idx + 1,
-                    total_episodes=total_episodes,
-                    progress_pct=progress_pct,
-                    stored_episodes=idx + 1,
-                    avg_similarity=0.85,
-                    memory_usage_mb=memory_bank.get_memory_usage() if hasattr(memory_bank, 'get_memory_usage') else 0,
-                    elapsed_time=elapsed,
-                    estimated_remaining=remaining
-                )
-
-                training_tasks[training_id].progress = progress
-
-                # 每10%输出一次日志
-                if (idx + 1) % (total_episodes // 10) == 0:
-                    logger.info(
-                        f"📚 [{training_id}] 进度: {progress_pct:.1f}% "
-                        f"({idx + 1}/{total_episodes})"
+            """训练工作函数 - 使用EnhancedTimeTravelTrainer进行真实的time-travel训练"""
+            try:
+                # 预先计算所有股票的交易日数量（用于进度估算）
+                logger.info("📊 预计算交易日数量...")
+                stock_trading_days_count = {}
+                for symbol in config.symbols:
+                    temp_trainer = EnhancedTimeTravelTrainer(
+                        symbol=symbol,
+                        start_date=config.start_date.strftime("%Y-%m-%d"),
+                        end_date=config.end_date.strftime("%Y-%m-%d"),
+                        holding_days=config.holding_days
                     )
+                    days = temp_trainer.get_trading_days()
+                    stock_trading_days_count[symbol] = len(days) if days else 0
+                    logger.info(f"   {symbol}: {stock_trading_days_count[symbol]} 交易日")
+
+                total_episodes = sum(stock_trading_days_count.values())
+                logger.info(f"📈 总计: {total_episodes} 个episodes ({len(config.symbols)} 个股票)")
+
+                # 遍历每个股票
+                processed_episodes = 0
+                total_successful = 0  # 累积所有成功的案例
+
+                for symbol_idx, symbol in enumerate(config.symbols):
+                    logger.info(f"\n{'='*60}")
+                    logger.info(f"📈 开始训练股票 {symbol} ({symbol_idx + 1}/{len(config.symbols)})")
+                    logger.info(f"{'='*60}")
+
+                    # 创建EnhancedTimeTravelTrainer实例
+                    trainer = EnhancedTimeTravelTrainer(
+                        symbol=symbol,
+                        start_date=config.start_date.strftime("%Y-%m-%d"),
+                        end_date=config.end_date.strftime("%Y-%m-%d"),
+                        holding_days=config.holding_days,
+                        config=None  # 使用DEFAULT_CONFIG
+                    )
+
+                    # 获取交易日列表
+                    trading_days = trainer.get_trading_days()
+                    if not trading_days:
+                        logger.warning(f"⚠️ 股票 {symbol} 无交易日数据，跳过")
+                        continue
+
+                    total_days = len(trading_days)
+                    logger.info(f"   找到 {total_days} 个交易日")
+
+                    # Time-travel训练每一天
+                    successful_days = 0
+                    failed_days = 0
+
+                    for day_idx, current_date in enumerate(trading_days):
+                        # 训练单日
+                        success = trainer.train_one_day(current_date)
+
+                        if success:
+                            successful_days += 1
+                            total_successful += 1
+                        else:
+                            failed_days += 1
+
+                        # 更新总进度
+                        processed_episodes += 1
+
+                        # 更新进度
+                        elapsed = time.time() - start_time
+                        progress_pct = (processed_episodes / total_episodes * 100) if total_episodes > 0 else 0
+                        remaining = (elapsed / processed_episodes) * (total_episodes - processed_episodes) if processed_episodes > 0 else 0
+
+                        progress = MemoryBankProgress(
+                            processed_episodes=processed_episodes,
+                            total_episodes=total_episodes,
+                            progress_pct=progress_pct,
+                            stored_episodes=total_successful,  # 累积的成功案例数
+                            avg_similarity=0.0,  # 不计算相似度
+                            memory_usage_mb=0,
+                            elapsed_time=elapsed,
+                            estimated_remaining=remaining
+                        )
+
+                        training_tasks[training_id].progress = progress
+
+                        # 每10个交易日输出一次日志
+                        if (day_idx + 1) % 10 == 0 or day_idx == 0:
+                            logger.info(
+                                f"📚 [{training_id}] {symbol} 进度: {(day_idx + 1)/total_days*100:.1f}% "
+                                f"({day_idx + 1}/{total_days}), 成功: {successful_days}, 失败: {failed_days}"
+                            )
+
+                    logger.info(
+                        f"✅ 股票 {symbol} 训练完成: "
+                        f"成功 {successful_days}/{total_days}, "
+                        f"失败 {failed_days}/{total_days}"
+                    )
+
+            except Exception as e:
+                logger.error(f"❌ 训练过程出错: {e}", exc_info=True)
+                raise
 
         await loop.run_in_executor(None, training_worker)
 
