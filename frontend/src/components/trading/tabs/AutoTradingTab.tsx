@@ -64,8 +64,52 @@ export function AutoTradingTab() {
   const [checkInterval, setCheckInterval] = useState(5);
   const [useMultiAgent, setUseMultiAgent] = useState(true);
 
-  // 策略选择
+  // 策略选择 - 改为预定义的5种策略模式
   const [selectedStrategies, setSelectedStrategies] = useState<string[]>([]);
+
+  // 预定义的5种策略模式
+  const strategyModes = [
+    {
+      id: 'rl_only',
+      name: '单RL模型',
+      description: '纯强化学习决策，基于历史数据训练的PPO模型',
+      icon: '🤖',
+      color: 'blue',
+      components: ['RL'],
+    },
+    {
+      id: 'llm_agent_only',
+      name: '单LLM Agent',
+      description: '多Agent智能分析系统，7个专业分析师协同决策',
+      icon: '🧠',
+      color: 'purple',
+      components: ['LLM Agent'],
+    },
+    {
+      id: 'llm_memory',
+      name: 'LLM + Memory Bank',
+      description: 'LLM分析结合历史案例记忆库，从相似场景中学习',
+      icon: '💾',
+      color: 'green',
+      components: ['LLM Agent', 'Memory Bank'],
+    },
+    {
+      id: 'rl_llm',
+      name: 'RL + LLM',
+      description: '强化学习与LLM双重验证，提高决策准确性',
+      icon: '🔄',
+      color: 'orange',
+      components: ['RL', 'LLM Agent'],
+    },
+    {
+      id: 'rl_llm_memory',
+      name: 'RL + LLM + Memory',
+      description: '完整系统：强化学习 + LLM分析 + 历史案例，三重保障',
+      icon: '⭐',
+      color: 'red',
+      components: ['RL', 'LLM Agent', 'Memory Bank'],
+    },
+  ];
 
   // 风险控制参数
   const [isEditingRisk, setIsEditingRisk] = useState(false);
@@ -80,14 +124,6 @@ export function AutoTradingTab() {
     maxPositionPct: riskControl.maxPositionPct || 5,
   });
 
-  // Fetch strategies from training center
-  const { data: strategies, isLoading: strategiesLoading } = useQuery({
-    queryKey: ['strategies'],
-    queryFn: getStrategies,
-    refetchInterval: dataRefresh.strategyListInterval * 1000,
-  });
-
-  // Fetch auto trading status
   const { data: autoTradingStatus } = useQuery({
     queryKey: ['autoTradingStatus'],
     queryFn: async () => {
@@ -130,7 +166,7 @@ export function AutoTradingTab() {
         initial_cash: initialCash,
         check_interval: checkInterval,
         use_multi_agent: useMultiAgent,
-        strategies: selectedStrategies.length > 0 ? selectedStrategies : ['simple_rule'],
+        strategy_modes: selectedStrategies, // 传递选择的策略模式IDs
         risk_params: riskParams,
       });
       return response.data;
@@ -300,7 +336,7 @@ export function AutoTradingTab() {
         {!isRunning ? (
           <Button
             onClick={() => startMutation.mutate()}
-            disabled={startMutation.isPending || !symbols.trim()}
+            disabled={startMutation.isPending || !symbols.trim() || selectedStrategies.length === 0}
             className="flex items-center gap-2"
           >
             <Play size={16} />
@@ -336,6 +372,106 @@ export function AutoTradingTab() {
       {/* 运行时显示实时监控 */}
       {isRunning && (
         <>
+          {/* 多策略对照面板 - 仅在选择多个策略时显示 */}
+          {autoTradingStatus?.strategy_performances && autoTradingStatus.strategy_performances.length > 1 && (
+            <Card title="策略表现对照" padding="md">
+              <div className="space-y-4">
+                <div className="p-3 bg-purple-50 border border-purple-200 rounded-lg text-sm text-purple-800">
+                  <strong>对照模式：</strong>
+                  当前运行 {autoTradingStatus.strategy_performances.length} 个策略进行性能对照测试
+                </div>
+
+                <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
+                  {autoTradingStatus.strategy_performances.map((perf: any) => {
+                    const mode = strategyModes.find(m => m.id === perf.strategy_id);
+                    const profitLoss = perf.profit_loss || 0;
+                    const profitLossPct = perf.profit_loss_pct || 0;
+
+                    return (
+                      <Card key={perf.strategy_id} padding="md" className="border-2">
+                        <div className="flex items-start gap-3 mb-3">
+                          <div className={`w-10 h-10 rounded-lg flex items-center justify-center text-xl ${
+                            mode ? `bg-${mode.color}-100 text-${mode.color}-600` : 'bg-gray-100'
+                          }`}>
+                            {mode?.icon || '📊'}
+                          </div>
+                          <div className="flex-1">
+                            <h4 className="font-semibold text-text-primary">{mode?.name || perf.strategy_id}</h4>
+                            <p className="text-xs text-text-secondary">{mode?.description}</p>
+                          </div>
+                        </div>
+
+                        <div className="space-y-2">
+                          <div className="flex justify-between items-center">
+                            <span className="text-sm text-text-secondary">盈亏</span>
+                            <span className={`text-lg font-bold ${profitLoss >= 0 ? 'text-profit' : 'text-loss'}`}>
+                              {profitLoss >= 0 ? '+' : ''}¥{profitLoss.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </span>
+                          </div>
+
+                          <div className="flex justify-between items-center">
+                            <span className="text-sm text-text-secondary">收益率</span>
+                            <span className={`text-base font-semibold ${profitLossPct >= 0 ? 'text-profit' : 'text-loss'}`}>
+                              {profitLossPct >= 0 ? '+' : ''}{profitLossPct.toFixed(2)}%
+                            </span>
+                          </div>
+
+                          <div className="flex justify-between items-center">
+                            <span className="text-sm text-text-secondary">交易次数</span>
+                            <span className="text-base font-semibold text-text-primary">
+                              {perf.total_trades || 0}
+                            </span>
+                          </div>
+
+                          <div className="flex justify-between items-center">
+                            <span className="text-sm text-text-secondary">胜率</span>
+                            <span className="text-base font-semibold text-text-primary">
+                              {perf.win_rate ? `${perf.win_rate.toFixed(1)}%` : 'N/A'}
+                            </span>
+                          </div>
+
+                          <div className="flex justify-between items-center">
+                            <span className="text-sm text-text-secondary">当前持仓</span>
+                            <span className="text-base font-semibold text-text-primary">
+                              {perf.num_positions || 0}
+                            </span>
+                          </div>
+                        </div>
+                      </Card>
+                    );
+                  })}
+                </div>
+
+                <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                  <div className="flex items-center gap-2 text-sm text-blue-800 mb-2">
+                    <BarChart3 size={16} />
+                    <strong>综合排名</strong>
+                  </div>
+                  <div className="space-y-1">
+                    {[...autoTradingStatus.strategy_performances]
+                      .sort((a, b) => (b.profit_loss_pct || 0) - (a.profit_loss_pct || 0))
+                      .map((perf: any, index: number) => {
+                        const mode = strategyModes.find(m => m.id === perf.strategy_id);
+                        const medals = ['🥇', '🥈', '🥉'];
+
+                        return (
+                          <div key={perf.strategy_id} className="flex items-center justify-between text-sm">
+                            <div className="flex items-center gap-2">
+                              <span className="text-base">{medals[index] || `${index + 1}.`}</span>
+                              <span className="font-medium text-text-primary">{mode?.name || perf.strategy_id}</span>
+                            </div>
+                            <span className={`font-semibold ${(perf.profit_loss_pct || 0) >= 0 ? 'text-profit' : 'text-loss'}`}>
+                              {(perf.profit_loss_pct || 0) >= 0 ? '+' : ''}{(perf.profit_loss_pct || 0).toFixed(2)}%
+                            </span>
+                          </div>
+                        );
+                      })}
+                  </div>
+                </div>
+              </div>
+            </Card>
+          )}
+
           {/* Status Overview */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <Card padding="md">
@@ -606,61 +742,92 @@ export function AutoTradingTab() {
           </Card>
 
           {/* Strategy Selection */}
-          <Card title="策略选择" padding="md">
-            {strategiesLoading ? (
-              <div className="flex items-center justify-center py-12">
-                <Loading size="md" text="加载策略列表..." />
+          <Card title="策略模式选择" padding="md">
+            <div className="space-y-4">
+              <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-800">
+                <strong>提示：</strong>
+                可以选择单个策略模式运行，也可以选择多个策略同时运行进行对照测试。
+                多策略模式下，系统会为每个策略独立统计表现指标。
               </div>
-            ) : strategies && strategies.length > 0 ? (
-              <>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  {strategies.map((strategy) => (
+
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {strategyModes.map((mode) => {
+                  const isSelected = selectedStrategies.includes(mode.id);
+                  const colorClasses = {
+                    blue: 'border-blue-500 bg-blue-50',
+                    purple: 'border-purple-500 bg-purple-50',
+                    green: 'border-green-500 bg-green-50',
+                    orange: 'border-orange-500 bg-orange-50',
+                    red: 'border-red-500 bg-red-50',
+                  };
+                  const iconColorClasses = {
+                    blue: 'bg-blue-100 text-blue-600',
+                    purple: 'bg-purple-100 text-purple-600',
+                    green: 'bg-green-100 text-green-600',
+                    orange: 'bg-orange-100 text-orange-600',
+                    red: 'bg-red-100 text-red-600',
+                  };
+
+                  return (
                     <div
-                      key={strategy.name}
+                      key={mode.id}
                       className={`p-4 border-2 rounded-lg cursor-pointer transition-all ${
-                        selectedStrategies.includes(strategy.name)
-                          ? 'border-primary-500 bg-primary-50'
-                          : 'border-gray-200 hover:border-primary-300'
+                        isSelected
+                          ? colorClasses[mode.color]
+                          : 'border-gray-200 hover:border-gray-300 bg-white'
                       }`}
-                      onClick={() => toggleStrategy(strategy.name)}
+                      onClick={() => toggleStrategy(mode.id)}
                     >
-                      <div className="flex items-center gap-2 mb-2">
-                        <input
-                          type="checkbox"
-                          className="w-4 h-4 text-primary-500 border-gray-300 rounded focus:ring-primary-500"
-                          checked={selectedStrategies.includes(strategy.name)}
-                          onChange={() => {}} // Handled by parent div onClick
-                        />
-                        <span className="font-semibold text-text-primary">{strategy.name}</span>
+                      <div className="flex items-start gap-3 mb-3">
+                        <div className={`w-10 h-10 rounded-lg flex items-center justify-center text-xl ${
+                          isSelected ? iconColorClasses[mode.color] : 'bg-gray-100'
+                        }`}>
+                          {mode.icon}
+                        </div>
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="checkbox"
+                              className="w-4 h-4 text-primary-500 border-gray-300 rounded focus:ring-primary-500"
+                              checked={isSelected}
+                              onChange={() => {}} // Handled by parent div onClick
+                            />
+                            <span className="font-semibold text-text-primary">{mode.name}</span>
+                          </div>
+                        </div>
                       </div>
-                      <p className="text-sm text-text-secondary">
-                        {strategy.strategy_type === 'swing_trading' ? '波段交易' : '趋势跟踪'}
+                      <p className="text-xs text-text-secondary mb-2">
+                        {mode.description}
                       </p>
-                      <div className="mt-2 text-xs text-text-secondary">
-                        <span className={strategy.enabled ? 'text-profit' : 'text-gray-500'}>
-                          {strategy.enabled ? '已启用' : '已停用'}
-                        </span>
-                        <span className="mx-2">•</span>
-                        <span>持仓: {strategy.num_positions || 0}</span>
+                      <div className="flex flex-wrap gap-1">
+                        {mode.components.map((comp) => (
+                          <span
+                            key={comp}
+                            className="px-2 py-0.5 bg-white border border-gray-200 rounded text-xs text-text-secondary"
+                          >
+                            {comp}
+                          </span>
+                        ))}
                       </div>
                     </div>
-                  ))}
-                </div>
-                <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-800">
-                  <strong>提示：</strong>
-                  已选择 <strong>{selectedStrategies.length}</strong> 个策略。点击策略卡片进行选择/取消。
-                  选择的策略将在自动交易中同时运行。
-                </div>
-              </>
-            ) : (
-              <div className="text-center py-12 text-text-secondary">
-                <Activity size={48} className="mx-auto mb-3 text-gray-300" />
-                <p>暂无可用策略</p>
-                <p className="text-sm mt-2">
-                  请前往"训练中心"创建和训练策略
-                </p>
+                  );
+                })}
               </div>
-            )}
+
+              <div className="p-3 bg-green-50 border border-green-200 rounded-lg text-sm text-green-800">
+                <strong>已选择 {selectedStrategies.length} 个策略模式</strong>
+                {selectedStrategies.length > 1 && (
+                  <span className="ml-2">
+                    - 将同时运行并进行性能对照
+                  </span>
+                )}
+                {selectedStrategies.length === 0 && (
+                  <span className="ml-2 text-green-700">
+                    - 请至少选择一个策略模式
+                  </span>
+                )}
+              </div>
+            </div>
           </Card>
 
           {/* Risk Control */}
