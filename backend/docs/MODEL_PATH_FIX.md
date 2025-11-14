@@ -18,16 +18,30 @@ def __init__(self, model_path: str = 'models/ppo_trading_agent.zip'):
 def __init__(self, model_path: str = 'models/production/final_model.zip'):
 ```
 
-### 2. `trading/strategy_factory.py`
+### 2. `trading/strategy_factory.py` (3处)
 
 **修改前**:
 ```python
-rl_model_path: str = "models/production/ppo_trading_agent.zip"
+# Line 94
+def __init__(self, mode_id: str, rl_model_path: str = "models/production/ppo_trading_agent.zip"):
+
+# Line 255
+def create_strategy(mode_id: str, rl_model_path: str = "models/production/ppo_trading_agent.zip"):
+
+# Line 280
+def create_multi_strategies(mode_ids: List[str], rl_model_path: str = "models/production/ppo_trading_agent.zip"):
 ```
 
 **修改后**:
 ```python
-rl_model_path: str = "models/production/final_model.zip"
+# Line 94
+def __init__(self, mode_id: str, rl_model_path: str = "models/production/final_model.zip"):
+
+# Line 255
+def create_strategy(mode_id: str, rl_model_path: str = "models/production/final_model.zip"):
+
+# Line 280
+def create_multi_strategies(mode_ids: List[str], rl_model_path: str = "models/production/final_model.zip"):
 ```
 
 ### 3. `api/routers/strategies.py`
@@ -84,18 +98,25 @@ strategy = RLStrategy(model_path="models/production/final_model.zip")
 
 ## Git提交
 
+共计3个提交修复此问题：
+
 ```
+commit 21d350f
+fix(trading): 修复strategy_factory中遗漏的模型路径
+- 更新 create_strategy 方法的默认参数
+- 更新 create_multi_strategies 方法的默认参数
+
 commit bf998b8
-Author: Claude Code
-
 fix(trading): 更正RL模型路径为final_model.zip
-
 - 修复 RLStrategy 默认模型路径
 - 修复 strategies.py 中的模型路径
 - 更新文档中的模型路径引用
 
-统一使用正确的模型文件: models/production/final_model.zip
+commit 2397fe9
+docs: 添加RL模型路径修复文档
 ```
+
+所有核心文件中的模型路径已全部更正完成。
 
 ---
 
