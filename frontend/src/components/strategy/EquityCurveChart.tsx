@@ -12,7 +12,12 @@ import {
   Scatter,
   ComposedChart,
 } from 'recharts';
-import type { EquityCurvePoint } from '@/types/strategy';
+
+interface EquityCurvePoint {
+  date: string;
+  value: number;
+  daily_return?: number;
+}
 
 interface Trade {
   date: string;
@@ -40,33 +45,29 @@ export function EquityCurveChart({
   trades = [],
   className = '',
 }: EquityCurveChartProps) {
-  // 格式化数据并合并交易点
-  const { chartData, tradePoints } = useMemo(() => {
-    // 🔍 Debug: 检查原始数据
-    console.log('🔍 EquityCurveChart - Raw data:', data);
-    console.log('🔍 EquityCurveChart - Trades:', trades);
+  // 处理数据：直接使用原始数据，不做复杂转换
+  const { chartData, tradePoints, yAxisDomain } = useMemo(() => {
+    if (!data || data.length === 0) {
+      return { chartData: [], tradePoints: [], yAxisDomain: [initialCapital * 0.9, initialCapital * 1.1] };
+    }
 
-    const formattedData = data.map((point) => ({
-      date: point.date, // 🔧 使用原始日期字符串，不要格式化
-      fullDate: point.date,
-      value: point.value,
+    // 简单映射：确保每个点都有必需的字段
+    const mappedData = data.map((point) => ({
+      date: point.date,  // 保持原始日期格式 "2025-01-02"
+      value: point.value, // 账户总价值
       return_pct: ((point.value - initialCapital) / initialCapital) * 100,
     }));
 
-    // 将交易点映射到资金曲线上
-    const tradeMarkers = trades.map((trade) => {
-      // 找到对应日期的资金值
+    // 映射交易点
+    const mappedTrades = trades.map((trade) => {
       const matchingPoint = data.find(p => p.date === trade.date);
-      if (!matchingPoint) {
-        console.warn(`⚠️ No matching equity point for trade on ${trade.date}`);
-        return null;
-      }
+      if (!matchingPoint) return null;
 
       return {
-        date: trade.date, // 🔧 使用原始日期字符串
-        fullDate: trade.date,
+        date: trade.date,
         value: matchingPoint.value,
         return_pct: ((matchingPoint.value - initialCapital) / initialCapital) * 100,
+        // 交易信息
         action: trade.action,
         ticker: trade.ticker,
         shares: trade.shares,
@@ -77,65 +78,26 @@ export function EquityCurveChart({
         total_cost: trade.total_cost,
         total_revenue: trade.total_revenue,
       };
-    }).filter(Boolean); // 过滤掉null值
+    }).filter(Boolean);
 
-    console.log('🔍 EquityCurveChart - Formatted chartData:', formattedData);
-    console.log('🔍 EquityCurveChart - Trade markers:', tradeMarkers);
-
-    // 🔍 分析数据分布
-    const values = formattedData.map(d => d.value);
-    const count100k = values.filter(v => v === 100000).length;
-    const firstChangeIdx = values.findIndex(v => v !== 100000);
-    console.log('🔍 Data Analysis:', {
-      totalPoints: values.length,
-      points_at_100k: count100k,
-      percentage_at_100k: `${(count100k/values.length*100).toFixed(1)}%`,
-      firstChangeAt: firstChangeIdx >= 0 ? `Day ${firstChangeIdx} (${formattedData[firstChangeIdx].date})` : 'No change',
-      valueRange: `${Math.min(...values).toFixed(2)} - ${Math.max(...values).toFixed(2)}`
-    });
-
-    // 🔧 过滤空仓期：如果前面有超过10%的数据点都是初始资金，则只保留第一个点和后续有变化的数据
-    let filteredData = formattedData;
-    if (firstChangeIdx > 0 && firstChangeIdx / formattedData.length > 0.1) {
-      // 保留：第一个点（初始资金） + 有变化的数据
-      filteredData = [
-        formattedData[0], // 保留起点
-        ...formattedData.slice(firstChangeIdx) // 保留有变化的部分
-      ];
-      console.log(`🔧 Filtered out ${firstChangeIdx - 1} days of no-trading period (${formattedData[firstChangeIdx - 1].date})`);
-      console.log(`🔧 Chart now shows: ${filteredData.length} points (from ${filteredData[0].date} to ${filteredData[filteredData.length - 1].date})`);
-    }
-
-    return { chartData: filteredData, tradePoints: tradeMarkers };
-  }, [data, trades, initialCapital]);
-
-  // 计算最大值和最小值用于Y轴范围
-  const { minValue, maxValue } = useMemo(() => {
-    if (chartData.length === 0) {
-      return { minValue: initialCapital * 0.9, maxValue: initialCapital * 1.1 };
-    }
-
-    const values = chartData.map((d) => d.value);
+    // 计算Y轴范围
+    const values = mappedData.map(d => d.value);
     const min = Math.min(...values);
     const max = Math.max(...values);
     const padding = (max - min) * 0.1 || initialCapital * 0.1;
-
-    console.log('🔍 Y-axis calculation:', {
-      values: values.length,
-      min,
-      max,
-      padding,
-      finalMin: Math.max(0, min - padding),
-      finalMax: max + padding
-    });
+    const domain = [
+      Math.max(0, min - padding),
+      max + padding
+    ];
 
     return {
-      minValue: Math.max(0, min - padding),
-      maxValue: max + padding,
+      chartData: mappedData,
+      tradePoints: mappedTrades,
+      yAxisDomain: domain
     };
-  }, [chartData, initialCapital]);
+  }, [data, trades, initialCapital]);
 
-  // 格式化数字为货币
+  // 格式化货币
   const formatCurrency = (value: number) => {
     return `¥${value.toLocaleString('zh-CN', { maximumFractionDigits: 0 })}`;
   };
@@ -145,7 +107,7 @@ export function EquityCurveChart({
     return `${value >= 0 ? '+' : ''}${value.toFixed(2)}%`;
   };
 
-  // 🔧 格式化X轴日期显示
+  // 格式化X轴日期显示
   const formatXAxisDate = (dateStr: string) => {
     try {
       const date = new Date(dateStr);
@@ -157,90 +119,80 @@ export function EquityCurveChart({
 
   // 自定义 Tooltip
   const CustomTooltip = ({ active, payload }: any) => {
-    if (active && payload && payload.length) {
-      // Recharts会返回所有数据点，我们需要找到正确的数据
-      // 如果是Scatter点，它会有action字段
-      let data = payload[0].payload;
+    if (!active || !payload || payload.length === 0) return null;
 
-      // 尝试从payload中找到有action的数据（交易点）
-      const tradePayload = payload.find((p: any) => p.payload && p.payload.action);
-      if (tradePayload) {
-        data = tradePayload.payload;
-      }
-
-      const isProfit = data.value >= initialCapital;
-      const isTrade = data.action !== undefined;
-
-      console.log('🔍 Tooltip data:', data, 'isTrade:', isTrade);
-
-      return (
-        <div className="bg-white border border-gray-200 rounded-lg shadow-lg p-3">
-          <p className="text-sm text-text-secondary mb-2">{data.fullDate}</p>
-          <div className="space-y-1">
-            <div className="flex justify-between gap-4">
-              <span className="text-sm text-text-secondary">资金:</span>
-              <span className="text-sm font-medium text-text-primary">
-                {formatCurrency(data.value)}
-              </span>
-            </div>
-            <div className="flex justify-between gap-4">
-              <span className="text-sm text-text-secondary">收益率:</span>
-              <span
-                className={`text-sm font-medium ${
-                  isProfit ? 'text-profit' : 'text-loss'
-                }`}
-              >
-                {formatReturn(data.return_pct)}
-              </span>
-            </div>
-
-            {/* 🆕 交易详情 */}
-            {isTrade && (
-              <>
-                <div className="border-t border-gray-100 my-2"></div>
-                <div className="flex justify-between gap-4">
-                  <span className="text-sm font-semibold text-text-primary">
-                    {data.action.includes('BUY') ? '📈 买入' : '📉 卖出'}
-                  </span>
-                  <span className="text-sm font-medium text-primary-600">
-                    {data.ticker}
-                  </span>
-                </div>
-                <div className="flex justify-between gap-4">
-                  <span className="text-xs text-text-secondary">价格:</span>
-                  <span className="text-xs font-medium text-text-primary">
-                    ¥{data.price?.toFixed(2) || 'N/A'}
-                  </span>
-                </div>
-                <div className="flex justify-between gap-4">
-                  <span className="text-xs text-text-secondary">数量:</span>
-                  <span className="text-xs font-medium text-text-primary">
-                    {data.shares?.toLocaleString() || 'N/A'} 股
-                  </span>
-                </div>
-                <div className="flex justify-between gap-4">
-                  <span className="text-xs text-text-secondary">金额:</span>
-                  <span className="text-xs font-medium text-text-primary">
-                    {data.total_cost
-                      ? `¥${data.total_cost.toLocaleString('zh-CN', { maximumFractionDigits: 2 })}`
-                      : data.total_revenue
-                      ? `¥${data.total_revenue.toLocaleString('zh-CN', { maximumFractionDigits: 2 })}`
-                      : 'N/A'}
-                  </span>
-                </div>
-                <div className="flex justify-between gap-4">
-                  <span className="text-xs text-text-secondary">手续费:</span>
-                  <span className="text-xs text-loss">
-                    ¥{data.commission?.toFixed(2) || 'N/A'}
-                  </span>
-                </div>
-              </>
-            )}
-          </div>
-        </div>
-      );
+    // 尝试找到交易点数据
+    let data = payload[0].payload;
+    const tradePayload = payload.find((p: any) => p.payload && p.payload.action);
+    if (tradePayload) {
+      data = tradePayload.payload;
     }
-    return null;
+
+    const isProfit = data.value >= initialCapital;
+    const isTrade = data.action !== undefined;
+
+    return (
+      <div className="bg-white border border-gray-200 rounded-lg shadow-lg p-3">
+        <p className="text-sm text-text-secondary mb-2">{data.date}</p>
+        <div className="space-y-1">
+          <div className="flex justify-between gap-4">
+            <span className="text-sm text-text-secondary">资金:</span>
+            <span className="text-sm font-medium text-text-primary">
+              {formatCurrency(data.value)}
+            </span>
+          </div>
+          <div className="flex justify-between gap-4">
+            <span className="text-sm text-text-secondary">收益率:</span>
+            <span className={`text-sm font-medium ${isProfit ? 'text-profit' : 'text-loss'}`}>
+              {formatReturn(data.return_pct || 0)}
+            </span>
+          </div>
+
+          {/* 交易详情 */}
+          {isTrade && (
+            <>
+              <div className="border-t border-gray-100 my-2"></div>
+              <div className="flex justify-between gap-4">
+                <span className="text-sm font-semibold text-text-primary">
+                  {data.action.includes('BUY') ? '📈 买入' : '📉 卖出'}
+                </span>
+                <span className="text-sm font-medium text-primary-600">
+                  {data.ticker}
+                </span>
+              </div>
+              <div className="flex justify-between gap-4">
+                <span className="text-xs text-text-secondary">价格:</span>
+                <span className="text-xs font-medium text-text-primary">
+                  ¥{data.price?.toFixed(2) || 'N/A'}
+                </span>
+              </div>
+              <div className="flex justify-between gap-4">
+                <span className="text-xs text-text-secondary">数量:</span>
+                <span className="text-xs font-medium text-text-primary">
+                  {data.shares?.toLocaleString() || 'N/A'} 股
+                </span>
+              </div>
+              <div className="flex justify-between gap-4">
+                <span className="text-xs text-text-secondary">金额:</span>
+                <span className="text-xs font-medium text-text-primary">
+                  {data.total_cost
+                    ? `¥${data.total_cost.toLocaleString('zh-CN', { maximumFractionDigits: 2 })}`
+                    : data.total_revenue
+                    ? `¥${data.total_revenue.toLocaleString('zh-CN', { maximumFractionDigits: 2 })}`
+                    : 'N/A'}
+                </span>
+              </div>
+              <div className="flex justify-between gap-4">
+                <span className="text-xs text-text-secondary">手续费:</span>
+                <span className="text-xs text-loss">
+                  ¥{data.commission?.toFixed(2) || 'N/A'}
+                </span>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+    );
   };
 
   if (chartData.length === 0) {
@@ -251,19 +203,9 @@ export function EquityCurveChart({
     );
   }
 
-  // 确定线条颜色（基于最终收益）
+  // 确定线条颜色
   const finalValue = chartData[chartData.length - 1]?.value || initialCapital;
   const lineColor = finalValue >= initialCapital ? '#16a34a' : '#dc2626';
-
-  // 🔍 调试：检查渲染前的最终数据
-  console.log('🔍 Chart rendering with:', {
-    dataPoints: chartData.length,
-    firstValue: chartData[0]?.value,
-    lastValue: chartData[chartData.length - 1]?.value,
-    lineColor,
-    yAxisMin: minValue,
-    yAxisMax: maxValue
-  });
 
   return (
     <div className={className}>
@@ -280,11 +222,10 @@ export function EquityCurveChart({
             tickFormatter={formatXAxisDate}
           />
           <YAxis
-            domain={['dataMin - 10000', 'dataMax + 10000']}
+            domain={yAxisDomain}
             tick={{ fontSize: 12, fill: '#6b7280' }}
             stroke="#9ca3af"
             tickFormatter={formatCurrency}
-            scale="linear"
           />
           <Tooltip content={<CustomTooltip />} />
           <Legend
@@ -307,14 +248,13 @@ export function EquityCurveChart({
 
           {/* 资金曲线 */}
           <Line
-            type="linear"
+            type="monotone"
             dataKey="value"
             stroke={lineColor}
             strokeWidth={2}
             dot={false}
             name="账户价值"
             activeDot={{ r: 6, strokeWidth: 0 }}
-            isAnimationActive={false}
           />
 
           {/* 买卖点标记 */}
@@ -332,11 +272,10 @@ export function EquityCurveChart({
 
                 return (
                   <g>
-                    {/* 三角形标记 */}
                     <path
                       d={isBuy
-                        ? `M ${cx} ${cy - 8} L ${cx - 6} ${cy + 4} L ${cx + 6} ${cy + 4} Z`  // 向上三角
-                        : `M ${cx} ${cy + 8} L ${cx - 6} ${cy - 4} L ${cx + 6} ${cy - 4} Z`  // 向下三角
+                        ? `M ${cx} ${cy - 8} L ${cx - 6} ${cy + 4} L ${cx + 6} ${cy + 4} Z`
+                        : `M ${cx} ${cy + 8} L ${cx - 6} ${cy - 4} L ${cx + 6} ${cy - 4} Z`
                       }
                       fill={color}
                       stroke="#ffffff"
