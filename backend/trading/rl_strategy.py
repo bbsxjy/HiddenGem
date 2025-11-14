@@ -27,6 +27,7 @@ class RLStrategy(BaseStrategy):
         self.model_path = model_path
         self.model = None
         self.has_position = False
+        self.entry_price = 0.0  # 记录买入价格用于计算未实现盈亏
         
         if SB3_AVAILABLE and os.path.exists(model_path):
             try:
@@ -57,21 +58,36 @@ class RLStrategy(BaseStrategy):
             return self._simple_fallback(current_data, portfolio_state)
 
     def _prepare_observation(self, current_data: pd.DataFrame, portfolio_state: Dict[str, Any]) -> np.ndarray:
+        """准备观察空间，匹配训练环境的14维"""
         df = current_data.copy()
+
+        # 计算技术指标
         delta = df['close'].diff()
         gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
         loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
         rs = gain / loss
         df['rsi'] = 100 - (100 / (1 + rs))
+
         ema12 = df['close'].ewm(span=12, adjust=False).mean()
         ema26 = df['close'].ewm(span=26, adjust=False).mean()
         df['macd'] = ema12 - ema26
+
         df['ma10'] = df['close'].rolling(window=10).mean()
+        df['ma20'] = df['close'].rolling(window=20).mean()
+
+        # ATR (Average True Range)
+        df['high_low'] = df['high'] - df['low']
+        df['high_close'] = np.abs(df['high'] - df['close'].shift())
+        df['low_close'] = np.abs(df['low'] - df['close'].shift())
+        df['true_range'] = df[['high_low', 'high_close', 'low_close']].max(axis=1)
+        df['atr'] = df['true_range'].rolling(window=14).mean()
+
         df.fillna(0, inplace=True)
-        
+
         latest = df.iloc[-1]
         close = latest['close']
-        
+
+        # ===== 市场特征 (5维) =====
         market_features = np.array([
             close / 100.0,
             latest['high'] / 100.0,
@@ -79,24 +95,47 @@ class RLStrategy(BaseStrategy):
             latest['volume'] / 1e6,
             (latest['close'] - latest['open']) / latest['open'] if latest['open'] > 0 else 0
         ], dtype=np.float32)
-        
+
+        # ===== 技术指标 (5维) =====
         technical_features = np.array([
             latest['rsi'] / 100.0,
             np.tanh(latest['macd'] / close) if close > 0 else 0,
-            (latest['close'] - latest['ma10']) / latest['ma10'] if latest['ma10'] > 0 else 0
+            (close - latest['ma10']) / latest['ma10'] if latest['ma10'] > 0 else 0,
+            (close - latest['ma20']) / latest['ma20'] if latest['ma20'] > 0 else 0,
+            latest['atr'] / close if close > 0 else 0
         ], dtype=np.float32)
-        
+
+        # ===== 账户状态 (3维) =====
         cash = portfolio_state.get('cash', 100000)
         total_equity = portfolio_state.get('total_equity', 100000)
+
+        # 计算未实现盈亏
+        unrealized_pnl = 0.0
+        if self.has_position and hasattr(self, 'entry_price') and self.entry_price > 0:
+            unrealized_pnl = (close - self.entry_price) / self.entry_price
+
         account_features = np.array([
             cash / total_equity if total_equity > 0 else 1.0,
-            1.0 - (cash / total_equity) if total_equity > 0 else 0.0
+            1.0 - (cash / total_equity) if total_equity > 0 else 0.0,
+            unrealized_pnl
         ], dtype=np.float32)
-        
-        observation = np.concatenate([market_features, technical_features, account_features])
+
+        # ===== T+1状态 (1维) =====
+        # 简化版本：如果有持仓就是可以卖出的（实际应用中需要跟踪买入日期）
+        can_sell_ratio = 1.0 if self.has_position else 0.0
+        t1_features = np.array([can_sell_ratio], dtype=np.float32)
+
+        # ===== 组合观察 (14维) =====
+        observation = np.concatenate([
+            market_features,     # 5维
+            technical_features,  # 5维
+            account_features,    # 3维
+            t1_features         # 1维
+        ])
+
         observation = np.nan_to_num(observation, nan=0.0, posinf=1.0, neginf=-1.0)
         observation = np.clip(observation, -10, 10)
-        
+
         return observation
 
     def _action_to_signal(self, action: int) -> Dict[str, Any]:
@@ -129,8 +168,12 @@ class RLStrategy(BaseStrategy):
         side = trade_info.get('side')
         if side == 'buy':
             self.has_position = True
+            # 记录买入价格
+            self.entry_price = trade_info.get('price', 0.0)
         elif side == 'sell':
             self.has_position = False
+            self.entry_price = 0.0
 
     def reset(self):
         self.has_position = False
+        self.entry_price = 0.0

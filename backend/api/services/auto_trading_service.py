@@ -136,9 +136,9 @@ class AutoTradingService:
                 for symbol in symbols:
                     try:
                         # 获取实时价格
-                        realtime = realtime_data_service.get_realtime_data(symbol)
-                        if realtime and 'current_price' in realtime:
-                            market_prices[symbol] = realtime['current_price']
+                        realtime = realtime_data_service.get_realtime_quote(symbol)
+                        if realtime and 'current' in realtime:
+                            market_prices[symbol] = realtime['current']
                         else:
                             market_prices[symbol] = 15.0  # 回退价格
 
