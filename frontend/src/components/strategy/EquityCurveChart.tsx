@@ -42,6 +42,10 @@ export function EquityCurveChart({
 }: EquityCurveChartProps) {
   // 格式化数据并合并交易点
   const { chartData, tradePoints } = useMemo(() => {
+    // 🔍 Debug: 检查原始数据
+    console.log('🔍 EquityCurveChart - Raw data:', data);
+    console.log('🔍 EquityCurveChart - Trades:', trades);
+
     const formattedData = data.map((point) => ({
       date: new Date(point.date).toLocaleDateString('zh-CN', {
         month: 'numeric',
@@ -56,7 +60,10 @@ export function EquityCurveChart({
     const tradeMarkers = trades.map((trade) => {
       // 找到对应日期的资金值
       const matchingPoint = data.find(p => p.date === trade.date);
-      if (!matchingPoint) return null;
+      if (!matchingPoint) {
+        console.warn(`⚠️ No matching equity point for trade on ${trade.date}`);
+        return null;
+      }
 
       const formattedDate = new Date(trade.date).toLocaleDateString('zh-CN', {
         month: 'numeric',
@@ -78,6 +85,9 @@ export function EquityCurveChart({
         total_revenue: trade.total_revenue,
       };
     }).filter(Boolean); // 过滤掉null值
+
+    console.log('🔍 EquityCurveChart - Formatted chartData:', formattedData);
+    console.log('🔍 EquityCurveChart - Trade markers:', tradeMarkers);
 
     return { chartData: formattedData, tradePoints: tradeMarkers };
   }, [data, trades, initialCapital]);
@@ -112,11 +122,20 @@ export function EquityCurveChart({
   // 自定义 Tooltip
   const CustomTooltip = ({ active, payload }: any) => {
     if (active && payload && payload.length) {
-      const data = payload[0].payload;
-      const isProfit = data.value >= initialCapital;
+      // Recharts会返回所有数据点，我们需要找到正确的数据
+      // 如果是Scatter点，它会有action字段
+      let data = payload[0].payload;
 
-      // 检查是否是交易点
+      // 尝试从payload中找到有action的数据（交易点）
+      const tradePayload = payload.find((p: any) => p.payload && p.payload.action);
+      if (tradePayload) {
+        data = tradePayload.payload;
+      }
+
+      const isProfit = data.value >= initialCapital;
       const isTrade = data.action !== undefined;
+
+      console.log('🔍 Tooltip data:', data, 'isTrade:', isTrade);
 
       return (
         <div className="bg-white border border-gray-200 rounded-lg shadow-lg p-3">
@@ -154,13 +173,13 @@ export function EquityCurveChart({
                 <div className="flex justify-between gap-4">
                   <span className="text-xs text-text-secondary">价格:</span>
                   <span className="text-xs font-medium text-text-primary">
-                    ¥{data.price.toFixed(2)}
+                    ¥{data.price?.toFixed(2) || 'N/A'}
                   </span>
                 </div>
                 <div className="flex justify-between gap-4">
                   <span className="text-xs text-text-secondary">数量:</span>
                   <span className="text-xs font-medium text-text-primary">
-                    {data.shares.toLocaleString()} 股
+                    {data.shares?.toLocaleString() || 'N/A'} 股
                   </span>
                 </div>
                 <div className="flex justify-between gap-4">
@@ -176,7 +195,7 @@ export function EquityCurveChart({
                 <div className="flex justify-between gap-4">
                   <span className="text-xs text-text-secondary">手续费:</span>
                   <span className="text-xs text-loss">
-                    ¥{data.commission.toFixed(2)}
+                    ¥{data.commission?.toFixed(2) || 'N/A'}
                   </span>
                 </div>
               </>

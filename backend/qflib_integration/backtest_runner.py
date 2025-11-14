@@ -364,6 +364,10 @@ class QFLibBacktestRunner:
                     'cash': cash
                 })
 
+                # 🔍 DEBUG: 记录前几天的资金变化
+                if len(equity_curve) <= 5:
+                    logger.info(f"🔍 [EQUITY] Day {len(equity_curve)}: {current_date.date()} | Portfolio: ¥{portfolio_value:,.2f} | Cash: ¥{cash:,.2f} | Positions: {dict(positions)}")
+
             except Exception as e:
                 logger.warning(f"Error on {current_date}: {e}")
                 continue
@@ -420,6 +424,13 @@ class QFLibBacktestRunner:
         logger.info(f" Win Rate: {win_rate*100:.1f}%")
         logger.info(f" Avg Holding Days: {avg_holding_days:.1f} days")
         logger.info(f" Total Trades: {len(trades)}")
+
+        # 🔍 DEBUG: 打印equity_curve样本数据
+        logger.info(f"🔍 [EQUITY CURVE] Total points: {len(equity_df)}")
+        if len(equity_df) > 0:
+            logger.info(f"🔍 [EQUITY CURVE] First 3 points:\n{equity_df.head(3)}")
+            logger.info(f"🔍 [EQUITY CURVE] Last 3 points:\n{equity_df.tail(3)}")
+            logger.info(f"🔍 [EQUITY CURVE] Portfolio value range: ¥{equity_df['portfolio_value'].min():,.2f} - ¥{equity_df['portfolio_value'].max():,.2f}")
 
         return results
 
