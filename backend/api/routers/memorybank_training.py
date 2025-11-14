@@ -157,9 +157,9 @@ async def run_memorybank_training_async(
 
         memory_bank = EpisodicMemoryBank(
             persist_directory=str(episode_dir),
-            embedding_model=config.embedding_model,
-            max_capacity=config.memory_capacity
+            embedding_model=config.embedding_model
         )
+        # Note: max_capacity不是EpisodicMemoryBank的参数，由ChromaDB自动管理容量
 
         # 模拟训练过程（实际应该从历史数据中提取案例）
         # 这里先创建一个简单的训练流程框架
