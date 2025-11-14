@@ -45,6 +45,9 @@ class MemoryBankTrainingConfigRequest(BaseModel):
     start_date: date = Field(..., description="开始日期")
     end_date: date = Field(..., description="结束日期")
 
+    # 交易配置
+    holding_days: int = Field(5, description="持仓天数", ge=1, le=30)
+
     # MemoryBank配置
     memory_capacity: int = Field(1000, description="记忆库容量")
     update_frequency: UpdateFrequency = Field(UpdateFrequency.DAILY, description="更新频率")
@@ -62,6 +65,7 @@ class MemoryBankTrainingConfigRequest(BaseModel):
                 "symbols": ["600519", "000001", "300750"],
                 "start_date": "2020-01-01",
                 "end_date": "2023-12-31",
+                "holding_days": 5,
                 "memory_capacity": 1000,
                 "update_frequency": "daily",
                 "similarity_threshold": 0.8,

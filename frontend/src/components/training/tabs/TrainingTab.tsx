@@ -76,15 +76,30 @@ export function TrainingTab() {
   const [updateFrequency, setUpdateFrequency] = useState<'daily' | 'weekly'>('daily');
   const [similarityThreshold, setSimilarityThreshold] = useState(0.8);
 
-  // Fetch training status
-  const { data: trainingStatusData } = useQuery({
-    queryKey: ['trainingStatus'],
+  // Fetch RL training status
+  const { data: rlTrainingStatusData } = useQuery({
+    queryKey: ['rlTrainingStatus'],
     queryFn: async () => {
       const response = await axios.get(`${API_BASE_URL}/api/v1/rl/training/status`);
       return response.data.data as TrainingStatusResponse;
     },
     refetchInterval: 10000,
+    enabled: modelType === 'rl_production',
   });
+
+  // Fetch MemoryBank training status
+  const { data: memoryBankStatusData } = useQuery({
+    queryKey: ['memoryBankStatus'],
+    queryFn: async () => {
+      const response = await axios.get(`${API_BASE_URL}/api/v1/memorybank/training/status`);
+      return response.data.data;
+    },
+    refetchInterval: 5000,
+    enabled: modelType === 'memorybank',
+  });
+
+  // 根据模型类型选择正确的训练状态
+  const trainingStatusData = modelType === 'memorybank' ? memoryBankStatusData : rlTrainingStatusData;
 
   const runningTrainingId = trainingStatusData?.trainings?.find(t => t.status === 'running')?.training_id;
 
@@ -134,6 +149,7 @@ export function TrainingTab() {
           symbols: symbols.split(',').map(s => s.trim()).filter(Boolean),
           start_date: trainStartDate,
           end_date: trainEndDate,
+          holding_days: 5,  // 默认持仓5天
           memory_capacity: memoryCapacity,
           update_frequency: updateFrequency,
           similarity_threshold: similarityThreshold,
@@ -156,21 +172,32 @@ export function TrainingTab() {
       // Find the running training
       const currentRunning = trainingStatusData?.trainings?.find(t => t.status === 'running');
       if (currentRunning) {
-        const response = await axios.post(`${API_BASE_URL}/api/v1/rl/training/stop/${currentRunning.training_id}`);
+        const endpoint = modelType === 'memorybank'
+          ? `${API_BASE_URL}/api/v1/memorybank/training/stop/${currentRunning.training_id}`
+          : `${API_BASE_URL}/api/v1/rl/training/stop/${currentRunning.training_id}`;
+        const response = await axios.post(endpoint);
         return response.data;
       }
       throw new Error('No running training to stop');
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['trainingStatus'] });
+      queryClient.invalidateQueries({ queryKey: ['rlTrainingStatus'] });
+      queryClient.invalidateQueries({ queryKey: ['memoryBankStatus'] });
     },
   });
 
   const isTraining = (trainingStatusData?.running || 0) > 0;
   const runningTraining = trainingStatusData?.trainings?.find(t => t.status === 'running');
   const progress = runningTraining?.progress?.progress_pct || 0;  // 使用API返回的实际进度
-  const currentTimesteps = runningTraining?.progress?.timesteps || 0;
-  const runningTotalTimesteps = runningTraining?.config?.total_timesteps || 0;
+
+  // 根据模型类型提取不同的进度指标
+  const currentProgress = modelType === 'memorybank'
+    ? runningTraining?.progress?.processed_episodes || 0
+    : runningTraining?.progress?.timesteps || 0;
+  const totalProgress = modelType === 'memorybank'
+    ? runningTraining?.progress?.total_episodes || 0
+    : runningTraining?.config?.total_timesteps || 0;
+  const progressUnit = modelType === 'memorybank' ? '个案例' : '步';
 
   // 渲染模型特定参数配置
   const renderModelConfig = () => {
@@ -464,7 +491,7 @@ export function TrainingTab() {
               <div className="flex items-center justify-between mb-2">
                 <span className="text-sm text-text-secondary">训练进度</span>
                 <span className="text-sm font-medium text-text-primary">
-                  {currentTimesteps.toLocaleString()} / {runningTotalTimesteps.toLocaleString()} 步 ({progress.toFixed(1)}%)
+                  {currentProgress.toLocaleString()} / {totalProgress.toLocaleString()} {progressUnit} ({progress.toFixed(1)}%)
                 </span>
               </div>
               <div className="w-full bg-gray-200 rounded-full h-3">
@@ -475,14 +502,26 @@ export function TrainingTab() {
               </div>
               <div className="flex justify-between mt-1">
                 <span className="text-xs text-text-secondary">
-                  {runningTraining.progress?.ep_rew_mean !== null && runningTraining.progress?.ep_rew_mean !== undefined
-                    ? `奖励: ${runningTraining.progress.ep_rew_mean.toFixed(2)}`
-                    : '等待数据...'}
+                  {modelType === 'memorybank' ? (
+                    runningTraining.progress?.avg_similarity
+                      ? `平均相似度: ${(runningTraining.progress.avg_similarity * 100).toFixed(1)}%`
+                      : '等待数据...'
+                  ) : (
+                    runningTraining.progress?.ep_rew_mean !== null && runningTraining.progress?.ep_rew_mean !== undefined
+                      ? `奖励: ${runningTraining.progress.ep_rew_mean.toFixed(2)}`
+                      : '等待数据...'
+                  )}
                 </span>
                 <span className="text-xs text-text-secondary">
-                  {runningTraining.progress?.fps
-                    ? `速度: ${runningTraining.progress.fps.toFixed(0)} it/s`
-                    : ''}
+                  {modelType === 'memorybank' ? (
+                    runningTraining.progress?.stored_episodes
+                      ? `已存储: ${runningTraining.progress.stored_episodes}个`
+                      : ''
+                  ) : (
+                    runningTraining.progress?.fps
+                      ? `速度: ${runningTraining.progress.fps.toFixed(0)} it/s`
+                      : ''
+                  )}
                 </span>
               </div>
             </div>
@@ -502,12 +541,16 @@ export function TrainingTab() {
               <div className="bg-white p-3 rounded-lg border border-gray-200">
                 <div className="flex items-center gap-2 text-xs text-text-secondary mb-1">
                   <TrendingUp size={14} className="text-profit" />
-                  平均奖励
+                  {modelType === 'memorybank' ? '已存储案例' : '平均奖励'}
                 </div>
                 <div className="text-lg font-bold text-text-primary">
-                  {runningTraining.progress?.ep_rew_mean !== null && runningTraining.progress?.ep_rew_mean !== undefined
-                    ? runningTraining.progress.ep_rew_mean.toFixed(2)
-                    : 'N/A'}
+                  {modelType === 'memorybank' ? (
+                    runningTraining.progress?.stored_episodes || 0
+                  ) : (
+                    runningTraining.progress?.ep_rew_mean !== null && runningTraining.progress?.ep_rew_mean !== undefined
+                      ? runningTraining.progress.ep_rew_mean.toFixed(2)
+                      : 'N/A'
+                  )}
                 </div>
               </div>
 
@@ -536,8 +579,8 @@ export function TrainingTab() {
               </div>
             </div>
 
-            {/* Training Charts */}
-            {metricsData?.metrics && metricsData.metrics.length > 0 && (
+            {/* Training Charts - 仅RL训练显示 */}
+            {modelType === 'rl_production' && metricsData?.metrics && metricsData.metrics.length > 0 && (
               <div className="space-y-4 mt-6">
                 <div className="flex items-center gap-2 text-sm font-medium text-text-primary">
                   <Activity size={16} className="text-primary-500" />
@@ -675,6 +718,78 @@ export function TrainingTab() {
                     </LineChart>
                   </ResponsiveContainer>
                 </div>
+              </div>
+            )}
+
+            {/* MemoryBank Statistics - 仅MemoryBank训练显示 */}
+            {modelType === 'memorybank' && runningTraining.progress && (
+              <div className="space-y-4 mt-6">
+                <div className="flex items-center gap-2 text-sm font-medium text-text-primary">
+                  <Database size={16} className="text-purple-500" />
+                  记忆库统计
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <Card padding="md">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm text-text-secondary mb-1">已处理案例</p>
+                        <p className="text-2xl font-bold text-text-primary">
+                          {runningTraining.progress.processed_episodes || 0}
+                        </p>
+                      </div>
+                      <div className="w-12 h-12 rounded-full bg-blue-100 flex items-center justify-center">
+                        <Activity className="text-primary-500" size={24} />
+                      </div>
+                    </div>
+                  </Card>
+
+                  <Card padding="md">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm text-text-secondary mb-1">已存储案例</p>
+                        <p className="text-2xl font-bold text-profit">
+                          {runningTraining.progress.stored_episodes || 0}
+                        </p>
+                      </div>
+                      <div className="w-12 h-12 rounded-full bg-green-100 flex items-center justify-center">
+                        <Database className="text-profit" size={24} />
+                      </div>
+                    </div>
+                  </Card>
+
+                  <Card padding="md">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm text-text-secondary mb-1">平均相似度</p>
+                        <p className="text-2xl font-bold text-purple-600">
+                          {runningTraining.progress.avg_similarity
+                            ? `${(runningTraining.progress.avg_similarity * 100).toFixed(1)}%`
+                            : 'N/A'}
+                        </p>
+                      </div>
+                      <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
+                        <BarChart3 className="text-purple-600" size={24} />
+                      </div>
+                    </div>
+                  </Card>
+                </div>
+
+                {runningTraining.progress.memory_usage_mb && (
+                  <Card padding="md" className="bg-purple-50 border-purple-200">
+                    <div className="flex items-center gap-3">
+                      <Database className="text-purple-600" size={20} />
+                      <div>
+                        <p className="text-sm font-medium text-purple-900">
+                          内存占用: {runningTraining.progress.memory_usage_mb.toFixed(2)} MB
+                        </p>
+                        <p className="text-xs text-purple-700 mt-1">
+                          当前记忆库使用的内存空间
+                        </p>
+                      </div>
+                    </div>
+                  </Card>
+                )}
               </div>
             )}
           </div>
