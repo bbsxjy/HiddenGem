@@ -144,23 +144,27 @@ class AutoTradingService:
                             market_prices[symbol] = 15.0  # 回退价格
 
                         # 获取历史数据（用于RL策略）
-                        # 尝试从多个数据源获取
+                        # 使用 TradingAgents 的统一数据接口
                         hist_data = None
 
-                        # 方法1: 尝试使用 utils.data_fetch
                         try:
-                            from utils.data_fetch import get_stock_data
+                            from tradingagents.dataflows.interface import get_stock_data_dataframe
                             from datetime import datetime, timedelta
                             end_date = datetime.now().strftime('%Y%m%d')
                             start_date = (datetime.now() - timedelta(days=60)).strftime('%Y%m%d')
-                            hist_data = get_stock_data(symbol, start_date, end_date)
-                        except Exception as e1:
-                            logger.debug(f"[{symbol}] utils.data_fetch 失败: {e1}")
+                            hist_data = get_stock_data_dataframe(symbol, start_date, end_date)
 
-                        # 方法2: 如果失败，创建足够大的模拟数据（至少50行供技术指标计算）
-                        if hist_data is None or (hasattr(hist_data, 'empty') and hist_data.empty):
+                            if hist_data is not None and not hist_data.empty:
+                                stock_data[symbol] = hist_data
+                                logger.info(f"✓ [{symbol}] 获取历史数据成功（{len(hist_data)}行）")
+                            else:
+                                raise ValueError("返回数据为空")
+
+                        except Exception as e1:
+                            logger.warning(f"⚠️ [{symbol}] 真实数据获取失败: {e1}")
+
+                            # 创建足够大的模拟数据（至少50行供技术指标计算）
                             current_price = market_prices[symbol]
-                            # 生成50行模拟数据以支持所有技术指标计算（RSI需要14，MA20需要20，ATR需要14）
                             n_rows = 50
                             stock_data[symbol] = pd.DataFrame({
                                 'close': [current_price * (1 + np.random.randn() * 0.02) for _ in range(n_rows)],
@@ -170,9 +174,6 @@ class AutoTradingService:
                                 'volume': [1000000 * (1 + np.random.rand()) for _ in range(n_rows)]
                             })
                             logger.warning(f"⚠️ [{symbol}] 使用模拟历史数据（{n_rows}行）")
-                        else:
-                            stock_data[symbol] = hist_data
-                            logger.info(f"✓ [{symbol}] 获取历史数据成功（{len(hist_data)}行）")
 
                     except Exception as e:
                         logger.error(f"❌ [{symbol}] 获取数据失败: {e}")
