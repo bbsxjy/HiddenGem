@@ -21,6 +21,7 @@ import {
   Edit,
   Save,
   X,
+  BarChart3,
 } from 'lucide-react';
 import axios from 'axios';
 
