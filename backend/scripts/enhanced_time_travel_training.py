@@ -661,14 +661,52 @@ class EnhancedTimeTravelTrainer:
 
             logger.info("   Analysis complete")
 
-            # 3. Simulate trade execution
+            # 3. Simulate trade execution OR create hold outcome
             logger.info("Simulating trade...")
 
             outcome = self.simulate_trade(current_date, processed_signal)
 
+            # 🆕 Even if no trade (HOLD), we should still record this decision!
             if outcome is None:
-                logger.info("   No trade occurred, skipping")
-                return False
+                logger.info("   Signal: HOLD - creating hold outcome for memory")
+
+                # Create a "hold" outcome to record the decision
+                if MEMORY_AVAILABLE:
+                    # Get current price for reference
+                    current_data = self.get_day_data(current_date)
+                    current_price = float(current_data['close']) if current_data is not None else 0.0
+
+                    # Get price after holding_days for comparison
+                    future_date = current_date + timedelta(days=self.holding_days * 3)
+                    future_data = self.get_range_data(current_date, future_date)
+
+                    if future_data is not None and len(future_data) >= self.holding_days:
+                        future_price = float(future_data['close'].iloc[self.holding_days - 1])
+                        # Calculate what would have happened if we held
+                        hold_return = (future_price - current_price) / current_price if current_price > 0 else 0
+
+                        outcome = TradeOutcome(
+                            action='hold',
+                            position_size=0.0,
+                            entry_price=current_price,
+                            entry_date=current_date.strftime("%Y-%m-%d"),
+                            exit_price=future_price,
+                            exit_date=(current_date + timedelta(days=self.holding_days)).strftime("%Y-%m-%d"),
+                            holding_period_days=self.holding_days,
+                            absolute_return=0.0,  # No actual return since we didn't trade
+                            percentage_return=hold_return,  # What we would have gained/lost
+                            max_drawdown_during=0.0
+                        )
+
+                        logger.info(f"   Hold outcome: price {current_price:.2f} -> {future_price:.2f}, potential return: {hold_return:+.2%}")
+                    else:
+                        # Not enough future data, skip this day
+                        logger.info("   No trade occurred, and insufficient future data, skipping")
+                        return False
+                else:
+                    # Memory not available, skip
+                    logger.info("   No trade occurred, skipping")
+                    return False
 
             # 4. Abstract lesson from outcome
             logger.info("Abstracting lesson...")
