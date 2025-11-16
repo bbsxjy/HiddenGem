@@ -23,6 +23,16 @@ export function Market() {
   const [selectedIndicator, setSelectedIndicator] = useState<'ma' | 'bollinger' | 'macd' | 'none'>('ma');
   const [showHistory, setShowHistory] = useState(false); // 历史记录侧边栏显示状态
 
+  // 移动端打开drawer时防止背景滚动
+  useEffect(() => {
+    if (showHistory && window.innerWidth < 768) {
+      document.body.style.overflow = 'hidden';
+      return () => {
+        document.body.style.overflow = '';
+      };
+    }
+  }, [showHistory]);
+
   // Use streaming analysis hook for deep analysis
   const {
     taskId,
@@ -184,9 +194,9 @@ export function Market() {
   };
 
   return (
-    <div className="flex gap-6 h-full">
+    <div className="flex gap-6 h-full relative">
       {/* 主内容区域 */}
-      <div className={`flex-1 space-y-6 transition-all duration-300 ${showHistory ? 'mr-0' : ''}`}>
+      <div className="flex-1 space-y-6 transition-all duration-300">
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold text-text-primary">个股查询</h1>
@@ -196,17 +206,20 @@ export function Market() {
           {/* 历史记录切换按钮 */}
           <button
             onClick={() => setShowHistory(!showHistory)}
-            className="flex items-center gap-2 px-4 py-2 rounded-lg border border-gray-300 hover:bg-gray-50 transition-colors"
+            className="flex items-center gap-2 px-3 sm:px-4 py-2 rounded-lg border border-gray-300 hover:bg-gray-50 transition-colors"
             title={showHistory ? '隐藏历史记录' : '显示历史记录'}
           >
             <History className="w-5 h-5 text-gray-600" />
-            <span className="text-sm font-medium text-gray-700">
+            <span className="hidden sm:inline text-sm font-medium text-gray-700">
               {showHistory ? '隐藏历史' : '历史记录'}
             </span>
+            <span className="sm:hidden text-sm font-medium text-gray-700">
+              历史
+            </span>
             {showHistory ? (
-              <ChevronRight className="w-4 h-4 text-gray-500" />
+              <ChevronRight className="w-4 h-4 text-gray-500 hidden sm:block" />
             ) : (
-              <ChevronLeft className="w-4 h-4 text-gray-500" />
+              <ChevronLeft className="w-4 h-4 text-gray-500 hidden sm:block" />
             )}
           </button>
         </div>
@@ -1455,15 +1468,53 @@ export function Market() {
       )}
       </div>
 
-      {/* 历史记录侧边栏 */}
+      {/* 历史记录侧边栏/抽屉 */}
       {showHistory && (
-        <div className="w-96 flex-shrink-0">
-          <AnalysisHistory
-            currentSymbol={selectedSymbol}
-            onSelectTask={handleSelectTask}
-            currentTaskId={taskId}
+        <>
+          {/* 移动端遮罩层 */}
+          <div
+            className="fixed inset-0 bg-black bg-opacity-50 z-40 md:hidden"
+            onClick={() => setShowHistory(false)}
           />
-        </div>
+
+          {/* 历史记录面板 */}
+          <div className={`
+            fixed md:static
+            inset-y-0 right-0 z-50
+            w-full md:w-96
+            md:flex-shrink-0
+            transform transition-transform duration-300 ease-in-out
+            ${showHistory ? 'translate-x-0' : 'translate-x-full md:translate-x-0'}
+          `}>
+            <div className="h-full flex flex-col bg-white md:bg-transparent">
+              {/* 移动端关闭按钮 */}
+              <div className="flex items-center justify-between p-4 border-b border-gray-200 md:hidden bg-white">
+                <h2 className="text-lg font-semibold text-gray-800">分析历史</h2>
+                <button
+                  onClick={() => setShowHistory(false)}
+                  className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                >
+                  <X className="w-5 h-5 text-gray-600" />
+                </button>
+              </div>
+
+              {/* 历史记录内容 */}
+              <div className="flex-1 overflow-hidden">
+                <AnalysisHistory
+                  currentSymbol={selectedSymbol}
+                  onSelectTask={(task) => {
+                    handleSelectTask(task);
+                    // 移动端选择后自动关闭抽屉
+                    if (window.innerWidth < 768) {
+                      setShowHistory(false);
+                    }
+                  }}
+                  currentTaskId={taskId}
+                />
+              </div>
+            </div>
+          </div>
+        </>
       )}
     </div>
   );
