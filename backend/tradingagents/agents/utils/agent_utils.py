@@ -1120,6 +1120,42 @@ class Toolkit:
                     result_data.append(f"## 美股新闻\n获取失败: {e}")
 
             # 组合所有数据
+            # 检查是否有任何有效的新闻数据
+            has_valid_news = False
+            for data in result_data:
+                # 检查是否包含实际新闻内容（不仅仅是错误信息）
+                if "获取失败" not in data and len(data.strip()) > 50:
+                    has_valid_news = True
+                    break
+
+            # 如果所有新闻源都失败，返回明确的"无数据"标记
+            if not has_valid_news:
+                error_message = f"""# ⚠️ 无法获取 {ticker} 的新闻数据
+
+**股票类型**: {market_info['market_name']}
+**分析日期**: {curr_date}
+
+## 数据获取状态
+
+{chr(10).join(result_data)}
+
+---
+**CRITICAL WARNING - 数据获取失败**
+
+所有新闻数据源均无法获取有效数据。这可能是由于：
+1. 东方财富API接口变更或失效
+2. Google新闻搜索无结果
+3. 网络连接问题或API限流
+
+**禁止基于猜测或假设进行分析！**
+**必须明确告知用户：由于无法获取新闻数据，本次分析无法提供新闻面评估。**
+
+NO_VALID_NEWS_DATA_AVAILABLE
+"""
+                logger.warning(f"⚠️ [统一新闻工具] 所有新闻源获取失败，返回明确的无数据标记")
+                return error_message
+
+            # 有有效数据，正常返回
             combined_result = f"""# {ticker} 新闻分析
 
 **股票类型**: {market_info['market_name']}
@@ -1132,7 +1168,7 @@ class Toolkit:
 *数据来源: 根据股票类型自动选择最适合的新闻源*
 """
 
-            logger.info(f" [统一新闻工具] 数据获取完成，总长度: {len(combined_result)}")
+            logger.info(f"✅ [统一新闻工具] 数据获取完成，总长度: {len(combined_result)}")
             return combined_result
 
         except Exception as e:
