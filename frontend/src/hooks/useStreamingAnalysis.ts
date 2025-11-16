@@ -1,37 +1,42 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
-import { API_CONFIG, API_ENDPOINTS } from '@/config/api.config';
+import { createAnalysisTask, streamTaskProgress, getTaskDetail, type AnalysisTask } from '@/api/agents';
 import type { AnalyzeAllResponse, AgentAnalysisResult } from '@/types/agent';
 
 /**
- * SSE Event from backend (actual format from api/main.py)
+ * SSE Event from backend
  */
 interface SSEEvent {
   type: 'start' | 'progress' | 'agent_complete' | 'complete' | 'error';
+  task_id?: string;
   symbol?: string;
-  agent?: string;           // Agent name: technical, fundamental, sentiment, policy, debate, risk, system
-  status?: string;          // analyzing, complete, etc.
-  message?: string;         // Progress message
-  progress?: number;        // Progress percentage (0-100)
-  result?: AgentAnalysisResult; // Agent result (for agent_complete event)
-  data?: AnalyzeAllResponse; // Final result
+  agent?: string;
+  status?: string;
+  message?: string;
+  progress?: number;
+  result?: AgentAnalysisResult;
+  data?: AnalyzeAllResponse;
   error?: string;
   timestamp: string;
 }
 
 interface StreamingAnalysisState {
+  taskId: string | null;          // 当前任务ID
   agentResults: Record<string, AgentAnalysisResult>;
-  progress: string;         // Display format: "3/4" or "75%"
-  progressPercent: number;  // Numeric progress (0-100)
+  progress: string;                // Display format: "3/4" or "75%"
+  progressPercent: number;         // Numeric progress (0-100)
   isAnalyzing: boolean;
   finalResult: AnalyzeAllResponse | null;
   error: string | null;
   isLLMAnalyzing: boolean;
-  currentAgent: string;     // Currently analyzing agent
-  currentMessage: string;   // Current progress message
+  currentAgent: string;            // Currently analyzing agent
+  currentMessage: string;          // Current progress message
 }
+
+const TASK_ID_KEY = 'current_analysis_task_id';
 
 export function useStreamingAnalysis() {
   const [state, setState] = useState<StreamingAnalysisState>({
+    taskId: null,
     agentResults: {},
     progress: '0%',
     progressPercent: 0,
@@ -45,9 +50,63 @@ export function useStreamingAnalysis() {
 
   const eventSourceRef = useRef<EventSource | null>(null);
 
-  const startAnalysis = useCallback((symbol: string) => {
-    // Reset state
-    setState({
+  // 页面加载时，自动恢复未完成的任务
+  useEffect(() => {
+    const resumeTask = async () => {
+      const savedTaskId = localStorage.getItem(TASK_ID_KEY);
+      if (!savedTaskId) return;
+
+      try {
+        // 检查任务状态
+        const task = await getTaskDetail(savedTaskId);
+
+        if (task.status === 'running' || task.status === 'pending') {
+          // 任务还在进行中，恢复连接
+          console.log(`[Resume] 检测到进行中的任务: ${savedTaskId}, 正在恢复...`);
+          connectToTask(savedTaskId, task.symbol);
+        } else if (task.status === 'completed' && task.result) {
+          // 任务已完成，直接显示结果
+          console.log(`[Resume] 任务已完成: ${savedTaskId}`);
+          setState({
+            taskId: savedTaskId,
+            agentResults: task.result.agent_results || {},
+            progress: '100%',
+            progressPercent: 100,
+            isAnalyzing: false,
+            finalResult: task.result,
+            error: null,
+            isLLMAnalyzing: false,
+            currentAgent: '',
+            currentMessage: '分析已完成',
+          });
+          // 清除localStorage
+          localStorage.removeItem(TASK_ID_KEY);
+        } else {
+          // 任务失败或取消，清除
+          localStorage.removeItem(TASK_ID_KEY);
+        }
+      } catch (error) {
+        console.error('[Resume] 恢复任务失败:', error);
+        localStorage.removeItem(TASK_ID_KEY);
+      }
+    };
+
+    resumeTask();
+  }, []);
+
+  const connectToTask = useCallback((taskId: string, symbol: string) => {
+    // Close existing connection
+    if (eventSourceRef.current) {
+      eventSourceRef.current.close();
+    }
+
+    // 保存到localStorage以支持刷新恢复
+    localStorage.setItem(TASK_ID_KEY, taskId);
+
+    // 重置状态
+    setState(prev => ({
+      ...prev,
+      taskId,
       agentResults: {},
       progress: '0%',
       progressPercent: 0,
@@ -56,167 +115,119 @@ export function useStreamingAnalysis() {
       error: null,
       isLLMAnalyzing: false,
       currentAgent: '',
-      currentMessage: '',
+      currentMessage: '连接中...',
+    }));
+
+    // 连接到task stream
+    const eventSource = streamTaskProgress(taskId, {
+      onStart: (event) => {
+        console.log(`[SSE] 连接成功: ${event.symbol || symbol}`);
+        setState(prev => ({
+          ...prev,
+          currentMessage: '分析系统初始化...',
+        }));
+      },
+
+      onProgress: (event) => {
+        console.log(`[SSE] 进度更新: ${event.progress}% - ${event.message}`);
+
+        const progressPercent = event.progress || 0;
+        const isLLMPhase = (event.agent === 'debate' || event.agent === 'risk' || event.agent === 'system') && progressPercent > 80;
+
+        setState(prev => ({
+          ...prev,
+          progress: `${progressPercent}%`,
+          progressPercent,
+          currentAgent: event.agent || prev.currentAgent,
+          currentMessage: event.message || prev.currentMessage,
+          isLLMAnalyzing: isLLMPhase,
+        }));
+      },
+
+      onComplete: (data) => {
+        console.log('[SSE] 分析完成', data);
+
+        // 提取agent结果
+        const agentResults: Record<string, AgentAnalysisResult> = {};
+        if (data?.agent_results) {
+          Object.entries(data.agent_results).forEach(([name, result]) => {
+            agentResults[name] = result;
+          });
+        }
+
+        setState(prev => ({
+          ...prev,
+          agentResults,
+          finalResult: data,
+          isAnalyzing: false,
+          isLLMAnalyzing: false,
+          progress: '100%',
+          progressPercent: 100,
+          currentMessage: '分析完成',
+        }));
+
+        // 清除localStorage
+        localStorage.removeItem(TASK_ID_KEY);
+      },
+
+      onError: (error) => {
+        console.error('[SSE] 错误:', error);
+        setState(prev => ({
+          ...prev,
+          error,
+          isAnalyzing: false,
+          isLLMAnalyzing: false,
+        }));
+
+        // 清除localStorage
+        localStorage.removeItem(TASK_ID_KEY);
+      },
     });
 
-    // Close existing connection if any
-    if (eventSourceRef.current) {
-      eventSourceRef.current.close();
-    }
-
-    // Create SSE connection
-    const url = `${API_CONFIG.baseURL}${API_ENDPOINTS.agents.analyzeAllStream(symbol)}`;
-    const eventSource = new EventSource(url);
     eventSourceRef.current = eventSource;
+  }, []);
 
-    eventSource.onmessage = (event) => {
-      try {
-        const data: SSEEvent = JSON.parse(event.data);
+  const startAnalysis = useCallback(async (symbol: string) => {
+    try {
+      // 1. 创建任务
+      console.log(`[Analysis] 创建分析任务: ${symbol}`);
+      const response = await createAnalysisTask(symbol);
+      const taskId = response.task_id;
 
-        switch (data.type) {
-          case 'start':
-            console.log(`[SSE] 🚀 分析开始: ${data.symbol}`);
-            setState(prev => ({
-              ...prev,
-              currentMessage: '初始化分析系统...',
-            }));
-            break;
+      console.log(`[Analysis] 任务创建成功: ${taskId}`);
 
-          case 'agent_complete':
-            // 🆕 Agent完成事件 - 立即显示结果
-            if (data.agent && data.result) {
-              console.log(`[SSE] ✅ Agent完成: ${data.agent}`, data.result);
+      // 2. 连接到task stream
+      connectToTask(taskId, symbol);
 
-              setState(prev => {
-                // 更新 agent 结果
-                const updatedAgentResults = {
-                  ...prev.agentResults,
-                  [data.agent!]: data.result!,
-                };
-
-                // 计算实际进度：只统计成功的 agents（4个主要agent）
-                const mainAgents = ['technical', 'fundamental', 'sentiment', 'policy'];
-                const completedAgents = mainAgents.filter(
-                  name => updatedAgentResults[name] && !updatedAgentResults[name].is_error
-                );
-                const totalAgents = mainAgents.length;
-
-                // 进度计算：
-                // - 0-75%: 4个主要agent完成 (每个18.75%)
-                // - 75-85%: debate 阶段
-                // - 85-95%: risk 阶段
-                // - 95-100%: 最终聚合
-                let calculatedProgress = 0;
-
-                if (data.agent && mainAgents.includes(data.agent)) {
-                  // 主要 agent 阶段 (0-75%)
-                  calculatedProgress = (completedAgents.length / totalAgents) * 75;
-                } else if (data.progress) {
-                  // 后续阶段使用后端提供的进度
-                  calculatedProgress = data.progress;
-                }
-
-                return {
-                  ...prev,
-                  agentResults: updatedAgentResults,
-                  progress: `${Math.round(calculatedProgress)}%`,
-                  progressPercent: calculatedProgress,
-                  currentAgent: data.agent || prev.currentAgent,
-                  currentMessage: data.result!.is_error
-                    ? `${data.agent} 分析失败`
-                    : `${data.agent} 分析完成`,
-                };
-              });
-            }
-            break;
-
-          case 'progress':
-            // Update progress based on agent and message
-            const progressPercent = data.progress || 0;
-            const progressDisplay = `${progressPercent}%`;
-
-            // Detect if LLM is analyzing (debate, risk, or high progress)
-            const isLLMPhase =
-              data.agent === 'debate' ||
-              data.agent === 'risk' ||
-              data.agent === 'system' && progressPercent > 80;
-
-            console.log(`[SSE] 📊 进度更新: [${data.agent}] ${data.message} - ${progressPercent}%`);
-
-            setState(prev => ({
-              ...prev,
-              progress: progressDisplay,
-              progressPercent,
-              currentAgent: data.agent || prev.currentAgent,
-              currentMessage: data.message || prev.currentMessage,
-              isLLMAnalyzing: isLLMPhase,
-            }));
-            break;
-
-          case 'complete':
-            // Final result received
-            console.log('[SSE] ✅ 分析完成', data.data);
-
-            // Extract agent results from final data
-            const agentResults: Record<string, AgentAnalysisResult> = {};
-            if (data.data?.agent_results) {
-              Object.entries(data.data.agent_results).forEach(([name, result]) => {
-                agentResults[name] = result;
-              });
-            }
-
-            setState(prev => ({
-              ...prev,
-              agentResults,
-              finalResult: data.data || null,
-              isAnalyzing: false,
-              isLLMAnalyzing: false,
-              progress: '100%',
-              progressPercent: 100,
-              currentMessage: '分析完成',
-            }));
-            eventSource.close();
-            break;
-
-          case 'error':
-            console.error('[SSE] ❌ 错误:', data.error);
-            setState(prev => ({
-              ...prev,
-              error: data.error || 'Unknown error',
-              isAnalyzing: false,
-              isLLMAnalyzing: false,
-            }));
-            eventSource.close();
-            break;
-        }
-      } catch (err) {
-        console.error('[SSE] 解析事件失败:', err, event.data);
-      }
-    };
-
-    eventSource.onerror = (err) => {
-      console.error('[SSE] 连接错误:', err);
+      return taskId;
+    } catch (error) {
+      console.error('[Analysis] 创建任务失败:', error);
       setState(prev => ({
         ...prev,
-        error: 'SSE连接断开或服务器错误',
+        error: error instanceof Error ? error.message : '创建任务失败',
         isAnalyzing: false,
-        isLLMAnalyzing: false,
       }));
-      eventSource.close();
-    };
-  }, []);
+      return null;
+    }
+  }, [connectToTask]);
 
   const stopAnalysis = useCallback(() => {
     if (eventSourceRef.current) {
       eventSourceRef.current.close();
       eventSourceRef.current = null;
     }
+
+    // 清除localStorage
+    if (state.taskId) {
+      localStorage.removeItem(TASK_ID_KEY);
+    }
+
     setState(prev => ({
       ...prev,
       isAnalyzing: false,
-      isLLMAnalyzing: false
+      isLLMAnalyzing: false,
     }));
-  }, []);
+  }, [state.taskId]);
 
   // Cleanup on unmount
   useEffect(() => {
@@ -232,5 +243,6 @@ export function useStreamingAnalysis() {
     ...state,
     startAnalysis,
     stopAnalysis,
+    resumeTask: connectToTask,  // 暴露resume函数以便手动恢复
   };
 }

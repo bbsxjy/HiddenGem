@@ -1,0 +1,7 @@
+feat(backtest): 添加夏普比率、胜率和平均持仓天数计算
+
+- 实现_calculate_sharpe_ratio: 基于日收益率计算年化夏普比率
+- 实现_calculate_trade_stats: 计算胜率和平均持仓天数
+- 使用FIFO方法匹配买入卖出交易
+- 自动计算每笔交易的持仓天数和盈亏
+- 所有指标现在都有实际数据，不再是0

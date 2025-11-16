@@ -1,0 +1,963 @@
+#!/usr/bin/env python3
+"""
+AKShare数据源工具
+提供AKShare数据获取的统一接口
+"""
+
+import pandas as pd
+from typing import Optional, Dict, Any
+import warnings
+from datetime import datetime
+
+# 导入日志模块
+from tradingagents.utils.logging_manager import get_logger
+logger = get_logger('agents')
+warnings.filterwarnings('ignore')
+
+class AKShareProvider:
+    """AKShare数据提供器"""
+
+    def __init__(self):
+        """初始化AKShare提供器"""
+        try:
+            import akshare as ak
+            self.ak = ak
+            self.connected = True
+
+            # 设置更长的超时时间
+            self._configure_timeout()
+
+            logger.info(f" AKShare初始化成功")
+        except ImportError:
+            self.ak = None
+            self.connected = False
+            logger.error(f" AKShare未安装")
+
+    def _configure_timeout(self):
+        """配置AKShare的超时设置"""
+        try:
+            import requests
+            import socket
+
+            # 设置更长的超时时间
+            socket.setdefaulttimeout(60)  # 60秒超时
+
+            # 如果AKShare使用requests，设置默认超时
+            if hasattr(requests, 'adapters'):
+                from requests.adapters import HTTPAdapter
+                from urllib3.util.retry import Retry
+
+                # 创建重试策略
+                retry_strategy = Retry(
+                    total=3,
+                    backoff_factor=1,
+                    status_forcelist=[429, 500, 502, 503, 504],
+                )
+
+                # 设置适配器
+                adapter = HTTPAdapter(max_retries=retry_strategy)
+                session = requests.Session()
+                session.mount("http://", adapter)
+                session.mount("https://", adapter)
+
+                logger.info(f" AKShare超时配置完成: 60秒超时，3次重试")
+
+        except Exception as e:
+            logger.error(f" AKShare超时配置失败: {e}")
+            logger.info(f" 使用默认超时设置")
+    
+    def get_stock_data(self, symbol: str, start_date: str = None, end_date: str = None) -> Optional[pd.DataFrame]:
+        """获取股票历史数据"""
+        if not self.connected:
+            return None
+        
+        try:
+            # 转换股票代码格式
+            if len(symbol) == 6:
+                symbol = symbol
+            else:
+                symbol = symbol.replace('.SZ', '').replace('.SS', '')
+            
+            # 获取数据
+            data = self.ak.stock_zh_a_hist(
+                symbol=symbol,
+                period="daily",
+                start_date=start_date.replace('-', '') if start_date else "20240101",
+                end_date=end_date.replace('-', '') if end_date else "20241231",
+                adjust=""
+            )
+            
+            return data
+            
+        except Exception as e:
+            logger.error(f" AKShare获取股票数据失败: {e}")
+            return None
+    
+    def get_stock_info(self, symbol: str) -> Dict[str, Any]:
+        """获取股票基本信息"""
+        if not self.connected:
+            return {}
+        
+        try:
+            # 获取股票基本信息
+            stock_list = self.ak.stock_info_a_code_name()
+            stock_info = stock_list[stock_list['code'] == symbol]
+            
+            if not stock_info.empty:
+                return {
+                    'symbol': symbol,
+                    'name': stock_info.iloc[0]['name'],
+                    'source': 'akshare'
+                }
+            else:
+                return {'symbol': symbol, 'name': f'股票{symbol}', 'source': 'akshare'}
+                
+        except Exception as e:
+            logger.error(f" AKShare获取股票信息失败: {e}")
+            return {'symbol': symbol, 'name': f'股票{symbol}', 'source': 'akshare'}
+
+    def get_hk_stock_data(self, symbol: str, start_date: str = None, end_date: str = None) -> Optional[pd.DataFrame]:
+        """
+        获取港股历史数据
+
+        Args:
+            symbol: 港股代码 (如: 00700 或 0700.HK)
+            start_date: 开始日期 (YYYY-MM-DD)
+            end_date: 结束日期 (YYYY-MM-DD)
+
+        Returns:
+            DataFrame: 港股历史数据
+        """
+        if not self.connected:
+            logger.error(f" AKShare未连接")
+            return None
+
+        try:
+            # 标准化港股代码 - AKShare使用5位数字格式
+            hk_symbol = self._normalize_hk_symbol_for_akshare(symbol)
+
+            logger.info(f" AKShare获取港股数据: {hk_symbol} ({start_date} 到 {end_date})")
+
+            # 格式化日期为AKShare需要的格式
+            start_date_formatted = start_date.replace('-', '') if start_date else "20240101"
+            end_date_formatted = end_date.replace('-', '') if end_date else "20241231"
+
+            # 使用AKShare获取港股历史数据（带超时保护）
+            import threading
+
+            result = [None]
+            exception = [None]
+
+            def fetch_hist_data():
+                try:
+                    result[0] = self.ak.stock_hk_hist(
+                        symbol=hk_symbol,
+                        period="daily",
+                        start_date=start_date_formatted,
+                        end_date=end_date_formatted,
+                        adjust=""
+                    )
+                except Exception as e:
+                    exception[0] = e
+
+            # 启动线程
+            thread = threading.Thread(target=fetch_hist_data)
+            thread.daemon = True
+            thread.start()
+
+            # 等待60秒
+            thread.join(timeout=60)
+
+            if thread.is_alive():
+                # 超时了
+                logger.warning(f" AKShare港股历史数据获取超时（60秒）: {symbol}")
+                raise Exception(f"AKShare港股历史数据获取超时（60秒）: {symbol}")
+            elif exception[0]:
+                # 有异常
+                raise exception[0]
+            else:
+                # 成功
+                data = result[0]
+
+            if not data.empty:
+                # 数据预处理
+                data = data.reset_index()
+                data['Symbol'] = symbol  # 保持原始格式
+
+                # 重命名列以保持一致性
+                column_mapping = {
+                    '日期': 'Date',
+                    '开盘': 'Open',
+                    '收盘': 'Close',
+                    '最高': 'High',
+                    '最低': 'Low',
+                    '成交量': 'Volume',
+                    '成交额': 'Amount'
+                }
+
+                for old_col, new_col in column_mapping.items():
+                    if old_col in data.columns:
+                        data = data.rename(columns={old_col: new_col})
+
+                logger.info(f" AKShare港股数据获取成功: {symbol}, {len(data)}条记录")
+                return data
+            else:
+                logger.warning(f" AKShare港股数据为空: {symbol}")
+                return None
+
+        except Exception as e:
+            logger.error(f" AKShare获取港股数据失败: {e}")
+            return None
+
+    def get_hk_stock_info(self, symbol: str) -> Dict[str, Any]:
+        """
+        获取港股基本信息
+
+        Args:
+            symbol: 港股代码
+
+        Returns:
+            Dict: 港股基本信息
+        """
+        if not self.connected:
+            return {
+                'symbol': symbol,
+                'name': f'港股{symbol}',
+                'currency': 'HKD',
+                'exchange': 'HKG',
+                'source': 'akshare_unavailable'
+            }
+
+        try:
+            hk_symbol = self._normalize_hk_symbol_for_akshare(symbol)
+
+            logger.info(f" AKShare获取港股信息: {hk_symbol}")
+
+            # 尝试获取港股实时行情数据来获取基本信息
+            # 使用线程超时包装（兼容Windows）
+            import threading
+            import time
+
+
+            result = [None]
+            exception = [None]
+
+            def fetch_data():
+                try:
+                    result[0] = self.ak.stock_hk_spot_em()
+                except Exception as e:
+                    exception[0] = e
+
+            # 启动线程
+            thread = threading.Thread(target=fetch_data)
+            thread.daemon = True
+            thread.start()
+
+            # 等待60秒
+            thread.join(timeout=60)
+
+            if thread.is_alive():
+                # 超时了
+                logger.warning(f" AKShare港股信息获取超时（60秒），使用备用方案")
+                raise Exception("AKShare港股信息获取超时（60秒）")
+            elif exception[0]:
+                # 有异常
+                raise exception[0]
+            else:
+                # 成功
+                spot_data = result[0]
+
+            # 查找对应的股票信息
+            if not spot_data.empty:
+                # 查找匹配的股票
+                matching_stocks = spot_data[spot_data['代码'].str.contains(hk_symbol[:5], na=False)]
+
+                if not matching_stocks.empty:
+                    stock_info = matching_stocks.iloc[0]
+                    return {
+                        'symbol': symbol,
+                        'name': stock_info.get('名称', f'港股{symbol}'),
+                        'currency': 'HKD',
+                        'exchange': 'HKG',
+                        'latest_price': stock_info.get('最新价', None),
+                        'source': 'akshare'
+                    }
+
+            # 如果没有找到，返回基本信息
+            return {
+                'symbol': symbol,
+                'name': f'港股{symbol}',
+                'currency': 'HKD',
+                'exchange': 'HKG',
+                'source': 'akshare'
+            }
+
+        except Exception as e:
+            logger.error(f" AKShare获取港股信息失败: {e}")
+            return {
+                'symbol': symbol,
+                'name': f'港股{symbol}',
+                'currency': 'HKD',
+                'exchange': 'HKG',
+                'source': 'akshare_error',
+                'error': str(e)
+            }
+
+    def _normalize_hk_symbol_for_akshare(self, symbol: str) -> str:
+        """
+        标准化港股代码为AKShare格式
+
+        Args:
+            symbol: 原始港股代码 (如: 0700.HK 或 700)
+
+        Returns:
+            str: AKShare格式的港股代码 (如: 00700)
+        """
+        if not symbol:
+            return symbol
+
+        # 移除.HK后缀
+        clean_symbol = symbol.replace('.HK', '').replace('.hk', '')
+
+        # 确保是5位数字格式
+        if clean_symbol.isdigit():
+            return clean_symbol.zfill(5)
+
+        return clean_symbol
+
+    def get_financial_data(self, symbol: str) -> Dict[str, Any]:
+        """
+        获取股票财务数据
+        
+        Args:
+            symbol: 股票代码 (6位数字)
+            
+        Returns:
+            Dict: 包含主要财务指标的财务数据
+        """
+        if not self.connected:
+            logger.error(f" AKShare未连接，无法获取{symbol}财务数据")
+            return {}
+        
+        try:
+            logger.info(f" 开始获取{symbol}的AKShare财务数据")
+            
+            financial_data = {}
+            
+            # 1. 优先获取主要财务指标
+            try:
+                logger.debug(f" 尝试获取{symbol}主要财务指标...")
+                main_indicators = self.ak.stock_financial_abstract(symbol=symbol)
+                if main_indicators is not None and not main_indicators.empty:
+                    financial_data['main_indicators'] = main_indicators
+                    logger.info(f" 成功获取{symbol}主要财务指标: {len(main_indicators)}条记录")
+                    logger.debug(f"主要财务指标列名: {list(main_indicators.columns)}")
+                else:
+                    logger.warning(f" {symbol}主要财务指标为空")
+            except Exception as e:
+                logger.warning(f" 获取{symbol}主要财务指标失败: {e}")
+            
+            # 2. 尝试获取资产负债表（可能失败，降级为debug日志）
+            try:
+                logger.debug(f" 尝试获取{symbol}资产负债表...")
+                balance_sheet = self.ak.stock_balance_sheet_by_report_em(symbol=symbol)
+                if balance_sheet is not None and not balance_sheet.empty:
+                    financial_data['balance_sheet'] = balance_sheet
+                    logger.debug(f" 成功获取{symbol}资产负债表: {len(balance_sheet)}条记录")
+                else:
+                    logger.debug(f" {symbol}资产负债表为空")
+            except Exception as e:
+                logger.debug(f" 获取{symbol}资产负债表失败: {e}")
+            
+            # 3. 尝试获取利润表（可能失败，降级为debug日志）
+            try:
+                logger.debug(f" 尝试获取{symbol}利润表...")
+                income_statement = self.ak.stock_profit_sheet_by_report_em(symbol=symbol)
+                if income_statement is not None and not income_statement.empty:
+                    financial_data['income_statement'] = income_statement
+                    logger.debug(f" 成功获取{symbol}利润表: {len(income_statement)}条记录")
+                else:
+                    logger.debug(f" {symbol}利润表为空")
+            except Exception as e:
+                logger.debug(f" 获取{symbol}利润表失败: {e}")
+            
+            # 4. 尝试获取现金流量表（可能失败，降级为debug日志）
+            try:
+                logger.debug(f" 尝试获取{symbol}现金流量表...")
+                cash_flow = self.ak.stock_cash_flow_sheet_by_report_em(symbol=symbol)
+                if cash_flow is not None and not cash_flow.empty:
+                    financial_data['cash_flow'] = cash_flow
+                    logger.debug(f" 成功获取{symbol}现金流量表: {len(cash_flow)}条记录")
+                else:
+                    logger.debug(f" {symbol}现金流量表为空")
+            except Exception as e:
+                logger.debug(f" 获取{symbol}现金流量表失败: {e}")
+            
+            # 记录最终结果
+            if financial_data:
+                logger.info(f" AKShare财务数据获取完成: {symbol}, 包含{len(financial_data)}个数据集")
+                for key, value in financial_data.items():
+                    if hasattr(value, '__len__'):
+                        logger.info(f"  - {key}: {len(value)}条记录")
+            else:
+                logger.warning(f" 未能获取{symbol}的任何AKShare财务数据")
+            
+            return financial_data
+            
+        except Exception as e:
+            logger.error(f" AKShare获取{symbol}财务数据失败: {e}")
+            return {}
+
+def get_akshare_provider() -> AKShareProvider:
+    """获取AKShare提供器实例"""
+    return AKShareProvider()
+
+
+# 便捷函数
+def get_hk_stock_data_akshare(symbol: str, start_date: str = None, end_date: str = None) -> str:
+    """
+    使用AKShare获取港股数据的便捷函数
+
+    Args:
+        symbol: 港股代码
+        start_date: 开始日期
+        end_date: 结束日期
+
+    Returns:
+        str: 格式化的港股数据
+    """
+    try:
+        provider = get_akshare_provider()
+        data = provider.get_hk_stock_data(symbol, start_date, end_date)
+
+        if data is not None and not data.empty:
+            return format_hk_stock_data_akshare(symbol, data, start_date, end_date)
+        else:
+            return f" 无法获取港股 {symbol} 的AKShare数据"
+
+    except Exception as e:
+        return f" AKShare港股数据获取失败: {e}"
+
+
+def get_hk_stock_info_akshare(symbol: str) -> Dict[str, Any]:
+    """
+    使用AKShare获取港股信息的便捷函数
+
+    Args:
+        symbol: 港股代码
+
+    Returns:
+        Dict: 港股信息
+    """
+    try:
+        provider = get_akshare_provider()
+        return provider.get_hk_stock_info(symbol)
+    except Exception as e:
+        return {
+            'symbol': symbol,
+            'name': f'港股{symbol}',
+            'currency': 'HKD',
+            'exchange': 'HKG',
+            'source': 'akshare_error',
+            'error': str(e)
+        }
+
+
+def format_hk_stock_data_akshare(symbol: str, data: pd.DataFrame, start_date: str, end_date: str) -> str:
+    """
+    格式化AKShare港股数据为文本格式
+
+    Args:
+        symbol: 股票代码
+        data: 股票数据DataFrame
+        start_date: 开始日期
+        end_date: 结束日期
+
+    Returns:
+        str: 格式化的股票数据文本
+    """
+    if data is None or data.empty:
+        return f" 无法获取港股 {symbol} 的AKShare数据"
+
+    try:
+        # 获取股票基本信息（允许失败）
+        stock_name = f'港股{symbol}'  # 默认名称
+        try:
+            provider = get_akshare_provider()
+            stock_info = provider.get_hk_stock_info(symbol)
+            stock_name = stock_info.get('name', f'港股{symbol}')
+            logger.info(f" 港股信息获取成功: {stock_name}")
+        except Exception as info_error:
+            logger.error(f" 港股信息获取失败，使用默认信息: {info_error}")
+            # 继续处理，使用默认信息
+
+        # 计算统计信息
+        latest_price = data['Close'].iloc[-1]
+        price_change = data['Close'].iloc[-1] - data['Close'].iloc[0]
+        price_change_pct = (price_change / data['Close'].iloc[0]) * 100
+
+        avg_volume = data['Volume'].mean() if 'Volume' in data.columns else 0
+        max_price = data['High'].max()
+        min_price = data['Low'].min()
+
+        # 格式化输出
+        formatted_text = f"""
+ 港股数据报告 (AKShare)
+================
+
+股票信息:
+- 代码: {symbol}
+- 名称: {stock_name}
+- 货币: 港币 (HKD)
+- 交易所: 香港交易所 (HKG)
+
+价格信息:
+- 最新价格: HK${latest_price:.2f}
+- 期间涨跌: HK${price_change:+.2f} ({price_change_pct:+.2f}%)
+- 期间最高: HK${max_price:.2f}
+- 期间最低: HK${min_price:.2f}
+
+交易信息:
+- 数据期间: {start_date} 至 {end_date}
+- 交易天数: {len(data)}天
+- 平均成交量: {avg_volume:,.0f}股
+
+最近5个交易日:
+"""
+
+        # 添加最近5天的数据
+        recent_data = data.tail(5)
+        for _, row in recent_data.iterrows():
+            date = row['Date'].strftime('%Y-%m-%d') if 'Date' in row else row.name.strftime('%Y-%m-%d')
+            volume = row.get('Volume', 0)
+            formatted_text += f"- {date}: 开盘HK${row['Open']:.2f}, 收盘HK${row['Close']:.2f}, 成交量{volume:,.0f}\n"
+
+        formatted_text += f"\n数据来源: AKShare (港股)\n"
+
+        return formatted_text
+
+    except Exception as e:
+        logger.error(f" 格式化AKShare港股数据失败: {e}")
+        return f" AKShare港股数据格式化失败: {symbol}"
+
+
+def get_stock_comments_em(symbol: str) -> Dict[str, Any]:
+    """
+    使用AKShare获取东方财富个股评论（千股千评）
+
+    Args:
+        symbol: 股票代码，如 "600000" 或 "300059"
+
+    Returns:
+        Dict: 包含股票评论和情绪指标的字典
+    """
+    from tradingagents.utils.logging_manager import get_logger
+    logger = get_logger('agents')
+
+    logger.info(f"[个股评论] 开始获取股票 {symbol} 的东方财富评论数据")
+
+    try:
+        provider = get_akshare_provider()
+        if not provider.connected:
+            logger.error(f"[个股评论]  AKShare未连接")
+            return {'error': 'AKShare未连接', 'sentiment_score': 0.5, 'confidence': 0}
+
+        # 清理股票代码
+        clean_symbol = symbol.replace('.SH', '').replace('.SZ', '').replace('.SS', '')\
+                            .replace('.HK', '').replace('.XSHE', '').replace('.XSHG', '')
+
+        logger.info(f"[个股评论] 准备调用AKShare API获取评论: {clean_symbol}")
+
+        # 使用线程超时包装
+        import threading
+
+        result = [None]
+        exception = [None]
+
+        def fetch_comments():
+            try:
+                result[0] = provider.ak.stock_comment_em()
+            except Exception as e:
+                exception[0] = e
+
+        # 启动线程
+        thread = threading.Thread(target=fetch_comments)
+        thread.daemon = True
+        thread.start()
+
+        # 等待30秒
+        thread.join(timeout=30)
+
+        if thread.is_alive():
+            logger.warning(f"[个股评论] 获取评论超时（30秒）: {symbol}")
+            raise Exception(f"个股评论获取超时（30秒）: {symbol}")
+        elif exception[0]:
+            raise exception[0]
+        else:
+            comments_df = result[0]
+
+        if comments_df is not None and not comments_df.empty:
+            # 查找当前股票的评论
+            matching_rows = comments_df[comments_df['代码'].astype(str).str.contains(clean_symbol, na=False)]
+
+            if not matching_rows.empty:
+                row = matching_rows.iloc[0]
+
+                # 解析评论数据
+                comment_data = {
+                    'symbol': symbol,
+                    'name': row.get('名称', f'股票{symbol}'),
+                    'sentiment_score': 0.5,  # 默认中性
+                    'confidence': 0.7,
+                    'source': 'eastmoney_comment'
+                }
+
+                # 提取所有可用的评论字段
+                for col in comments_df.columns:
+                    comment_data[col] = row.get(col)
+
+                # 尝试从评分中提取情绪
+                if '综合评分' in row:
+                    try:
+                        score = float(row['综合评分'])
+                        comment_data['sentiment_score'] = score / 100  # 转换为0-1
+                    except:
+                        pass
+
+                logger.info(f"[个股评论] 成功获取 {symbol} 的评论数据，情绪评分: {comment_data['sentiment_score']:.2f}")
+                return comment_data
+            else:
+                logger.warning(f"[个股评论] 未找到 {symbol} 的评论数据")
+                return {'error': f'未找到{symbol}的评论数据', 'sentiment_score': 0.5, 'confidence': 0}
+        else:
+            logger.warning(f"[个股评论] 评论数据为空")
+            return {'error': '评论数据为空', 'sentiment_score': 0.5, 'confidence': 0}
+
+    except Exception as e:
+        logger.error(f"[个股评论] 获取失败: {symbol}, 错误: {e}")
+        return {'error': str(e), 'sentiment_score': 0.5, 'confidence': 0}
+
+
+def get_stock_news_em(symbol: str, max_news: int = 10) -> pd.DataFrame:
+    """
+    使用AKShare获取东方财富个股新闻
+
+    Args:
+        symbol: 股票代码，如 "600000" 或 "300059"
+        max_news: 最大新闻数量，默认10条
+
+    Returns:
+        pd.DataFrame: 包含新闻标题、内容、日期和链接的DataFrame
+    """
+    start_time = datetime.now()
+    logger.info(f"[东方财富新闻] 开始获取股票 {symbol} 的东方财富新闻数据")
+    
+    try:
+        provider = get_akshare_provider()
+        if not provider.connected:
+            logger.error(f"[东方财富新闻]  AKShare未连接，无法获取东方财富新闻")
+            return pd.DataFrame()
+
+        logger.info(f"[东方财富新闻]  准备调用AKShare API获取个股新闻: {symbol}")
+
+        # 使用线程超时包装（兼容Windows）
+        import threading
+        import time
+
+        result = [None]
+        exception = [None]
+
+        def fetch_news():
+            try:
+                logger.debug(f"[东方财富新闻] 线程开始执行 stock_news_em API调用: {symbol}")
+                thread_start = time.time()
+                result[0] = provider.ak.stock_news_em(symbol=symbol)
+                thread_end = time.time()
+                logger.debug(f"[东方财富新闻] 线程执行完成，耗时: {thread_end - thread_start:.2f}秒")
+            except Exception as e:
+                logger.error(f"[东方财富新闻] 线程执行异常: {e}")
+                exception[0] = e
+
+        # 启动线程
+        thread = threading.Thread(target=fetch_news)
+        thread.daemon = True
+        logger.debug(f"[东方财富新闻] 启动线程获取新闻数据")
+        thread.start()
+
+        # 等待30秒
+        logger.debug(f"[东方财富新闻] 等待线程完成，最长等待30秒")
+        thread.join(timeout=30)
+
+        if thread.is_alive():
+            # 超时了
+            elapsed_time = (datetime.now() - start_time).total_seconds()
+            logger.warning(f"[东方财富新闻]  获取超时（30秒）: {symbol}，总耗时: {elapsed_time:.2f}秒")
+            raise Exception(f"东方财富个股新闻获取超时（30秒）: {symbol}")
+        elif exception[0]:
+            # 有异常
+            elapsed_time = (datetime.now() - start_time).total_seconds()
+            logger.error(f"[东方财富新闻]  API调用异常: {exception[0]}，总耗时: {elapsed_time:.2f}秒")
+            raise exception[0]
+        else:
+            # 成功
+            news_df = result[0]
+
+        if news_df is not None and not news_df.empty:
+            # 限制新闻数量为最新的max_news条
+            if len(news_df) > max_news:
+                news_df = news_df.head(max_news)
+                logger.info(f"[东方财富新闻]  新闻数量限制: 从{len(news_df)}条限制为{max_news}条最新新闻")
+
+            news_count = len(news_df)
+            elapsed_time = (datetime.now() - start_time).total_seconds()
+
+            # ====== 新增：详细记录获取到的新闻数据 ======
+            logger.info(f"[东方财富新闻] ========== 获取到的新闻详细信息 ==========")
+            logger.info(f"[东方财富新闻] 新闻总数: {news_count}")
+            logger.info(f"[东方财富新闻] 数据列: {list(news_df.columns)}")
+
+            # 记录每条新闻的详细信息
+            for idx, row in news_df.iterrows():
+                logger.info(f"[东方财富新闻] --- 新闻 {idx+1}/{news_count} ---")
+                for col in news_df.columns:
+                    value = row.get(col, '')
+                    # 截断过长的内容以便阅读
+                    if isinstance(value, str) and len(value) > 200:
+                        value_display = value[:200] + "..."
+                    else:
+                        value_display = value
+                    logger.info(f"[东方财富新闻]   {col}: {value_display}")
+            logger.info(f"[东方财富新闻] ========== 新闻详细信息结束 ==========")
+            # ====== 新增结束 ======
+
+            # 记录一些新闻标题示例
+            sample_titles = [row.get('标题', '无标题') for _, row in news_df.head(3).iterrows()]
+            logger.info(f"[东方财富新闻] 新闻标题示例: {', '.join(sample_titles)}")
+
+            logger.info(f"[东方财富新闻]  获取成功: {symbol}, 共{news_count}条记录，耗时: {elapsed_time:.2f}秒")
+            return news_df
+        else:
+            elapsed_time = (datetime.now() - start_time).total_seconds()
+            logger.warning(f"[东方财富新闻]  数据为空: {symbol}，API返回成功但无数据，耗时: {elapsed_time:.2f}秒")
+            return pd.DataFrame()
+
+    except Exception as e:
+        elapsed_time = (datetime.now() - start_time).total_seconds()
+        logger.error(f"[东方财富新闻]  获取失败: {symbol}, 错误: {e}, 耗时: {elapsed_time:.2f}秒")
+        return pd.DataFrame()
+
+
+def get_xueqiu_hot_stock_info(symbol: str) -> Dict[str, Any]:
+    """
+    使用AKShare获取雪球热门股票信息（关注度和讨论度）
+
+    Args:
+        symbol: 股票代码，如 "600000" 或 "300059"
+
+    Returns:
+        Dict: 包含雪球关注度和讨论度的字典
+    """
+    logger.info(f"[雪球热度] 开始获取股票 {symbol} 的雪球热度数据")
+
+    try:
+        provider = get_akshare_provider()
+        if not provider.connected:
+            logger.error(f"[雪球热度]  AKShare未连接")
+            return {'error': 'AKShare未连接', 'follow_count': 0, 'tweet_count': 0, 'confidence': 0}
+
+        # 清理股票代码 - 转换为雪球格式（SH/SZ前缀）
+        clean_symbol = symbol.replace('.SH', '').replace('.SZ', '').replace('.SS', '')\
+                            .replace('.HK', '').replace('.XSHE', '').replace('.XSHG', '')
+
+        # 判断市场
+        if clean_symbol.startswith('6'):
+            xq_symbol = f'SH{clean_symbol}'
+        elif clean_symbol.startswith('0') or clean_symbol.startswith('3'):
+            xq_symbol = f'SZ{clean_symbol}'
+        else:
+            logger.warning(f"[雪球热度] 无法识别股票代码市场: {symbol}")
+            return {'error': f'无法识别股票代码: {symbol}', 'follow_count': 0, 'tweet_count': 0, 'confidence': 0}
+
+        logger.info(f"[雪球热度] 处理后的雪球代码: {xq_symbol}")
+
+        # 使用线程超时包装获取雪球关注数据
+        import threading
+
+        follow_result = [None]
+        follow_exception = [None]
+
+        def fetch_follow_data():
+            try:
+                follow_result[0] = provider.ak.stock_hot_follow_xq()
+            except Exception as e:
+                follow_exception[0] = e
+
+        # 启动线程
+        thread = threading.Thread(target=fetch_follow_data)
+        thread.daemon = True
+        thread.start()
+
+        # 等待30秒
+        thread.join(timeout=30)
+
+        if thread.is_alive():
+            logger.warning(f"[雪球热度] 获取关注数据超时（30秒）: {symbol}")
+            raise Exception(f"雪球关注数据获取超时（30秒）: {symbol}")
+        elif follow_exception[0]:
+            raise follow_exception[0]
+        else:
+            follow_df = follow_result[0]
+
+        # 使用线程超时包装获取雪球讨论数据
+        tweet_result = [None]
+        tweet_exception = [None]
+
+        def fetch_tweet_data():
+            try:
+                tweet_result[0] = provider.ak.stock_hot_tweet_xq()
+            except Exception as e:
+                tweet_exception[0] = e
+
+        # 启动线程
+        thread = threading.Thread(target=fetch_tweet_data)
+        thread.daemon = True
+        thread.start()
+
+        # 等待30秒
+        thread.join(timeout=30)
+
+        if thread.is_alive():
+            logger.warning(f"[雪球热度] 获取讨论数据超时（30秒）: {symbol}")
+            raise Exception(f"雪球讨论数据获取超时（30秒）: {symbol}")
+        elif tweet_exception[0]:
+            raise tweet_exception[0]
+        else:
+            tweet_df = tweet_result[0]
+
+        # 初始化结果
+        result = {
+            'symbol': symbol,
+            'xueqiu_symbol': xq_symbol,
+            'follow_count': 0,
+            'tweet_count': 0,
+            'latest_price': None,
+            'confidence': 0,
+            'source': 'xueqiu'
+        }
+
+        # 查找关注数据
+        if follow_df is not None and not follow_df.empty and '股票代码' in follow_df.columns:
+            matching_follow = follow_df[follow_df['股票代码'].astype(str).str.contains(xq_symbol, na=False)]
+
+            if not matching_follow.empty:
+                row = matching_follow.iloc[0]
+                result['follow_count'] = int(row.get('关注', 0))
+                result['latest_price'] = float(row.get('最新价格', 0))
+                logger.info(f"[雪球热度] 找到关注数据: {result['follow_count']}人关注")
+
+        # 查找讨论数据
+        if tweet_df is not None and not tweet_df.empty and '股票代码' in tweet_df.columns:
+            matching_tweet = tweet_df[tweet_df['股票代码'].astype(str).str.contains(xq_symbol, na=False)]
+
+            if not matching_tweet.empty:
+                row = matching_tweet.iloc[0]
+                result['tweet_count'] = int(row.get('关注', 0))  # 注意：API返回的列名是"关注"，实际是讨论数
+                if result['latest_price'] is None:
+                    result['latest_price'] = float(row.get('最新价格', 0))
+                logger.info(f"[雪球热度] 找到讨论数据: {result['tweet_count']}次讨论")
+
+        # 计算置信度（基于是否找到数据）
+        if result['follow_count'] > 0 or result['tweet_count'] > 0:
+            result['confidence'] = 0.7
+            logger.info(f"[雪球热度]  成功获取 {symbol} 的雪球热度数据，置信度: {result['confidence']:.2f}")
+        else:
+            logger.warning(f"[雪球热度]  未找到 {symbol} 的雪球热度数据")
+
+        return result
+
+    except Exception as e:
+        logger.error(f"[雪球热度]  获取失败: {symbol}, 错误: {e}")
+        return {'error': str(e), 'follow_count': 0, 'tweet_count': 0, 'confidence': 0}
+
+
+def get_xueqiu_stock_sentiment(symbol: str) -> Dict[str, Any]:
+    """
+    使用AKShare获取雪球股票情绪分析
+
+    Args:
+        symbol: 股票代码，如 "600000" 或 "300059"
+
+    Returns:
+        Dict: 包含雪球情绪评分的字典
+    """
+    logger.info(f"[雪球情绪] 开始获取股票 {symbol} 的雪球情绪数据")
+
+    try:
+        # 获取雪球热度数据
+        hot_info = get_xueqiu_hot_stock_info(symbol)
+
+        if 'error' in hot_info:
+            logger.error(f"[雪球情绪] 热度数据获取失败: {hot_info['error']}")
+            return {
+                'symbol': symbol,
+                'sentiment_score': 0.5,  # 默认中性
+                'confidence': 0,
+                'source': 'xueqiu_error',
+                'error': hot_info['error']
+            }
+
+        # 基于关注度和讨论度计算情绪评分
+        follow_count = hot_info.get('follow_count', 0)
+        tweet_count = hot_info.get('tweet_count', 0)
+
+        # 简单的情绪评分逻辑：
+        # 1. 如果关注度和讨论度都很高，认为是积极情绪
+        # 2. 如果关注度高但讨论度低，认为是观望（中性）
+        # 3. 如果都很低，认为是冷门（中性偏低）
+
+        # 设定阈值（基于观察到的数据范围）
+        HIGH_FOLLOW_THRESHOLD = 100000  # 10万关注
+        HIGH_TWEET_THRESHOLD = 50000    # 5万讨论
+
+        sentiment_score = 0.5  # 默认中性
+
+        if follow_count > HIGH_FOLLOW_THRESHOLD and tweet_count > HIGH_TWEET_THRESHOLD:
+            # 高关注+高讨论 = 积极情绪
+            sentiment_score = 0.75
+        elif follow_count > HIGH_FOLLOW_THRESHOLD:
+            # 高关注+低讨论 = 观望（中性偏积极）
+            sentiment_score = 0.6
+        elif tweet_count > HIGH_TWEET_THRESHOLD:
+            # 低关注+高讨论 = 热议（中性偏积极）
+            sentiment_score = 0.65
+        elif follow_count > 10000 or tweet_count > 10000:
+            # 中等关注/讨论 = 中性
+            sentiment_score = 0.5
+        else:
+            # 低关注+低讨论 = 冷门（中性偏低）
+            sentiment_score = 0.4
+
+        result = {
+            'symbol': symbol,
+            'sentiment_score': sentiment_score,
+            'confidence': hot_info.get('confidence', 0),
+            'source': 'xueqiu',
+            'follow_count': follow_count,
+            'tweet_count': tweet_count,
+            'latest_price': hot_info.get('latest_price'),
+            'note': f'基于雪球关注度({follow_count})和讨论度({tweet_count})计算情绪'
+        }
+
+        logger.info(f"[雪球情绪]  成功计算 {symbol} 的雪球情绪评分: {sentiment_score:.2f}")
+
+        return result
+
+    except Exception as e:
+        logger.error(f"[雪球情绪]  获取失败: {symbol}, 错误: {e}")
+        return {
+            'symbol': symbol,
+            'sentiment_score': 0.5,
+            'confidence': 0,
+            'source': 'xueqiu_error',
+            'error': str(e)
+        }

@@ -59,9 +59,16 @@ export const API_ENDPOINTS = {
     status: '/api/v1/agents/status',
     analyze: (agentName: string) => `/api/v1/agents/analyze/${agentName}`,
     analyzeAll: (symbol: string) => `/api/v1/agents/analyze-all/${symbol}`,
-    analyzeAllStream: (symbol: string) => `/api/v1/agents/analyze-all-stream/${symbol}`,  // 流式API
+    analyzeAllAsync: (symbol: string) => `/api/v1/agents/analyze-all-async/${symbol}`,  // 异步API（返回task_id）
+    analyzeAllStream: (symbol: string) => `/api/v1/agents/analyze-all-stream/${symbol}`,  // 流式API（旧版，不使用task）
     analyzePosition: (symbol: string) => `/api/v1/agents/analyze-position/${symbol}`,  // 持仓分析
     performance: '/api/v1/agents/performance',
+    // 任务管理端点
+    taskDetail: (taskId: string) => `/api/v1/agents/tasks/${taskId}`,  // 获取任务详情
+    taskStream: (taskId: string) => `/api/v1/agents/tasks/${taskId}/stream`,  // 流式获取任务进度（新版，支持恢复）
+    taskList: '/api/v1/agents/tasks',  // 获取任务列表
+    taskCancel: (taskId: string) => `/api/v1/agents/tasks/${taskId}`,  // 取消任务
+    taskStats: '/api/v1/agents/tasks/stats',  // 任务统计
   },
   // Signal endpoints - aligned with backend API.md
   signals: {

@@ -5,10 +5,12 @@ import { Loading } from '@/components/common/Loading';
 import { Input } from '@/components/common/Input';
 import { Markdown } from '@/components/common/Markdown';
 import { CandlestickChart } from '@/components/market/CandlestickChart';
+import { AnalysisHistory } from '@/components/market/AnalysisHistory';
 import { getQuote, getBars, getTechnicalIndicators, getStockInfo } from '@/api/market';
 import { formatProfitLoss, formatPercentage, getChangeColor, detectMarketType, getDirectionColor } from '@/utils/format';
 import { useStreamingAnalysis } from '@/hooks/useStreamingAnalysis';
-import { Search, TrendingUp, TrendingDown, Building2, MapPin, Calendar, AlertCircle, RefreshCw, Brain, FileText, X, ChevronDown, ChevronUp, BarChart2 } from 'lucide-react';
+import { type AnalysisTask } from '@/api/agents';
+import { Search, TrendingUp, TrendingDown, Building2, MapPin, Calendar, AlertCircle, RefreshCw, Brain, FileText, X, ChevronDown, ChevronUp, BarChart2, History, ChevronLeft, ChevronRight } from 'lucide-react';
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 
 export function Market() {
@@ -19,9 +21,11 @@ export function Market() {
   const [collapseBasicInfo, setCollapseBasicInfo] = useState(false);
   const [collapseCharts, setCollapseCharts] = useState(false);
   const [selectedIndicator, setSelectedIndicator] = useState<'ma' | 'bollinger' | 'macd' | 'none'>('ma');
+  const [showHistory, setShowHistory] = useState(false); // 历史记录侧边栏显示状态
 
   // Use streaming analysis hook for deep analysis
   const {
+    taskId,
     agentResults,
     progress,
     progressPercent,
@@ -33,6 +37,7 @@ export function Market() {
     isLLMAnalyzing,
     startAnalysis,
     stopAnalysis,
+    resumeTask,
   } = useStreamingAnalysis();
 
   // Fetch real-time quote
@@ -107,6 +112,31 @@ export function Market() {
     refetchIndicators();
   };
 
+  // 处理选择历史任务
+  const handleSelectTask = (task: AnalysisTask) => {
+    // 设置股票代码
+    setSelectedSymbol(task.symbol);
+    setSearchInput(task.symbol);
+
+    // 如果任务已完成，直接显示结果
+    if (task.status === 'completed' && task.result) {
+      setShowDeepAnalysis(true);
+      setCollapseBasicInfo(true);
+      setCollapseCharts(true);
+      // useStreamingAnalysis hook已经在页面加载时自动恢复了
+    }
+    // 如果任务正在进行中，恢复连接
+    else if (task.status === 'running' || task.status === 'pending') {
+      setShowDeepAnalysis(true);
+      setCollapseBasicInfo(true);
+      setCollapseCharts(true);
+      // 如果当前不是这个任务，则恢复连接
+      if (taskId !== task.task_id) {
+        resumeTask(task.task_id, task.symbol);
+      }
+    }
+  };
+
   const isUp = (quote?.change_pct || 0) >= 0;
   const marketType = detectMarketType(selectedSymbol);
 
@@ -163,11 +193,32 @@ export function Market() {
   };
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-text-primary">个股查询</h1>
-        <p className="text-text-secondary mt-1">A股市场实时数据和分析</p>
-      </div>
+    <div className="flex gap-6 h-full">
+      {/* 主内容区域 */}
+      <div className={`flex-1 space-y-6 transition-all duration-300 ${showHistory ? 'mr-0' : ''}`}>
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-text-primary">个股查询</h1>
+            <p className="text-text-secondary mt-1">A股市场实时数据和分析</p>
+          </div>
+
+          {/* 历史记录切换按钮 */}
+          <button
+            onClick={() => setShowHistory(!showHistory)}
+            className="flex items-center gap-2 px-4 py-2 rounded-lg border border-gray-300 hover:bg-gray-50 transition-colors"
+            title={showHistory ? '隐藏历史记录' : '显示历史记录'}
+          >
+            <History className="w-5 h-5 text-gray-600" />
+            <span className="text-sm font-medium text-gray-700">
+              {showHistory ? '隐藏历史' : '历史记录'}
+            </span>
+            {showHistory ? (
+              <ChevronRight className="w-4 h-4 text-gray-500" />
+            ) : (
+              <ChevronLeft className="w-4 h-4 text-gray-500" />
+            )}
+          </button>
+        </div>
 
       {/* Search Bar */}
       <Card padding="md">
@@ -1409,6 +1460,18 @@ export function Market() {
               </div>
             </div>
           </div>
+        </div>
+      )}
+      </div>
+
+      {/* 历史记录侧边栏 */}
+      {showHistory && (
+        <div className="w-96 flex-shrink-0">
+          <AnalysisHistory
+            currentSymbol={selectedSymbol}
+            onSelectTask={handleSelectTask}
+            currentTaskId={taskId}
+          />
         </div>
       )}
     </div>

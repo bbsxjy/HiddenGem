@@ -233,3 +233,169 @@ export function analyzeWithAllAgentsStream(
 
   return eventSource;
 }
+
+/**
+ * Task Management APIs
+ */
+
+export interface AnalysisTask {
+  task_id: string;
+  task_type: string;
+  symbol: string;
+  status: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled';
+  progress: number;
+  result: AnalyzeAllResponse | null;
+  error: string | null;
+  created_at: string;
+  started_at: string | null;
+  completed_at: string | null;
+  metadata: Record<string, any>;
+  progress_messages: Array<{
+    progress: number;
+    message: string;
+    timestamp: string;
+  }>;
+}
+
+export interface CreateTaskResponse {
+  success: boolean;
+  task_id: string;
+  symbol: string;
+  message: string;
+  status_url: string;
+  timestamp: string;
+}
+
+/**
+ * Create an analysis task (async version)
+ * POST /api/v1/agents/analyze-all-async/{symbol}
+ *
+ * Creates a background analysis task and returns immediately with a task_id.
+ * Use getTaskDetail() or streamTaskProgress() to monitor progress.
+ *
+ * @param symbol - Stock symbol
+ * @param analysisDate - Optional analysis date
+ * @returns Task creation response with task_id
+ */
+export async function createAnalysisTask(
+  symbol: string,
+  analysisDate?: string
+): Promise<CreateTaskResponse> {
+  const response = await apiClient.post<CreateTaskResponse>(
+    API_ENDPOINTS.agents.analyzeAllAsync(symbol),
+    analysisDate ? { trade_date: analysisDate } : undefined
+  );
+  return response.data;
+}
+
+/**
+ * Get task detail and result
+ * GET /api/v1/agents/tasks/{taskId}
+ *
+ * @param taskId - Task ID
+ * @returns Task detail with status and result
+ */
+export async function getTaskDetail(taskId: string): Promise<AnalysisTask> {
+  const response = await apiClient.get<ApiResponse<AnalysisTask>>(
+    API_ENDPOINTS.agents.taskDetail(taskId)
+  );
+  return extractData(response.data);
+}
+
+/**
+ * Get task list (history)
+ * GET /api/v1/agents/tasks
+ *
+ * @param options - Filter options
+ * @returns List of tasks
+ */
+export async function getTaskList(options?: {
+  status?: string;
+  symbol?: string;
+  limit?: number;
+}): Promise<AnalysisTask[]> {
+  const params = new URLSearchParams();
+  if (options?.status) params.append('status', options.status);
+  if (options?.symbol) params.append('symbol', options.symbol);
+  if (options?.limit) params.append('limit', options.limit.toString());
+
+  const url = `${API_ENDPOINTS.agents.taskList}?${params.toString()}`;
+  const response = await apiClient.get<ApiResponse<AnalysisTask[]>>(url);
+  return extractData(response.data);
+}
+
+/**
+ * Cancel a task
+ * DELETE /api/v1/agents/tasks/{taskId}
+ *
+ * @param taskId - Task ID
+ * @returns Success response
+ */
+export async function cancelTask(taskId: string): Promise<void> {
+  await apiClient.delete(API_ENDPOINTS.agents.taskCancel(taskId));
+}
+
+/**
+ * Stream task progress via SSE (supports reconnection)
+ * GET /api/v1/agents/tasks/{taskId}/stream
+ *
+ * This allows reconnecting to an existing task after page refresh.
+ * It will immediately return the result if the task is already completed.
+ *
+ * @param taskId - Task ID
+ * @param callbacks - Event callbacks
+ * @returns EventSource instance
+ */
+export function streamTaskProgress(
+  taskId: string,
+  callbacks: StreamCallbacks & {
+    onAgentComplete?: (agent: string, result: AgentAnalysisResult) => void;
+  }
+): EventSource {
+  const baseUrl = API_ENDPOINTS.agents.taskStream(taskId).replace('/api/v1', '');
+  const fullUrl = `${import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'}/api/v1${baseUrl}`;
+
+  const eventSource = new EventSource(fullUrl);
+
+  eventSource.onmessage = (event) => {
+    try {
+      const data: StreamEvent & {
+        task_id?: string;
+        result?: AgentAnalysisResult;
+      } = JSON.parse(event.data);
+
+      switch (data.type) {
+        case 'start':
+          callbacks.onStart?.(data);
+          break;
+
+        case 'progress':
+          callbacks.onProgress?.(data);
+          break;
+
+        case 'complete':
+          if (data.data) {
+            callbacks.onComplete?.(data.data);
+          }
+          eventSource.close();
+          break;
+
+        case 'error':
+          callbacks.onError?.(data.error || 'Unknown error');
+          eventSource.close();
+          break;
+      }
+    } catch (error) {
+      console.error('Failed to parse SSE event:', error);
+      callbacks.onError?.('Failed to parse server response');
+    }
+  };
+
+  eventSource.onerror = (error) => {
+    console.error('EventSource error:', error);
+    callbacks.onError?.('Connection to server lost');
+    eventSource.close();
+  };
+
+  return eventSource;
+}
