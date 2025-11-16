@@ -229,6 +229,61 @@ export function useStreamingAnalysis() {
     }));
   }, [state.taskId]);
 
+  // 加载已完成任务的结果（用于查看历史记录）
+  const loadTaskResult = useCallback(async (taskId: string) => {
+    try {
+      console.log(`[LoadTask] 加载任务结果: ${taskId}`);
+      const task = await getTaskDetail(taskId);
+
+      if (task.status === 'completed' && task.result) {
+        // 提取agent结果
+        const agentResults: Record<string, AgentAnalysisResult> = {};
+        if (task.result.agent_results) {
+          Object.entries(task.result.agent_results).forEach(([name, result]) => {
+            agentResults[name] = result;
+          });
+        }
+
+        setState({
+          taskId,
+          agentResults,
+          finalResult: task.result,
+          isAnalyzing: false,
+          isLLMAnalyzing: false,
+          progress: '100%',
+          progressPercent: 100,
+          currentMessage: '分析已完成',
+          currentAgent: '',
+          error: null,
+        });
+
+        console.log(`[LoadTask] 任务结果已加载:`, task.result);
+      } else if (task.status === 'running' || task.status === 'pending') {
+        // 任务还在进行中，连接SSE
+        connectToTask(taskId, task.symbol);
+      } else if (task.status === 'failed') {
+        setState({
+          taskId,
+          agentResults: {},
+          finalResult: null,
+          isAnalyzing: false,
+          isLLMAnalyzing: false,
+          progress: '0%',
+          progressPercent: 0,
+          currentMessage: '分析失败',
+          currentAgent: '',
+          error: task.error || '分析失败',
+        });
+      }
+    } catch (error) {
+      console.error('[LoadTask] 加载任务失败:', error);
+      setState(prev => ({
+        ...prev,
+        error: error instanceof Error ? error.message : '加载任务失败',
+      }));
+    }
+  }, [connectToTask]);
+
   // Cleanup on unmount
   useEffect(() => {
     return () => {
@@ -244,5 +299,6 @@ export function useStreamingAnalysis() {
     startAnalysis,
     stopAnalysis,
     resumeTask: connectToTask,  // 暴露resume函数以便手动恢复
+    loadTaskResult,  // 暴露加载函数用于查看历史记录
   };
 }

@@ -38,6 +38,7 @@ export function Market() {
     startAnalysis,
     stopAnalysis,
     resumeTask,
+    loadTaskResult,
   } = useStreamingAnalysis();
 
   // Fetch real-time quote
@@ -118,23 +119,13 @@ export function Market() {
     setSelectedSymbol(task.symbol);
     setSearchInput(task.symbol);
 
-    // 如果任务已完成，直接显示结果
-    if (task.status === 'completed' && task.result) {
-      setShowDeepAnalysis(true);
-      setCollapseBasicInfo(true);
-      setCollapseCharts(true);
-      // useStreamingAnalysis hook已经在页面加载时自动恢复了
-    }
-    // 如果任务正在进行中，恢复连接
-    else if (task.status === 'running' || task.status === 'pending') {
-      setShowDeepAnalysis(true);
-      setCollapseBasicInfo(true);
-      setCollapseCharts(true);
-      // 如果当前不是这个任务，则恢复连接
-      if (taskId !== task.task_id) {
-        resumeTask(task.task_id, task.symbol);
-      }
-    }
+    // 显示分析区域
+    setShowDeepAnalysis(true);
+    setCollapseBasicInfo(true);
+    setCollapseCharts(true);
+
+    // 加载任务结果或恢复连接
+    loadTaskResult(task.task_id);
   };
 
   const isUp = (quote?.change_pct || 0) >= 0;
