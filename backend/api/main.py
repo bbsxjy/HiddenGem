@@ -20,6 +20,9 @@ from api.routes import memory
 # 导入WebSocket管理器
 from api.websocket import ConnectionManager
 
+# 导入任务管理器
+from api.services.task_manager import task_manager
+
 # 配置日志
 logging.basicConfig(
     level=logging.INFO,
@@ -38,9 +41,13 @@ async def lifespan(app: FastAPI):
     # 启动
     logger.info("[STARTUP] HiddenGem API starting...")
     logger.info(f"[STARTUP] Environment: {os.getenv('ENVIRONMENT', 'development')}")
-    
+
+    # 注入WebSocket管理器到TaskManager
+    task_manager.set_ws_manager(ws_manager)
+    logger.info("[STARTUP] Injected WebSocket manager into TaskManager")
+
     yield
-    
+
     # 关闭
     logger.info("[SHUTDOWN] HiddenGem API shutting down...")
 
@@ -130,13 +137,15 @@ async def websocket_endpoint(websocket: WebSocket):
 
     客户端可以通过此端点：
     1. 订阅股票实时数据
-    2. 接收Agent分析进度更新
-    3. 接收系统通知
+    2. 订阅任务进度更新
+    3. 接收Agent分析进度更新
+    4. 接收系统通知
 
     消息格式：
     {
-        "type": "subscribe|unsubscribe|ping",
-        "symbol": "600519.SH",  # 可选
+        "type": "subscribe|unsubscribe|subscribe_task|unsubscribe_task|ping",
+        "symbol": "600519.SH",  # subscribe/unsubscribe时需要
+        "task_id": "uuid",  # subscribe_task/unsubscribe_task时需要
         "data": {}  # 可选
     }
     """
@@ -164,10 +173,28 @@ async def websocket_endpoint(websocket: WebSocket):
                     await ws_manager.subscribe(websocket, symbol)
 
             elif msg_type == "unsubscribe":
-                # 取消订阅
+                # 取消订阅股票
                 symbol = message.get("symbol")
                 if symbol:
                     await ws_manager.unsubscribe(websocket, symbol)
+
+            elif msg_type == "subscribe_task":
+                # 订阅任务进度
+                task_id = message.get("task_id")
+                if task_id:
+                    await ws_manager.subscribe_task(websocket, task_id)
+                else:
+                    await ws_manager.send_personal_message({
+                        "type": "error",
+                        "message": "Missing task_id for subscribe_task",
+                        "timestamp": datetime.now().isoformat()
+                    }, websocket)
+
+            elif msg_type == "unsubscribe_task":
+                # 取消订阅任务
+                task_id = message.get("task_id")
+                if task_id:
+                    await ws_manager.unsubscribe_task(websocket, task_id)
 
             elif msg_type == "ping":
                 # 心跳

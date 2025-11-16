@@ -4,7 +4,7 @@ Agent Analysis API Router
 提供TradingAgents多Agent分析的API端点
 """
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, BackgroundTasks
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from typing import Dict, List, Optional, Any
@@ -17,6 +17,9 @@ import os
 # 导入TradingAgents
 from tradingagents.graph.trading_graph import TradingAgentsGraph
 from tradingagents.default_config import DEFAULT_CONFIG
+
+# 导入任务管理器
+from api.services.task_manager import task_manager, Task, TaskStatus
 
 logger = logging.getLogger(__name__)
 
@@ -132,38 +135,260 @@ async def get_agents_status():
 @router.post("/analyze-all/{symbol}")
 async def analyze_all_agents(symbol: str, trade_date: Optional[str] = None):
     """
-    分析所有Agent对某只股票的看法
-   
+    分析所有Agent对某只股票的看法（同步版本，会阻塞）
+
+    ⚠️ 注意：此接口会阻塞直到分析完成，建议使用 /analyze-all-async/{symbol} 异步版本
+
     Args:
         symbol: 股票代码 (e.g., 600519.SH, 000001.SZ)
         trade_date: 交易日期，默认为今天
-   
+
     Returns:
         AnalyzeResponse: 包含所有Agent的分析结果
     """
     global trading_graph
-   
+
     if trading_graph is None:
         raise HTTPException(status_code=503, detail="TradingAgentsGraph not initialized")
-   
+
     if trade_date is None:
         trade_date = datetime.now().strftime('%Y-%m-%d')
-   
+
     try:
         logger.info(f"[ANALYZE] Starting analysis for {symbol} on {trade_date}")
-       
+
         # 调用TradingAgents进行分析
         final_state, processed_signal = trading_graph.propagate(symbol, trade_date)
-       
+
         # 格式化为前端期望的格式
         response = _format_response(final_state, processed_signal, symbol)
-       
+
         logger.info(f"[ANALYZE] Analysis complete for {symbol}")
         return response
-       
+
     except Exception as e:
         logger.error(f"[ERROR] Analysis failed for {symbol}: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/analyze-all-async/{symbol}")
+async def analyze_all_agents_async(symbol: str, trade_date: Optional[str] = None):
+    """
+    异步分析所有Agent对某只股票的看法（推荐）
+
+    此接口立即返回task_id，不会阻塞。
+    使用 GET /tasks/{task_id} 查询分析进度和结果
+
+    Args:
+        symbol: 股票代码 (e.g., 600519.SH, 000001.SZ)
+        trade_date: 交易日期，默认为今天
+
+    Returns:
+        {
+            "success": true,
+            "task_id": "uuid",
+            "symbol": "600519.SH",
+            "message": "Analysis task created",
+            "status_url": "/api/v1/agents/tasks/{task_id}"
+        }
+    """
+    global trading_graph
+
+    if trading_graph is None:
+        raise HTTPException(status_code=503, detail="TradingAgentsGraph not initialized")
+
+    if trade_date is None:
+        trade_date = datetime.now().strftime('%Y-%m-%d')
+
+    try:
+        # 创建任务
+        task_id = task_manager.create_task(
+            task_type="analyze_all",
+            symbol=symbol,
+            metadata={"trade_date": trade_date}
+        )
+
+        # 在后台运行分析
+        task_manager.run_task_in_background(
+            task_id=task_id,
+            func=_run_analysis_task,
+            symbol=symbol,
+            trade_date=trade_date
+        )
+
+        logger.info(f"[ASYNC] Created analysis task {task_id} for {symbol}")
+
+        return {
+            "success": True,
+            "task_id": task_id,
+            "symbol": symbol,
+            "message": "Analysis task created successfully",
+            "status_url": f"/api/v1/agents/tasks/{task_id}",
+            "timestamp": datetime.now().isoformat()
+        }
+
+    except Exception as e:
+        logger.error(f"[ERROR] Failed to create analysis task for {symbol}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+async def _run_analysis_task(task: Task, symbol: str, trade_date: str):
+    """
+    执行分析任务（后台函数）
+
+    Args:
+        task: 任务对象
+        symbol: 股票代码
+        trade_date: 交易日期
+
+    Returns:
+        分析结果字典
+    """
+    global trading_graph
+
+    try:
+        # 更新进度：0% - 开始
+        task_manager.update_progress(task.task_id, 0, f"开始分析 {symbol}")
+
+        # 更新进度：10% - 数据准备
+        task_manager.update_progress(task.task_id, 10, "准备数据...")
+
+        # 运行分析（在executor中运行同步函数）
+        loop = asyncio.get_event_loop()
+
+        def sync_propagate():
+            # 更新进度：20% - 分析中
+            task_manager.update_progress(task.task_id, 20, "市场分析中...")
+            final_state, processed_signal = trading_graph.propagate(symbol, trade_date)
+
+            # 更新进度：80% - 格式化结果
+            task_manager.update_progress(task.task_id, 80, "格式化结果...")
+            return final_state, processed_signal
+
+        final_state, processed_signal = await loop.run_in_executor(None, sync_propagate)
+
+        # 更新进度：90% - 生成报告
+        task_manager.update_progress(task.task_id, 90, "生成分析报告...")
+
+        # 格式化响应
+        result = _format_response(final_state, processed_signal, symbol)
+
+        # 更新进度：100% - 完成
+        task_manager.update_progress(task.task_id, 100, "分析完成")
+
+        logger.info(f"[TASK] Analysis completed for {symbol} (task: {task.task_id})")
+        return result
+
+    except Exception as e:
+        logger.error(f"[TASK] Analysis failed for {symbol} (task: {task.task_id}): {e}", exc_info=True)
+        raise
+
+
+@router.get("/tasks/{task_id}")
+async def get_task_status(task_id: str):
+    """
+    获取任务状态和结果
+
+    Args:
+        task_id: 任务ID
+
+    Returns:
+        任务状态和结果
+    """
+    task_status = task_manager.get_task_status(task_id)
+
+    if not task_status:
+        raise HTTPException(status_code=404, detail=f"Task {task_id} not found")
+
+    return {
+        "success": True,
+        "data": task_status,
+        "timestamp": datetime.now().isoformat()
+    }
+
+
+@router.delete("/tasks/{task_id}")
+async def cancel_task(task_id: str):
+    """
+    取消任务
+
+    Args:
+        task_id: 任务ID
+
+    Returns:
+        取消结果
+    """
+    success = task_manager.cancel_task(task_id)
+
+    if not success:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Task {task_id} cannot be cancelled (not found or already completed)"
+        )
+
+    return {
+        "success": True,
+        "message": f"Task {task_id} cancelled successfully",
+        "timestamp": datetime.now().isoformat()
+    }
+
+
+@router.get("/tasks")
+async def list_tasks(
+    status: Optional[str] = Query(None, description="Filter by status"),
+    symbol: Optional[str] = Query(None, description="Filter by symbol"),
+    limit: int = Query(50, description="Number of tasks to return")
+):
+    """
+    列出任务
+
+    Args:
+        status: 过滤状态 (pending, running, completed, failed, cancelled)
+        symbol: 过滤股票代码
+        limit: 返回数量限制
+
+    Returns:
+        任务列表
+    """
+    status_enum = None
+    if status:
+        try:
+            status_enum = TaskStatus(status)
+        except ValueError:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid status: {status}. Must be one of: pending, running, completed, failed, cancelled"
+            )
+
+    tasks = task_manager.list_tasks(
+        status=status_enum,
+        symbol=symbol,
+        limit=limit
+    )
+
+    return {
+        "success": True,
+        "data": tasks,
+        "total": len(tasks),
+        "timestamp": datetime.now().isoformat()
+    }
+
+
+@router.get("/tasks/stats")
+async def get_tasks_stats():
+    """
+    获取任务统计信息
+
+    Returns:
+        任务统计
+    """
+    stats = task_manager.get_stats()
+
+    return {
+        "success": True,
+        "data": stats,
+        "timestamp": datetime.now().isoformat()
+    }
 
 
 def _format_response(final_state: dict, processed_signal: Any, symbol: str) -> dict:
@@ -727,6 +952,168 @@ def _sse_event(data: dict) -> str:
         格式化的SSE消息
     """
     return f"data: {json.dumps(data, ensure_ascii=False)}\n\n"
+
+
+@router.get("/tasks/{task_id}/stream")
+async def stream_task_progress(task_id: str):
+    """
+    基于任务ID的SSE流式进度推送
+
+    支持页面刷新后重新连接，自动恢复分析进度。
+
+    Args:
+        task_id: 任务ID
+
+    Returns:
+        StreamingResponse: SSE事件流
+    """
+    # 检查任务是否存在
+    task = task_manager.get_task(task_id)
+    if not task:
+        raise HTTPException(status_code=404, detail=f"Task {task_id} not found")
+
+    async def event_generator():
+        """生成SSE事件流"""
+        try:
+            # 发送开始事件
+            yield _sse_event({
+                "type": "start",
+                "task_id": task_id,
+                "symbol": task.symbol,
+                "message": f"连接任务 {task_id}",
+                "timestamp": datetime.now().isoformat()
+            })
+
+            # 如果任务已完成，直接返回结果
+            if task.status in [TaskStatus.COMPLETED, TaskStatus.FAILED, TaskStatus.CANCELLED]:
+                if task.status == TaskStatus.COMPLETED and task.result:
+                    yield _sse_event({
+                        "type": "complete",
+                        "task_id": task_id,
+                        "symbol": task.symbol,
+                        "data": task.result,
+                        "message": "分析已完成",
+                        "timestamp": datetime.now().isoformat()
+                    })
+                elif task.status == TaskStatus.FAILED:
+                    yield _sse_event({
+                        "type": "error",
+                        "task_id": task_id,
+                        "symbol": task.symbol,
+                        "error": task.error or "Unknown error",
+                        "message": "分析失败",
+                        "timestamp": datetime.now().isoformat()
+                    })
+                else:
+                    yield _sse_event({
+                        "type": "error",
+                        "task_id": task_id,
+                        "symbol": task.symbol,
+                        "error": "Task was cancelled",
+                        "message": "任务已取消",
+                        "timestamp": datetime.now().isoformat()
+                    })
+                return
+
+            # 监听任务进度（轮询）
+            last_progress = -1
+            last_message_count = 0
+
+            while True:
+                # 重新获取任务状态
+                current_task = task_manager.get_task(task_id)
+                if not current_task:
+                    yield _sse_event({
+                        "type": "error",
+                        "task_id": task_id,
+                        "error": "Task disappeared",
+                        "timestamp": datetime.now().isoformat()
+                    })
+                    break
+
+                # 检查进度是否有变化
+                if current_task.progress != last_progress:
+                    last_progress = current_task.progress
+
+                    # 发送进度更新
+                    yield _sse_event({
+                        "type": "progress",
+                        "task_id": task_id,
+                        "symbol": current_task.symbol,
+                        "progress": current_task.progress,
+                        "message": current_task.progress_messages[-1]["message"] if current_task.progress_messages else "处理中...",
+                        "timestamp": datetime.now().isoformat()
+                    })
+
+                # 检查是否有新的进度消息
+                current_message_count = len(current_task.progress_messages)
+                if current_message_count > last_message_count:
+                    # 发送新消息
+                    for msg in current_task.progress_messages[last_message_count:]:
+                        yield _sse_event({
+                            "type": "progress",
+                            "task_id": task_id,
+                            "symbol": current_task.symbol,
+                            "progress": msg.get("progress", current_task.progress),
+                            "message": msg.get("message", ""),
+                            "timestamp": msg.get("timestamp", datetime.now().isoformat())
+                        })
+                    last_message_count = current_message_count
+
+                # 检查任务是否完成
+                if current_task.status == TaskStatus.COMPLETED:
+                    if current_task.result:
+                        yield _sse_event({
+                            "type": "complete",
+                            "task_id": task_id,
+                            "symbol": current_task.symbol,
+                            "data": current_task.result,
+                            "message": "分析完成",
+                            "timestamp": datetime.now().isoformat()
+                        })
+                    break
+                elif current_task.status == TaskStatus.FAILED:
+                    yield _sse_event({
+                        "type": "error",
+                        "task_id": task_id,
+                        "symbol": current_task.symbol,
+                        "error": current_task.error or "Unknown error",
+                        "message": "分析失败",
+                        "timestamp": datetime.now().isoformat()
+                    })
+                    break
+                elif current_task.status == TaskStatus.CANCELLED:
+                    yield _sse_event({
+                        "type": "error",
+                        "task_id": task_id,
+                        "symbol": current_task.symbol,
+                        "error": "Task was cancelled",
+                        "message": "任务已取消",
+                        "timestamp": datetime.now().isoformat()
+                    })
+                    break
+
+                # 等待一段时间再检查
+                await asyncio.sleep(0.5)  # 500ms轮询间隔
+
+        except Exception as e:
+            logger.error(f"[SSE] Task stream error for {task_id}: {e}", exc_info=True)
+            yield _sse_event({
+                "type": "error",
+                "task_id": task_id,
+                "error": str(e),
+                "timestamp": datetime.now().isoformat()
+            })
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",  # 禁用nginx缓冲
+            "Connection": "keep-alive",
+        }
+    )
 
 
 @router.post("/analyze-position/{symbol}")
