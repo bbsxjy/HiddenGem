@@ -256,16 +256,31 @@ async def _run_analysis_task(task: Task, symbol: str, trade_date: str):
         # 运行分析（在executor中运行同步函数）
         loop = asyncio.get_event_loop()
 
+        # 启动进度模拟任务
+        progress_cancel = asyncio.Event()
+        progress_task = asyncio.create_task(_simulate_progress(task.task_id, progress_cancel))
+
         def sync_propagate():
-            # 更新进度：20% - 分析中
-            task_manager.update_progress(task.task_id, 20, "市场分析中...")
+            # 更新进度：20% - 分析开始
+            task_manager.update_progress(task.task_id, 20, "初始化分析系统...")
+
+            # 执行实际分析（这个过程可能需要几分钟）
             final_state, processed_signal = trading_graph.propagate(symbol, trade_date)
 
-            # 更新进度：80% - 格式化结果
-            task_manager.update_progress(task.task_id, 80, "格式化结果...")
             return final_state, processed_signal
 
-        final_state, processed_signal = await loop.run_in_executor(None, sync_propagate)
+        try:
+            final_state, processed_signal = await loop.run_in_executor(None, sync_propagate)
+        finally:
+            # 停止进度模拟
+            progress_cancel.set()
+            try:
+                await asyncio.wait_for(progress_task, timeout=1.0)
+            except asyncio.TimeoutError:
+                progress_task.cancel()
+
+        # 更新进度：80% - 格式化结果
+        task_manager.update_progress(task.task_id, 80, "格式化结果...")
 
         # 更新进度：90% - 生成报告
         task_manager.update_progress(task.task_id, 90, "生成分析报告...")
@@ -282,6 +297,53 @@ async def _run_analysis_task(task: Task, symbol: str, trade_date: str):
     except Exception as e:
         logger.error(f"[TASK] Analysis failed for {symbol} (task: {task.task_id}): {e}", exc_info=True)
         raise
+
+
+async def _simulate_progress(task_id: str, cancel_event: asyncio.Event):
+    """
+    模拟分析进度（在实际分析执行期间）
+
+    从20%逐渐增加到75%，每个阶段模拟不同的分析步骤
+
+    Args:
+        task_id: 任务ID
+        cancel_event: 取消事件
+    """
+    # 定义进度步骤：(进度%, 消息, 等待时间秒)
+    progress_steps = [
+        (25, "市场数据分析中...", 8),
+        (35, "基本面分析中...", 10),
+        (45, "情绪分析中...", 8),
+        (55, "政策分析中...", 8),
+        (62, "多方观点辩论中...", 10),
+        (68, "空方观点辩论中...", 10),
+        (73, "风险评估中...", 8),
+        (75, "综合分析中...", 5),
+    ]
+
+    try:
+        for progress, message, wait_time in progress_steps:
+            # 检查是否被取消
+            if cancel_event.is_set():
+                logger.debug(f"[Progress Simulator] Cancelled for task {task_id}")
+                return
+
+            # 更新进度
+            task_manager.update_progress(task_id, progress, message)
+            logger.debug(f"[Progress Simulator] Task {task_id}: {progress}% - {message}")
+
+            # 等待指定时间或直到取消
+            try:
+                await asyncio.wait_for(cancel_event.wait(), timeout=wait_time)
+                # 如果wait成功返回，说明被取消了
+                logger.debug(f"[Progress Simulator] Cancelled for task {task_id}")
+                return
+            except asyncio.TimeoutError:
+                # 超时是正常的，继续下一个步骤
+                continue
+
+    except Exception as e:
+        logger.error(f"[Progress Simulator] Error for task {task_id}: {e}", exc_info=True)
 
 
 @router.get("/tasks/{task_id}")
