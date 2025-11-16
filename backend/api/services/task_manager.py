@@ -315,11 +315,16 @@ class TaskManager:
                 })
             logger.debug(f"[TaskManager] Task {task_id} progress: {progress}% - {message}")
 
-            # 通过WebSocket推送进度
+            # 通过WebSocket推送进度（仅在异步环境中）
             if self.ws_manager:
-                asyncio.create_task(
-                    self.ws_manager.send_task_progress(task_id, progress, message or "")
-                )
+                try:
+                    asyncio.create_task(
+                        self.ws_manager.send_task_progress(task_id, progress, message or "")
+                    )
+                except RuntimeError:
+                    # 在同步环境中（如executor），无法创建task，忽略WebSocket推送
+                    # 客户端可以通过轮询SSE获取进度
+                    pass
 
     def cleanup_old_tasks(self, ttl: Optional[int] = None):
         """
