@@ -74,12 +74,14 @@ class TradingAgentsGraph:
             self.deep_thinking_llm = ChatOpenAI(
                 model=self.config["deep_think_llm"],
                 base_url=self.config["backend_url"],
-                timeout=300.0  # 300秒超时（5分钟）
+                timeout=600.0,  # 600秒超时（10分钟）- 适应长时间AI分析任务
+                max_retries=2   # 增加重试次数应对网络波动
             )
             self.quick_thinking_llm = ChatOpenAI(
                 model=self.config["quick_think_llm"],
                 base_url=self.config["backend_url"],
-                timeout=300.0  # 300秒超时（5分钟）
+                timeout=600.0,  # 600秒超时（10分钟）- 适应长时间AI分析任务
+                max_retries=2   # 增加重试次数应对网络波动
             )
         elif self.config["llm_provider"] == "siliconflow":
             # SiliconFlow支持：使用OpenAI兼容API + Rate Limiting + Retry
@@ -130,35 +132,35 @@ class TradingAgentsGraph:
                 model=self.config["deep_think_llm"],
                 base_url=self.config["backend_url"],
                 api_key=openrouter_api_key,
-                timeout=300.0  # 300秒超时（5分钟）
+                timeout=600.0  # 600秒超时（10分钟）- 适应长时间AI分析任务
             )
             self.quick_thinking_llm = ChatOpenAI(
                 model=self.config["quick_think_llm"],
                 base_url=self.config["backend_url"],
                 api_key=openrouter_api_key,
-                timeout=300.0  # 300秒超时（5分钟）
+                timeout=600.0  # 600秒超时（10分钟）- 适应长时间AI分析任务
             )
         elif self.config["llm_provider"] == "ollama":
             self.deep_thinking_llm = ChatOpenAI(
                 model=self.config["deep_think_llm"],
                 base_url=self.config["backend_url"],
-                timeout=300.0  # 300秒超时（5分钟）
+                timeout=600.0  # 600秒超时（10分钟）- 适应长时间AI分析任务
             )
             self.quick_thinking_llm = ChatOpenAI(
                 model=self.config["quick_think_llm"],
                 base_url=self.config["backend_url"],
-                timeout=300.0  # 300秒超时（5分钟）
+                timeout=600.0  # 600秒超时（10分钟）- 适应长时间AI分析任务
             )
         elif self.config["llm_provider"].lower() == "anthropic":
             self.deep_thinking_llm = ChatAnthropic(
                 model=self.config["deep_think_llm"],
                 base_url=self.config["backend_url"],
-                timeout=300.0  # 300秒超时（5分钟）
+                timeout=600.0  # 600秒超时（10分钟）- 适应长时间AI分析任务
             )
             self.quick_thinking_llm = ChatAnthropic(
                 model=self.config["quick_think_llm"],
                 base_url=self.config["backend_url"],
-                timeout=300.0  # 300秒超时（5分钟）
+                timeout=600.0  # 600秒超时（10分钟）- 适应长时间AI分析任务
             )
         elif self.config["llm_provider"].lower() == "google":
             # 使用 Google OpenAI 兼容适配器，解决工具调用格式不匹配问题
@@ -172,7 +174,7 @@ class TradingAgentsGraph:
                 google_api_key=google_api_key,
                 temperature=0.1,
                 max_tokens=2000,
-                timeout=300.0  # 300秒超时（5分钟）
+                timeout=600.0  # 600秒超时（10分钟）- 适应长时间AI分析任务
             )
             self.quick_thinking_llm = ChatGoogleOpenAI(
                 model=self.config["quick_think_llm"],
@@ -181,7 +183,7 @@ class TradingAgentsGraph:
                 max_tokens=2000,
                 client_options=client_options,
                 transport="rest",
-                timeout=300.0  # 300秒超时（5分钟）
+                timeout=600.0  # 600秒超时（10分钟）- 适应长时间AI分析任务
             )
 
             logger.info(f" [Google AI] 已启用优化的工具调用和内容格式处理")
@@ -195,13 +197,13 @@ class TradingAgentsGraph:
                 model=self.config["deep_think_llm"],
                 temperature=0.1,
                 max_tokens=2000,
-                timeout=300.0  # 300秒超时（5分钟）
+                timeout=600.0  # 600秒超时（10分钟）- 适应长时间AI分析任务
             )
             self.quick_thinking_llm = ChatDashScopeOpenAI(
                 model=self.config["quick_think_llm"],
                 temperature=0.1,
                 max_tokens=2000,
-                timeout=300.0  # 300秒超时（5分钟）
+                timeout=600.0  # 600秒超时（10分钟）- 适应长时间AI分析任务
             )
         elif (self.config["llm_provider"].lower() == "deepseek" or
               "deepseek" in self.config["llm_provider"].lower()):
@@ -222,7 +224,7 @@ class TradingAgentsGraph:
                 base_url=deepseek_base_url,
                 temperature=0.1,
                 max_tokens=2000,
-                timeout=300.0  # 300秒超时（5分钟）
+                timeout=600.0  # 600秒超时（10分钟）- 适应长时间AI分析任务
             )
             self.quick_thinking_llm = ChatDeepSeek(
                 model=self.config["quick_think_llm"],
@@ -230,7 +232,7 @@ class TradingAgentsGraph:
                 base_url=deepseek_base_url,
                 temperature=0.1,
                 max_tokens=2000,
-                timeout=300.0  # 300秒超时（5分钟）
+                timeout=600.0  # 600秒超时（10分钟）- 适应长时间AI分析任务
                 )
 
             logger.info(f" [DeepSeek] 已启用token统计功能")
@@ -253,7 +255,7 @@ class TradingAgentsGraph:
                 base_url=custom_base_url,
                 temperature=0.1,
                 max_tokens=2000,
-                timeout=300.0  # 300秒超时（5分钟）
+                timeout=600.0  # 600秒超时（10分钟）- 适应长时间AI分析任务
             )
             self.quick_thinking_llm = create_openai_compatible_llm(
                 provider="custom_openai",
@@ -261,7 +263,7 @@ class TradingAgentsGraph:
                 base_url=custom_base_url,
                 temperature=0.1,
                 max_tokens=2000,
-                timeout=300.0  # 300秒超时（5分钟）
+                timeout=600.0  # 600秒超时（10分钟）- 适应长时间AI分析任务
             )
 
             logger.info(f" [自定义OpenAI] 已配置自定义端点: {custom_base_url}")
@@ -275,14 +277,14 @@ class TradingAgentsGraph:
                 model=self.config["deep_think_llm"],
                 temperature=0.1,
                 max_tokens=2000,
-                timeout=300.0  # 300秒超时（5分钟）
+                timeout=600.0  # 600秒超时（10分钟）- 适应长时间AI分析任务
             )
             self.quick_thinking_llm = create_openai_compatible_llm(
                 provider="qianfan",
                 model=self.config["quick_think_llm"],
                 temperature=0.1,
                 max_tokens=2000,
-                timeout=300.0  # 300秒超时（5分钟）
+                timeout=600.0  # 600秒超时（10分钟）- 适应长时间AI分析任务
             )
             logger.info(" [千帆] 文心一言适配器已配置成功")
         else:
