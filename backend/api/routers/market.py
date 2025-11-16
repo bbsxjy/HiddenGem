@@ -202,66 +202,26 @@ async def get_stock_info(symbol: str):
         股票基本信息
     """
     try:
-        # 获取股票数据（最近1天用于获取基本信息）
-        end_date = datetime.now().strftime('%Y-%m-%d')
-        start_date = (datetime.now() - timedelta(days=1)).strftime('%Y-%m-%d')
+        # 导入统一数据接口
+        from tradingagents.dataflows.data_source_manager import get_china_stock_info_unified
 
-        df = get_stock_data_dataframe(symbol, start_date, end_date)
+        # 使用统一接口获取股票基本信息
+        logger.info(f"[STOCK_INFO] Fetching info for {symbol}")
+        stock_info = get_china_stock_info_unified(symbol)
 
-        if df is None or len(df) == 0:
-            # 如果最近1天没数据，尝试获取最近7天
-            start_date = (datetime.now() - timedelta(days=7)).strftime('%Y-%m-%d')
-            df = get_stock_data_dataframe(symbol, start_date, end_date)
+        if not stock_info or not stock_info.get('name'):
+            raise HTTPException(status_code=404, detail=f"No stock info found for {symbol}")
 
-            if df is None or len(df) == 0:
-                raise HTTPException(status_code=404, detail=f"No data found for {symbol}")
-
-        # 从数据中提取基本信息
-        # 判断市场类型
-        if symbol.endswith('.SZ'):
-            area = '深圳'
-            if symbol.startswith('300'):
-                industry = '创业板'
-            elif symbol.startswith('000'):
-                industry = '主板'
-            else:
-                industry = '深交所'
-        elif symbol.endswith('.SH'):
-            area = '上海'
-            if symbol.startswith('688'):
-                industry = '科创板'
-            elif symbol.startswith('600') or symbol.startswith('601') or symbol.startswith('603'):
-                industry = '主板'
-            else:
-                industry = '上交所'
-        else:
-            area = '未知'
-            industry = '未知'
-
-        # 尝试从symbol解析股票名称（这是临时方案，实际应该从数据源获取）
-        stock_names = {
-            '000001.SZ': '平安银行',
-            '000002.SZ': '万科A',
-            '600519.SH': '贵州茅台',
-            '600036.SH': '招商银行',
-            '000858.SZ': '五粮液',
-            '300750.SZ': '宁德时代',
-        }
-        name = stock_names.get(symbol, symbol.split('.')[0])
-
-        # 获取listing_date（如果df中有）
-        listing_date = None
-        if hasattr(df, 'index') and len(df) > 0:
-            listing_date = df.index[0].strftime('%Y-%m-%d') if hasattr(df.index[0], 'strftime') else str(df.index[0])
-
+        # 格式化返回数据
         return {
             "success": True,
             "data": {
                 "symbol": symbol,
-                "name": name,
-                "industry": industry,
-                "area": area,
-                "listing_date": listing_date or "N/A"
+                "name": stock_info.get('name', symbol),
+                "industry": stock_info.get('industry', 'N/A'),
+                "area": stock_info.get('area', 'N/A'),
+                "listing_date": stock_info.get('list_date', 'N/A'),
+                "market": stock_info.get('market', 'N/A')
             },
             "timestamp": datetime.now().isoformat()
         }
