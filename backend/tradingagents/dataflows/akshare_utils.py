@@ -8,6 +8,7 @@ import pandas as pd
 from typing import Optional, Dict, Any
 import warnings
 from datetime import datetime
+import json
 
 # 导入日志模块
 from tradingagents.utils.logging_manager import get_logger
@@ -674,6 +675,11 @@ def get_stock_news_em(symbol: str, max_news: int = 10) -> pd.DataFrame:
                 result[0] = provider.ak.stock_news_em(symbol=symbol)
                 thread_end = time.time()
                 logger.debug(f"[东方财富新闻] 线程执行完成，耗时: {thread_end - thread_start:.2f}秒")
+            except json.JSONDecodeError as e:
+                logger.warning(f"[东方财富新闻] API返回无效JSON数据: {e}")
+                logger.warning(f"[东方财富新闻] 这通常意味着东方财富API接口变更或股票代码 {symbol} 暂无新闻数据")
+                logger.warning(f"[东方财富新闻] 将使用备用新闻源继续获取")
+                exception[0] = e
             except Exception as e:
                 logger.error(f"[东方财富新闻] 线程执行异常: {e}")
                 exception[0] = e
@@ -696,7 +702,11 @@ def get_stock_news_em(symbol: str, max_news: int = 10) -> pd.DataFrame:
         elif exception[0]:
             # 有异常
             elapsed_time = (datetime.now() - start_time).total_seconds()
-            logger.error(f"[东方财富新闻]  API调用异常: {exception[0]}，总耗时: {elapsed_time:.2f}秒")
+            # 对于JSON解析错误，使用WARNING而不是ERROR，因为系统会自动降级到备用新闻源
+            if isinstance(exception[0], json.JSONDecodeError):
+                logger.warning(f"[东方财富新闻]  API返回数据格式错误，将使用备用新闻源，耗时: {elapsed_time:.2f}秒")
+            else:
+                logger.error(f"[东方财富新闻]  API调用异常: {exception[0]}，总耗时: {elapsed_time:.2f}秒")
             raise exception[0]
         else:
             # 成功
