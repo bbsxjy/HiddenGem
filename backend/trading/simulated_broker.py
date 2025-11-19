@@ -29,8 +29,8 @@ class SimulatedBroker(BaseBroker):
     def __init__(
         self,
         initial_cash: float = 100000.0,
-        commission_rate: float = 0.0003,  # 万三佣金
-        stamp_duty_rate: float = 0.001,   # 千一印花税（仅卖出）
+        commission_rate: float = 0.0001,  # 万1佣金
+        stamp_duty_rate: float = 0.003,   # 千3印花税（仅卖出）
         slippage_rate: float = 0.001,     # 0.1%滑点
         min_commission: float = 5.0        # 最低佣金5元
     ):
@@ -39,8 +39,8 @@ class SimulatedBroker(BaseBroker):
 
         Args:
             initial_cash: 初始资金
-            commission_rate: 佣金率（买入和卖出都收）
-            stamp_duty_rate: 印花税率（仅卖出收取）
+            commission_rate: 佣金率（买入和卖出都收，万1）
+            stamp_duty_rate: 印花税率（仅卖出收取，千3）
             slippage_rate: 滑点率
             min_commission: 最低佣金
         """
