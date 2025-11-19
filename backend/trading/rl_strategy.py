@@ -154,8 +154,15 @@ class RLStrategy(BaseStrategy):
 
         Returns:
             交易信号字典
+
+        Action空间（enhanced_trading_env）：
+            0: HOLD
+            1: BUY_25 (买入25%)
+            2: BUY_50 (买入50%)
+            3: SELL_50 (卖出50%)
+            4: SELL_ALL (卖出全部)
         """
-        action_names = ['HOLD', 'BUY', 'SELL']
+        action_names = ['HOLD', 'BUY_25', 'BUY_50', 'SELL_50', 'SELL_ALL']
 
         # 安全地转换action为整数并进行边界检查
         try:
@@ -185,18 +192,24 @@ class RLStrategy(BaseStrategy):
             action_int = 0
             action_name = 'HOLD'
 
+        # HOLD
         if action_int == 0:
             return {'action': 'hold', 'reason': f'RL: {action_name}'}
-        elif action_int == 1:
+
+        # BUY_25 or BUY_50
+        elif action_int in [1, 2]:
             if not self.has_position:
                 return {'action': 'buy', 'reason': f'RL: {action_name}'}
             else:
                 return {'action': 'hold', 'reason': f'RL: {action_name} but already holding'}
-        elif action_int == 2:
+
+        # SELL_50 or SELL_ALL
+        elif action_int in [3, 4]:
             if self.has_position:
                 return {'action': 'sell', 'reason': f'RL: {action_name}'}
             else:
                 return {'action': 'hold', 'reason': f'RL: {action_name} but no position'}
+
         else:
             return {'action': 'hold', 'reason': 'RL: Unknown action'}
 
