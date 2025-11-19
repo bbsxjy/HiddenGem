@@ -5,7 +5,7 @@ Multi-Agent Strategy
 """
 
 import pandas as pd
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 from .strategy import BaseStrategy
 import logging
 
@@ -28,44 +28,79 @@ class MultiAgentStrategy(BaseStrategy):
     - 7个专业 Agent（市场、基本面、情绪、新闻、Bull、Bear、风险）
     - LLM 辩论机制
     - 记忆系统
+
+    使用单例模式避免重复初始化TradingGraph（初始化很重）
     """
+
+    # 类级别的共享实例
+    _shared_trading_graph: Optional['TradingAgentsGraph'] = None
+    _initialization_lock = False
+    _initialization_failed = False
 
     def __init__(self):
         super().__init__("MultiAgent")
 
-        self.trading_graph = None
-        self.initialization_attempts = 0
-        self.max_init_attempts = 3
-
-        if TRADINGAGENTS_AVAILABLE:
-            self._initialize_trading_graph()
-        else:
-            logger.warning("⚠️ TradingAgents 库不可用，将使用降级策略")
-
         self.has_position = False
         self.last_signal = None
 
-    def _initialize_trading_graph(self):
-        """初始化 TradingAgents Graph，支持重试"""
-        while self.initialization_attempts < self.max_init_attempts:
-            try:
-                self.initialization_attempts += 1
-                logger.info(f"🔄 正在初始化 TradingAgents Graph (尝试 {self.initialization_attempts}/{self.max_init_attempts})...")
+        # 使用共享的TradingGraph实例
+        if TRADINGAGENTS_AVAILABLE:
+            self.trading_graph = self._get_or_create_trading_graph()
+        else:
+            logger.warning("⚠️ TradingAgents 库不可用，将使用降级策略")
+            self.trading_graph = None
 
-                self.trading_graph = TradingAgentsGraph(DEFAULT_CONFIG)
+    @classmethod
+    def _get_or_create_trading_graph(cls) -> Optional['TradingAgentsGraph']:
+        """获取或创建共享的TradingGraph实例（单例模式）"""
 
-                logger.info("✅ TradingAgents Graph 初始化成功")
-                return
+        # 如果已经初始化失败过，直接返回None
+        if cls._initialization_failed:
+            logger.warning("⚠️ TradingGraph 之前初始化失败，使用降级策略")
+            return None
 
-            except Exception as e:
-                logger.error(f"❌ TradingAgents Graph 初始化失败 (尝试 {self.initialization_attempts}/{self.max_init_attempts}): {e}")
+        # 如果已经有实例，直接返回
+        if cls._shared_trading_graph is not None:
+            logger.info("✅ 复用已有的 TradingGraph 实例")
+            return cls._shared_trading_graph
 
-                if self.initialization_attempts >= self.max_init_attempts:
-                    logger.error(f"❌ TradingAgents Graph 初始化失败达到最大尝试次数，将使用降级策略")
-                    self.trading_graph = None
-                else:
-                    import time
-                    time.sleep(2)  # 重试前等待2秒
+        # 如果正在初始化中（其他线程），等待
+        if cls._initialization_lock:
+            logger.info("⏳ TradingGraph 正在初始化中，等待...")
+            import time
+            max_wait = 30  # 最多等待30秒
+            waited = 0
+            while cls._initialization_lock and waited < max_wait:
+                time.sleep(1)
+                waited += 1
+
+            if cls._shared_trading_graph is not None:
+                logger.info("✅ 等待完成，复用已有的 TradingGraph 实例")
+                return cls._shared_trading_graph
+
+        # 开始初始化
+        cls._initialization_lock = True
+
+        try:
+            logger.info("🔄 首次初始化 TradingAgents Graph...")
+            cls._shared_trading_graph = TradingAgentsGraph(DEFAULT_CONFIG)
+            logger.info("✅ TradingAgents Graph 初始化成功（单例）")
+            return cls._shared_trading_graph
+
+        except Exception as e:
+            logger.error(f"❌ TradingAgents Graph 初始化失败: {e}", exc_info=True)
+            cls._initialization_failed = True
+            return None
+
+        finally:
+            cls._initialization_lock = False
+
+    @classmethod
+    def reset_shared_instance(cls):
+        """重置共享实例（用于测试或重启）"""
+        cls._shared_trading_graph = None
+        cls._initialization_failed = False
+        logger.info("🔄 TradingGraph 共享实例已重置")
 
     def generate_signal(
         self,
