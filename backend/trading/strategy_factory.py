@@ -116,13 +116,15 @@ class CombinedStrategy(BaseStrategy):
                 logger.info(f"✓ [{self.name}] RL策略已加载")
             except Exception as e:
                 logger.error(f"✗ [{self.name}] RL策略加载失败: {e}")
+                self.rl_strategy = None
 
         if mode_info.get("use_llm", False):
             try:
                 self.llm_strategy = MultiAgentStrategy()
                 logger.info(f"✓ [{self.name}] LLM Agent策略已加载")
             except Exception as e:
-                logger.error(f"✗ [{self.name}] LLM Agent策略加载失败: {e}")
+                logger.error(f"✗ [{self.name}] LLM Agent策略加载失败: {e}", exc_info=True)
+                self.llm_strategy = None
 
         # TODO: 如果需要Memory Bank，在这里初始化
         if mode_info.get("use_memory", False):
@@ -143,6 +145,15 @@ class CombinedStrategy(BaseStrategy):
         # 收集各个策略的信号
         signals = []
 
+        # 记录哪些策略被调用
+        available_strategies = []
+        if self.rl_strategy:
+            available_strategies.append("RL")
+        if self.llm_strategy:
+            available_strategies.append("LLM")
+
+        logger.info(f"📊 [{self.name}] {symbol} - 可用策略: {available_strategies}")
+
         # RL策略信号
         if self.rl_strategy:
             try:
@@ -152,6 +163,7 @@ class CombinedStrategy(BaseStrategy):
                     "signal": rl_signal,
                     "weight": 1.0
                 })
+                logger.info(f"  ✓ RL信号: {rl_signal.get('action')} - {rl_signal.get('reason', '')[:50]}")
             except Exception as e:
                 logger.error(f"✗ [{self.name}] RL策略生成信号失败: {e}")
 
@@ -164,11 +176,13 @@ class CombinedStrategy(BaseStrategy):
                     "signal": llm_signal,
                     "weight": 1.0
                 })
+                logger.info(f"  ✓ LLM信号: {llm_signal.get('action')} - {llm_signal.get('reason', '')[:50]}")
             except Exception as e:
-                logger.error(f"✗ [{self.name}] LLM策略生成信号失败: {e}")
+                logger.error(f"✗ [{self.name}] LLM策略生成信号失败: {e}", exc_info=True)
 
         # 如果没有任何信号，返回hold
         if not signals:
+            logger.warning(f"⚠️ [{self.name}] {symbol} - 无可用信号，返回hold")
             return {
                 'action': 'hold',
                 'reason': f'[{self.name}] 无可用策略'
@@ -178,9 +192,11 @@ class CombinedStrategy(BaseStrategy):
         if len(signals) == 1:
             signal = signals[0]["signal"]
             signal['reason'] = f'[{self.name}] {signal.get("reason", "")}'
+            logger.info(f"  → 单策略决策: {signal['action']}")
             return signal
 
         # 多策略组合：使用投票机制
+        logger.info(f"  → 开始多策略投票 ({len(signals)}个信号)")
         return self._combine_signals(signals)
 
     def _combine_signals(self, signals: List[Dict]) -> Dict[str, Any]:
@@ -208,6 +224,9 @@ class CombinedStrategy(BaseStrategy):
 
         # 选择权重最高的action
         final_action = max(action_weights, key=action_weights.get)
+
+        logger.info(f"  → 投票结果: {action_weights}")
+        logger.info(f"  → 最终决策: {final_action}")
 
         # 生成最终信号
         return {

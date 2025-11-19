@@ -9,6 +9,7 @@ from pydantic import BaseModel
 from typing import Optional, List
 from datetime import datetime
 from api.services.auto_trading_service import auto_trading_service
+from api.services.trading_service import trading_service
 
 router = APIRouter()
 
@@ -224,4 +225,40 @@ async def get_stock_decisions():
             status_code=500,
             detail=f"获取决策失败: {str(e)}"
         )
+
+
+@router.post("/reset")
+async def reset_trading_state():
+    """重置交易状态（一键重置）
+
+    清空所有交易记录、持仓和订单，恢复到初始资金状态。
+    注意：如果自动交易正在运行，会先停止自动交易。
+    """
+    try:
+        # 如果自动交易正在运行，先停止
+        if auto_trading_service.is_running():
+            logger_info = "自动交易正在运行，先停止..."
+            await auto_trading_service.stop()
+
+        # 调用trading_service的reset方法
+        trading_service.reset()
+
+        return {
+            "success": True,
+            "message": "交易状态已重置",
+            "data": {
+                "initial_cash": trading_service.initial_capital,
+                "positions_cleared": True,
+                "orders_cleared": True,
+                "history_cleared": True
+            },
+            "timestamp": datetime.now().isoformat()
+        }
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"重置交易状态失败: {str(e)}"
+        )
+
 

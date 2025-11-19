@@ -20,6 +20,7 @@ from trading.multi_strategy_manager import MultiStrategyManager
 from tradingagents.utils.logging_init import get_logger
 from tradingagents.utils.market_context import MarketContext
 from api.services.realtime_data_service import realtime_data_service
+from api.services.trading_service import trading_service  # 导入trading_service
 
 logger = get_logger("auto_trading_service")
 
@@ -89,13 +90,15 @@ class AutoTradingService:
                 logger.error("❌ 未能创建任何策略")
                 return False
 
-            # 创建多策略管理器
+            # 创建多策略管理器 - 使用trading_service的broker
             self.strategy_manager = MultiStrategyManager(
                 strategies=strategies,
-                initial_cash=initial_cash
+                initial_cash=initial_cash,
+                shared_broker=trading_service.broker  # 使用共享broker
             )
 
             logger.info(f"✅ 多策略管理器已创建，共 {len(strategies)} 个策略")
+            logger.info(f"✅ 使用全局trading_service broker，交易记录将同步到交易中心")
 
             # 在后台线程中运行
             self.running = True
@@ -213,6 +216,13 @@ class AutoTradingService:
                         current_price=current_price,
                         market_prices=market_prices
                     )
+
+                # 保存状态到文件
+                try:
+                    trading_service.save_state()
+                    logger.debug("✓ 交易状态已保存")
+                except Exception as e:
+                    logger.warning(f"⚠️ 保存状态失败: {e}")
 
                 # 等待下次检查
                 logger.info(f"⏱️ 等待 {check_interval_seconds} 秒后进行下次检查...")

@@ -132,24 +132,33 @@ class MultiStrategyManager:
     def __init__(
         self,
         strategies: Dict[str, BaseStrategy],
-        initial_cash: float = 100000.0
+        initial_cash: float = 100000.0,
+        shared_broker: SimulatedBroker = None  # 新增：共享broker
     ):
         """初始化多策略管理器
 
         Args:
             strategies: 策略字典 {mode_id: strategy}
             initial_cash: 每个策略的初始资金
+            shared_broker: 共享的broker（如果提供，所有策略共享同一个broker）
         """
         self.strategies = strategies
         self.initial_cash = initial_cash
+        self.use_shared_broker = shared_broker is not None
 
-        # 为每个策略创建独立的broker
+        # 为每个策略创建独立的broker或使用共享broker
         self.brokers: Dict[str, SimulatedBroker] = {}
         self.performances: Dict[str, StrategyPerformance] = {}
 
         for strategy_id, strategy in strategies.items():
-            # 创建独立的broker
-            self.brokers[strategy_id] = SimulatedBroker(initial_cash=initial_cash)
+            # 如果提供了shared_broker，所有策略共享
+            if self.use_shared_broker:
+                self.brokers[strategy_id] = shared_broker
+                logger.info(f"✓ [{strategy.name}] 使用共享Broker")
+            else:
+                # 创建独立的broker
+                self.brokers[strategy_id] = SimulatedBroker(initial_cash=initial_cash)
+                logger.info(f"✓ [{strategy.name}] 创建独立Broker")
 
             # 创建表现追踪
             self.performances[strategy_id] = StrategyPerformance(
