@@ -139,6 +139,16 @@ class SimulatedBroker(BaseBroker):
                     return False
 
                 position = self.positions[order.symbol]
+
+                # A股 T+1 限制检查
+                if not position.can_sell_today():
+                    bought_date_str = position.bought_date.strftime('%Y-%m-%d') if position.bought_date else 'Unknown'
+                    logger.warning(
+                        f" T+1 restriction: Cannot sell {order.symbol} bought on {bought_date_str} on the same day"
+                    )
+                    order.status = OrderStatus.REJECTED
+                    return False
+
                 if position.quantity < order.quantity:
                     logger.warning(
                         f" Insufficient shares: need {order.quantity}, have {position.quantity}"

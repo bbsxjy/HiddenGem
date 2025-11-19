@@ -147,17 +147,41 @@ class RLStrategy(BaseStrategy):
         return observation
 
     def _action_to_signal(self, action: int) -> Dict[str, Any]:
+        """将 RL action 转换为交易信号
+
+        Args:
+            action: PPO 模型输出的动作（可能是 int, numpy array, list 等）
+
+        Returns:
+            交易信号字典
+        """
         action_names = ['HOLD', 'BUY', 'SELL']
 
         # 安全地转换action为整数并进行边界检查
         try:
-            action_int = int(action)
+            # 处理 numpy array
+            if hasattr(action, 'item'):
+                action_int = int(action.item())
+            # 处理 list 或 tuple
+            elif isinstance(action, (list, tuple)):
+                if len(action) > 0:
+                    action_int = int(action[0])
+                else:
+                    logger.warning('Empty action list/tuple, defaulting to HOLD')
+                    action_int = 0
+            # 直接转换
+            else:
+                action_int = int(action)
+
+            # 边界检查
             if action_int < 0 or action_int >= len(action_names):
                 logger.warning(f'Invalid action value: {action_int}, defaulting to HOLD')
                 action_int = 0
+
             action_name = action_names[action_int]
-        except (ValueError, TypeError) as e:
-            logger.error(f'Failed to convert action to int: {action}, error: {e}')
+
+        except (ValueError, TypeError, AttributeError) as e:
+            logger.error(f'Failed to convert action to int: {action} (type: {type(action)}), error: {e}')
             action_int = 0
             action_name = 'HOLD'
 

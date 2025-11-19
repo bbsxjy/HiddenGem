@@ -20,6 +20,7 @@ class Position:
     # 时间信息
     opened_time: datetime = None
     last_updated: datetime = None
+    bought_date: datetime = None  # 买入日期（用于T+1限制）
 
     def __post_init__(self):
         """初始化后处理"""
@@ -27,6 +28,13 @@ class Position:
             self.opened_time = datetime.now()
         if self.last_updated is None:
             self.last_updated = datetime.now()
+        if self.bought_date is None:
+            self.bought_date = datetime.now()
+
+    @property
+    def avg_cost(self) -> float:
+        """持仓成本（avg_price 的别名，用于兼容性）"""
+        return self.avg_price
 
     @property
     def market_value(self) -> float:
@@ -55,6 +63,20 @@ class Position:
         self.current_price = new_price
         self.last_updated = datetime.now()
 
+    def can_sell_today(self) -> bool:
+        """检查今天是否可以卖出（A股T+1限制）
+
+        Returns:
+            是否可以卖出（买入日期不是今天）
+        """
+        if self.bought_date is None:
+            return True  # 如果没有买入日期记录，允许卖出
+
+        today = datetime.now().date()
+        bought_day = self.bought_date.date()
+
+        return bought_day < today  # 只有买入日期在今天之前才能卖出
+
     def add_shares(self, quantity: int, price: float):
         """增加持仓（买入）"""
         total_cost = self.cost_basis + (quantity * price)
@@ -63,6 +85,7 @@ class Position:
         self.avg_price = total_cost / total_quantity
         self.quantity = total_quantity
         self.last_updated = datetime.now()
+        self.bought_date = datetime.now()  # 更新买入日期
 
     def reduce_shares(self, quantity: int) -> float:
         """减少持仓（卖出）
@@ -96,5 +119,7 @@ class Position:
             'unrealized_pnl': self.unrealized_pnl,
             'unrealized_pnl_pct': self.unrealized_pnl_pct,
             'opened_time': self.opened_time.isoformat(),
-            'last_updated': self.last_updated.isoformat()
+            'last_updated': self.last_updated.isoformat(),
+            'bought_date': self.bought_date.isoformat() if self.bought_date else None,
+            'can_sell_today': self.can_sell_today()
         }

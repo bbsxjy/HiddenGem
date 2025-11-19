@@ -18,6 +18,7 @@ from scripts.auto_paper_trading import AutoPaperTrader
 from trading.strategy_factory import StrategyFactory, StrategyMode
 from trading.multi_strategy_manager import MultiStrategyManager
 from tradingagents.utils.logging_init import get_logger
+from tradingagents.utils.market_context import MarketContext
 from api.services.realtime_data_service import realtime_data_service
 
 logger = get_logger("auto_trading_service")
@@ -125,7 +126,15 @@ class AutoTradingService:
             check_interval_seconds = self.config.get("check_interval", 5) * 60
 
             while self.running:
-                logger.info("📊 执行交易检查...")
+                # 检查交易时间
+                is_trading, time_status = MarketContext.is_trading_time()
+
+                if not is_trading:
+                    logger.info(f"⏸️ 非交易时间（{time_status}），跳过本次检查")
+                    time.sleep(60)  # 非交易时间每分钟检查一次
+                    continue
+
+                logger.info(f"📊 执行交易检查... ({time_status})")
 
                 # 获取股票列表
                 symbols = self.config.get("symbols", [])
@@ -282,8 +291,8 @@ class AutoTradingService:
                 avg_cash = self.config.get("initial_cash", 100000.0)
                 avg_assets = avg_cash
 
-            # TODO: 实现交易时间检查
-            is_trading_hours = True  # 简化版本
+            # 检查交易时间
+            is_trading_hours, time_status = MarketContext.is_trading_time()
             next_check_time = None
 
             return {
