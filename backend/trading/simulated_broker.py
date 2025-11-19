@@ -29,18 +29,20 @@ class SimulatedBroker(BaseBroker):
     def __init__(
         self,
         initial_cash: float = 100000.0,
-        commission_rate: float = 0.0003,  # 万三手续费
+        commission_rate: float = 0.0003,  # 万三佣金
+        stamp_duty_rate: float = 0.001,   # 千一印花税（仅卖出）
         slippage_rate: float = 0.001,     # 0.1%滑点
-        min_commission: float = 5.0        # 最低手续费5元
+        min_commission: float = 5.0        # 最低佣金5元
     ):
         """
         初始化模拟券商
 
         Args:
             initial_cash: 初始资金
-            commission_rate: 手续费率
+            commission_rate: 佣金率（买入和卖出都收）
+            stamp_duty_rate: 印花税率（仅卖出收取）
             slippage_rate: 滑点率
-            min_commission: 最低手续费
+            min_commission: 最低佣金
         """
         # Initialize parent class with empty config (simulated broker doesn't need real credentials)
         super().__init__({})
@@ -48,6 +50,7 @@ class SimulatedBroker(BaseBroker):
         self.cash = initial_cash
         self.initial_cash = initial_cash
         self.commission_rate = commission_rate
+        self.stamp_duty_rate = stamp_duty_rate
         self.slippage_rate = slippage_rate
         self.min_commission = min_commission
 
@@ -107,15 +110,23 @@ class SimulatedBroker(BaseBroker):
             else:  # SELL
                 fill_price = current_price * (1 - self.slippage_rate)
 
-            # 计算手续费
+            # 计算佣金（买入和卖出都收）
             commission = max(
                 fill_price * order.quantity * self.commission_rate,
                 self.min_commission
             )
 
+            # 计算印花税（仅卖出收取）
+            stamp_duty = 0.0
+            if order.side == OrderSide.SELL:
+                stamp_duty = fill_price * order.quantity * self.stamp_duty_rate
+
+            # 总费用
+            total_fees = commission + stamp_duty
+
             # 买入
             if order.side == OrderSide.BUY:
-                total_cost = fill_price * order.quantity + commission
+                total_cost = fill_price * order.quantity + total_fees
 
                 if total_cost > self.cash:
                     logger.warning(f" Insufficient cash: need ¥{total_cost:,.2f}, have ¥{self.cash:,.2f}")
@@ -156,8 +167,8 @@ class SimulatedBroker(BaseBroker):
                     order.status = OrderStatus.REJECTED
                     return False
 
-                # 卖出收入
-                total_proceeds = fill_price * order.quantity - commission
+                # 卖出收入（扣除佣金和印花税）
+                total_proceeds = fill_price * order.quantity - total_fees
                 self.cash += total_proceeds
 
                 # 更新持仓价格（用于计算实现盈亏）
@@ -175,7 +186,7 @@ class SimulatedBroker(BaseBroker):
             order.filled_price = fill_price
             order.filled_quantity = order.quantity
             order.filled_time = datetime.now()
-            order.commission = commission
+            order.commission = total_fees  # 保存总费用
 
             # 记录交易历史
             self.trade_history.append({
@@ -185,13 +196,24 @@ class SimulatedBroker(BaseBroker):
                 'quantity': order.quantity,
                 'price': fill_price,
                 'commission': commission,
+                'stamp_duty': stamp_duty,
+                'total_fees': total_fees,
                 'cash_change': -total_cost if order.side == OrderSide.BUY else total_proceeds
             })
 
-            logger.info(
-                f" Order filled: {order.symbol} {order.side.value} "
-                f"{order.quantity}@¥{fill_price:.2f} (commission=¥{commission:.2f})"
-            )
+            # 详细的日志输出
+            if order.side == OrderSide.BUY:
+                logger.info(
+                    f" Order filled: {order.symbol} BUY "
+                    f"{order.quantity}@¥{fill_price:.2f} "
+                    f"(佣金=¥{commission:.2f}, 总费用=¥{total_fees:.2f})"
+                )
+            else:
+                logger.info(
+                    f" Order filled: {order.symbol} SELL "
+                    f"{order.quantity}@¥{fill_price:.2f} "
+                    f"(佣金=¥{commission:.2f}, 印花税=¥{stamp_duty:.2f}, 总费用=¥{total_fees:.2f})"
+                )
 
             return True
 

@@ -147,10 +147,12 @@ class AutoTradingService:
                     try:
                         # 获取实时价格
                         realtime = realtime_data_service.get_realtime_quote(symbol)
-                        if realtime and 'current' in realtime:
-                            market_prices[symbol] = realtime['current']
+                        if realtime and 'price' in realtime and realtime['price'] > 0:
+                            market_prices[symbol] = realtime['price']
+                            logger.debug(f"✓ [{symbol}] 实时价格: ¥{realtime['price']:.2f}")
                         else:
-                            market_prices[symbol] = 15.0  # 回退价格
+                            logger.warning(f"⚠️ [{symbol}] 无法获取实时价格，跳过")
+                            continue  # 跳过无法获取价格的股票
 
                         # 获取历史数据（用于RL策略）
                         # 使用 TradingAgents 的统一数据接口
@@ -186,16 +188,7 @@ class AutoTradingService:
 
                     except Exception as e:
                         logger.error(f"❌ [{symbol}] 获取数据失败: {e}")
-                        market_prices[symbol] = 15.0
-                        # 创建50行模拟数据
-                        n_rows = 50
-                        stock_data[symbol] = pd.DataFrame({
-                            'close': [15.0 * (1 + np.random.randn() * 0.02) for _ in range(n_rows)],
-                            'high': [15.3 * (1 + np.random.rand() * 0.03) for _ in range(n_rows)],
-                            'low': [14.7 * (1 - np.random.rand() * 0.03) for _ in range(n_rows)],
-                            'open': [15.0 * (1 + np.random.randn() * 0.01) for _ in range(n_rows)],
-                            'volume': [1000000 * (1 + np.random.rand()) for _ in range(n_rows)]
-                        })
+                        continue  # 跳过失败的股票
 
                 # 对每个股票生成信号并执行
                 for symbol in symbols:
