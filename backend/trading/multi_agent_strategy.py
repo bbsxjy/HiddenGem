@@ -83,7 +83,8 @@ class MultiAgentStrategy(BaseStrategy):
 
         try:
             logger.info("🔄 首次初始化 TradingAgents Graph...")
-            cls._shared_trading_graph = TradingAgentsGraph(DEFAULT_CONFIG)
+            # 修复：使用关键字参数传递config，避免参数位置错误
+            cls._shared_trading_graph = TradingAgentsGraph(config=DEFAULT_CONFIG)
             logger.info("✅ TradingAgents Graph 初始化成功（单例）")
             return cls._shared_trading_graph
 
