@@ -37,6 +37,15 @@ class AutoTradingService:
         self.config: Dict = {}
         self.started_at: Optional[datetime] = None
 
+        # 健康检查和监管相关
+        self.last_heartbeat: Optional[datetime] = None
+        self.heartbeat_interval = 60  # 60秒发送一次心跳
+        self.health_check_interval = 120  # 120秒检查一次健康状态
+        self.supervisor_thread: Optional[threading.Thread] = None
+        self.max_restart_count = 3  # 最大重启次数（防止无限重启）
+        self.restart_count = 0
+        self.last_error: Optional[str] = None
+
     def is_running(self) -> bool:
         """检查是否正在运行"""
         return self.running
@@ -102,13 +111,25 @@ class AutoTradingService:
 
             # 在后台线程中运行
             self.running = True
+            self.last_heartbeat = datetime.now()
+            self.restart_count = 0  # 重置重启计数
+
             self.thread = threading.Thread(
                 target=self._run_trading_loop,
-                daemon=True
+                daemon=True,
+                name="TradingLoop"
             )
             self.thread.start()
 
-            logger.info("✅ 自动交易已启动")
+            # 启动supervisor线程
+            self.supervisor_thread = threading.Thread(
+                target=self._run_supervisor,
+                daemon=True,
+                name="TradingSupervisor"
+            )
+            self.supervisor_thread.start()
+
+            logger.info("✅ 自动交易已启动（含supervisor监管）")
             return True
 
         except Exception as e:
@@ -116,10 +137,107 @@ class AutoTradingService:
             self.running = False
             return False
 
+    def _update_heartbeat(self):
+        """更新心跳时间"""
+        self.last_heartbeat = datetime.now()
+
+    def _is_healthy(self) -> bool:
+        """检查交易循环是否健康
+
+        Returns:
+            是否健康（心跳在允许间隔内）
+        """
+        if not self.last_heartbeat:
+            return False
+
+        elapsed = (datetime.now() - self.last_heartbeat).total_seconds()
+        # 允许的最大心跳间隔 = heartbeat_interval * 2 + 60秒容错
+        max_allowed = self.heartbeat_interval * 2 + 60
+
+        return elapsed < max_allowed
+
+    def _run_supervisor(self):
+        """Supervisor线程：监控交易循环健康状态，必要时重启
+
+        监控策略：
+        1. 每health_check_interval秒检查一次心跳
+        2. 如果心跳超时，尝试重启trading loop
+        3. 达到max_restart_count后放弃重启，记录严重错误
+        """
+        import time
+
+        logger.info("🔍 Supervisor启动，开始监控交易循环健康状态")
+
+        while self.running:
+            try:
+                time.sleep(self.health_check_interval)
+
+                if not self.running:
+                    break
+
+                # 检查健康状态
+                if not self._is_healthy():
+                    elapsed = (datetime.now() - self.last_heartbeat).total_seconds() if self.last_heartbeat else 9999
+                    logger.warning(
+                        f"⚠️ 交易循环心跳超时！最后心跳: {elapsed:.0f}秒前"
+                    )
+
+                    # 检查线程是否还活着
+                    if self.thread and not self.thread.is_alive():
+                        logger.error("❌ 交易循环线程已死亡")
+
+                        # 检查是否已达重启上限
+                        if self.restart_count >= self.max_restart_count:
+                            logger.critical(
+                                f"❌ 交易循环已重启{self.restart_count}次，达到上限，停止自动重启。"
+                                f"最后错误: {self.last_error or 'Unknown'}"
+                            )
+                            self.running = False
+                            break
+
+                        # 尝试重启
+                        self.restart_count += 1
+                        logger.warning(
+                            f"🔄 尝试重启交易循环... (第{self.restart_count}/{self.max_restart_count}次)"
+                        )
+
+                        try:
+                            # 重新创建交易线程
+                            self.last_heartbeat = datetime.now()
+                            self.thread = threading.Thread(
+                                target=self._run_trading_loop,
+                                daemon=True,
+                                name=f"TradingLoop-Restart{self.restart_count}"
+                            )
+                            self.thread.start()
+                            logger.info(f"✅ 交易循环已重启 (尝试 {self.restart_count})")
+
+                        except Exception as restart_error:
+                            logger.error(f"❌ 重启失败: {restart_error}", exc_info=True)
+                            self.last_error = str(restart_error)
+
+                    else:
+                        # 线程还活着但心跳超时（可能卡死）
+                        logger.warning(
+                            "⚠️ 交易循环线程存活但心跳超时，可能卡死。等待下次检查..."
+                        )
+
+                else:
+                    # 健康状态良好
+                    logger.debug("✓ 交易循环健康检查通过")
+
+            except Exception as e:
+                logger.error(f"❌ Supervisor发生错误: {e}", exc_info=True)
+                # Supervisor自身的错误不应停止监控
+                time.sleep(60)  # 发生错误后等待1分钟再试
+
+        logger.info("⏹️ Supervisor已停止")
+
     def _run_trading_loop(self):
         """在后台线程中运行交易循环"""
         try:
             logger.info("🔄 交易循环开始")
+            self._update_heartbeat()  # 初始心跳
 
             import time
             import pandas as pd
@@ -129,6 +247,9 @@ class AutoTradingService:
             check_interval_seconds = self.config.get("check_interval", 5) * 60
 
             while self.running:
+                # 发送心跳
+                self._update_heartbeat()
+
                 # 检查交易时间
                 is_trading, time_status = MarketContext.is_trading_time()
 
@@ -228,12 +349,16 @@ class AutoTradingService:
                 except Exception as e:
                     logger.warning(f"⚠️ 保存状态失败: {e}")
 
+                # 发送心跳（处理完成）
+                self._update_heartbeat()
+
                 # 等待下次检查
                 logger.info(f"⏱️ 等待 {check_interval_seconds} 秒后进行下次检查...")
                 time.sleep(check_interval_seconds)
 
         except Exception as e:
             logger.error(f"❌ 交易循环异常: {e}", exc_info=True)
+            self.last_error = str(e)  # 记录错误供supervisor使用
         finally:
             self.running = False
             logger.info("⏹️ 交易循环结束")
@@ -247,14 +372,20 @@ class AutoTradingService:
         try:
             logger.info("停止自动交易")
 
-            # 设置停止标志
+            # 设置停止标志（会同时停止trading loop和supervisor）
             self.running = False
             if self.trader:
                 self.trader.running = False
 
-            # 等待线程结束（最多10秒）
+            # 等待trading loop线程结束（最多10秒）
             if self.thread and self.thread.is_alive():
                 self.thread.join(timeout=10)
+                logger.info("✓ 交易循环线程已停止")
+
+            # 等待supervisor线程结束（最多5秒）
+            if self.supervisor_thread and self.supervisor_thread.is_alive():
+                self.supervisor_thread.join(timeout=5)
+                logger.info("✓ Supervisor线程已停止")
 
             logger.info("自动交易已停止")
             return True
@@ -302,6 +433,10 @@ class AutoTradingService:
             is_trading_hours, time_status = MarketContext.is_trading_time()
             next_check_time = None
 
+            # 计算健康状态
+            is_healthy = self._is_healthy()
+            seconds_since_heartbeat = (datetime.now() - self.last_heartbeat).total_seconds() if self.last_heartbeat else None
+
             return {
                 "is_running": self.running,
                 "started_at": self.started_at.isoformat() if self.started_at else None,
@@ -314,7 +449,16 @@ class AutoTradingService:
                 "next_check_time": next_check_time,
                 "is_trading_hours": is_trading_hours,
                 "strategy_performances": performances,  # 多策略表现数据
-                "num_strategies": len(performances)
+                "num_strategies": len(performances),
+                # 健康状态信息
+                "health": {
+                    "is_healthy": is_healthy,
+                    "last_heartbeat": self.last_heartbeat.isoformat() if self.last_heartbeat else None,
+                    "seconds_since_heartbeat": seconds_since_heartbeat,
+                    "restart_count": self.restart_count,
+                    "max_restart_count": self.max_restart_count,
+                    "last_error": self.last_error
+                }
             }
 
         except Exception as e:
