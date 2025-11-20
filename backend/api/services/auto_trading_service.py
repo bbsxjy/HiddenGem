@@ -142,14 +142,18 @@ class AutoTradingService:
                 # 获取股票列表
                 symbols = self.config.get("symbols", [])
 
+                # 批量获取实时价格（一次API调用）
+                logger.info(f"🔄 批量获取 {len(symbols)} 只股票的实时行情...")
+                all_quotes = realtime_data_service.get_batch_quotes(symbols)
+
                 # 获取市场价格和历史数据
                 market_prices = {}
                 stock_data = {}
 
                 for symbol in symbols:
                     try:
-                        # 获取实时价格
-                        realtime = realtime_data_service.get_realtime_quote(symbol)
+                        # 从批量结果中获取实时价格
+                        realtime = all_quotes.get(symbol)
                         if realtime and 'price' in realtime and realtime['price'] > 0:
                             market_prices[symbol] = realtime['price']
                             logger.debug(f"✓ [{symbol}] 实时价格: ¥{realtime['price']:.2f}")

@@ -60,20 +60,30 @@ class RealtimeDataService:
         self.cache = {}  # 简单的内存缓存
         self.cache_ttl = 30  # 缓存30秒（MiniShare官方：30秒更新一次）
         self.api = ms.pro_api(MINISHARE_TOKEN)
+        self._full_data_cache = None  # 全量数据缓存
+        self._full_data_cache_time = None  # 全量数据缓存时间
         logger.info("MiniShare 实时数据服务已初始化")
 
     @retry_on_connection_error(max_retries=3, delay=1, backoff=2)
     def _fetch_all_stocks_data(self) -> Optional[pd.DataFrame]:
         """
         获取所有A股实时行情（使用 MiniShare SDK）
+        带缓存，避免频繁调用API
 
         Returns:
             DataFrame 或 None
         """
+        # 检查缓存
+        if self._full_data_cache is not None and self._full_data_cache_time is not None:
+            elapsed = (datetime.now() - self._full_data_cache_time).seconds
+            if elapsed < self.cache_ttl:
+                logger.debug(f"使用全量数据缓存（已缓存 {elapsed} 秒）")
+                return self._full_data_cache
+
         try:
             # 获取所有A股数据（包括主板、创业板、科创板）
             # 使用通配符获取所有市场
-            logger.debug("正在从 MiniShare 获取实时行情...")
+            logger.info("📡 从 MiniShare 获取全量实时行情...")
 
             # 分别获取深圳和上海的股票
             df_sz = self.api.rt_k_ms(ts_code='*.SZ')  # 深圳：主板0、创业板3
@@ -82,13 +92,16 @@ class RealtimeDataService:
             # 合并数据
             df = pd.concat([df_sz, df_sh], ignore_index=True)
 
-            logger.info(f"成功获取 {len(df)} 只股票的实时行情（MiniShare SDK）")
-            logger.debug(f"深圳：{len(df_sz)} 只，上海：{len(df_sh)} 只")
+            logger.info(f"✅ 成功获取 {len(df)} 只股票的实时行情（深圳：{len(df_sz)}，上海：{len(df_sh)}）")
+
+            # 更新缓存
+            self._full_data_cache = df
+            self._full_data_cache_time = datetime.now()
 
             return df
 
         except Exception as e:
-            logger.error(f"MiniShare API 调用失败: {e}")
+            logger.error(f"❌ MiniShare API 调用失败: {e}")
             raise  # 让重试装饰器处理
 
     def _convert_minishare_to_standard_format(self, row: pd.Series, symbol: str) -> Dict:
@@ -130,7 +143,8 @@ class RealtimeDataService:
 
     def get_realtime_quote(self, symbol: str) -> Optional[Dict]:
         """
-        获取股票实时行情
+        获取股票实时行情（单只股票）
+        建议使用 get_batch_quotes() 批量获取以提高效率
 
         Args:
             symbol: 股票代码，如 "000001", "600519", "300502" 或 "000001.SZ"
@@ -142,26 +156,26 @@ class RealtimeDataService:
             # 移除后缀（如果有），获取纯代码
             clean_symbol = symbol.split('.')[0]
 
-            # 检查缓存
+            # 检查单只股票缓存
             cache_key = f"quote_{clean_symbol}"
             if cache_key in self.cache:
                 cached_data, cached_time = self.cache[cache_key]
                 if (datetime.now() - cached_time).seconds < self.cache_ttl:
-                    logger.debug(f"使用缓存数据: {symbol}")
+                    logger.debug(f"✓ 使用缓存数据: {symbol}")
                     return cached_data
 
-            # 获取实时行情（带重试）
+            # 获取实时行情（会使用全量数据缓存）
             df = self._fetch_all_stocks_data()
 
             if df is None or df.empty:
-                logger.warning(f"无法获取实时行情数据")
+                logger.warning(f"❌ 无法获取实时行情数据")
                 return None
 
             # 查找对应股票（MiniShare 用 symbol 字段存储纯代码）
             stock_data = df[df['symbol'] == clean_symbol]
 
             if stock_data.empty:
-                logger.warning(f"Stock {symbol} not found in realtime data")
+                logger.warning(f"⚠️ 股票 {symbol} 未找到行情数据")
                 return None
 
             row = stock_data.iloc[0]
@@ -171,17 +185,17 @@ class RealtimeDataService:
 
             # 更新缓存
             self.cache[cache_key] = (quote, datetime.now())
-            logger.debug(f"成功获取 {symbol} 实时行情: 价格={quote['price']}, 涨跌幅={quote['change']}%")
+            logger.debug(f"✓ 成功获取 {symbol} 实时行情: 价格={quote['price']}, 涨跌幅={quote['change']}%")
 
             return quote
 
         except Exception as e:
-            logger.error(f"Error fetching realtime quote for {symbol}: {e}")
+            logger.error(f"❌ 获取 {symbol} 实时行情失败: {e}")
             return None
 
     def get_batch_quotes(self, symbols: List[str]) -> Dict[str, Dict]:
         """
-        批量获取实时行情（优化版：一次获取所有数据）
+        批量获取实时行情（优化版：一次获取所有数据，带缓存）
 
         Args:
             symbols: 股票代码列表
@@ -192,25 +206,16 @@ class RealtimeDataService:
         results = {}
 
         try:
-            # 一次性获取所有股票数据
+            # 一次性获取所有股票数据（会使用缓存）
             df = self._fetch_all_stocks_data()
 
             if df is None or df.empty:
-                logger.warning("批量获取失败：无法获取实时行情数据")
+                logger.warning("❌ 批量获取失败：无法获取实时行情数据")
                 return results
 
             # 为每个股票代码提取数据
             for symbol in symbols:
                 clean_symbol = symbol.split('.')[0]
-
-                # 检查缓存
-                cache_key = f"quote_{clean_symbol}"
-                if cache_key in self.cache:
-                    cached_data, cached_time = self.cache[cache_key]
-                    if (datetime.now() - cached_time).seconds < self.cache_ttl:
-                        results[symbol] = cached_data
-                        logger.debug(f"使用缓存数据: {symbol}")
-                        continue
 
                 # 从DataFrame中查找（MiniShare 用 symbol 字段）
                 stock_data = df[df['symbol'] == clean_symbol]
@@ -221,16 +226,17 @@ class RealtimeDataService:
                     # 转换为标准格式
                     quote = self._convert_minishare_to_standard_format(row, symbol)
 
-                    # 更新缓存
+                    # 更新单只股票缓存（用于直接调用 get_realtime_quote 的场景）
+                    cache_key = f"quote_{clean_symbol}"
                     self.cache[cache_key] = (quote, datetime.now())
                     results[symbol] = quote
                 else:
-                    logger.warning(f"Stock {symbol} not found in batch data")
+                    logger.warning(f"⚠️ 股票 {symbol} 未找到行情数据")
 
-            logger.info(f"批量获取成功：{len(results)}/{len(symbols)} 只股票")
+            logger.info(f"✅ 批量获取成功：{len(results)}/{len(symbols)} 只股票")
 
         except Exception as e:
-            logger.error(f"批量获取实时行情失败: {e}")
+            logger.error(f"❌ 批量获取实时行情失败: {e}")
 
         return results
 
