@@ -6,33 +6,51 @@ AKShare数据源工具
 
 import pandas as pd
 from typing import Optional, Dict, Any
+from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
 import warnings
 from datetime import datetime
 import json
 
 # 导入日志模块
 from tradingagents.utils.logging_manager import get_logger
-logger = get_logger('agents')
+logger = get_logger('dataflows.akshare')
 warnings.filterwarnings('ignore')
 
 class AKShareProvider:
     """AKShare数据提供器"""
 
-    def __init__(self):
-        """初始化AKShare提供器"""
+    def __init__(self, max_workers: int = 4):
+        """
+        初始化AKShare提供器
+
+        Args:
+            max_workers: 线程池最大工作线程数
+        """
         try:
             import akshare as ak
             self.ak = ak
             self.connected = True
 
+            # 创建线程池，避免每次请求都创建新线程
+            self._executor = ThreadPoolExecutor(
+                max_workers=max_workers,
+                thread_name_prefix="akshare"
+            )
+
             # 设置更长的超时时间
             self._configure_timeout()
 
-            logger.info(f" AKShare初始化成功")
+            logger.info("AKShare初始化成功")
         except ImportError:
             self.ak = None
             self.connected = False
-            logger.error(f" AKShare未安装")
+            self._executor = None
+            logger.error("AKShare未安装")
+
+    def __del__(self):
+        """析构函数，确保线程池被正确关闭"""
+        if hasattr(self, '_executor') and self._executor is not None:
+            self._executor.shutdown(wait=False)
 
     def _configure_timeout(self):
         """配置AKShare的超时设置"""
@@ -130,55 +148,38 @@ class AKShareProvider:
             DataFrame: 港股历史数据
         """
         if not self.connected:
-            logger.error(f" AKShare未连接")
+            logger.error("AKShare未连接")
             return None
 
         try:
             # 标准化港股代码 - AKShare使用5位数字格式
             hk_symbol = self._normalize_hk_symbol_for_akshare(symbol)
 
-            logger.info(f" AKShare获取港股数据: {hk_symbol} ({start_date} 到 {end_date})")
+            logger.info(f"AKShare获取港股数据: {hk_symbol} ({start_date} 到 {end_date})")
 
             # 格式化日期为AKShare需要的格式
             start_date_formatted = start_date.replace('-', '') if start_date else "20240101"
             end_date_formatted = end_date.replace('-', '') if end_date else "20241231"
 
-            # 使用AKShare获取港股历史数据（带超时保护）
-            import threading
-
-            result = [None]
-            exception = [None]
-
-            def fetch_hist_data():
-                try:
-                    result[0] = self.ak.stock_hk_hist(
-                        symbol=hk_symbol,
-                        period="daily",
-                        start_date=start_date_formatted,
-                        end_date=end_date_formatted,
-                        adjust=""
-                    )
-                except Exception as e:
-                    exception[0] = e
-
-            # 启动线程
-            thread = threading.Thread(target=fetch_hist_data)
-            thread.daemon = True
-            thread.start()
+            # 使用线程池执行，带超时保护
+            future = self._executor.submit(
+                self.ak.stock_hk_hist,
+                symbol=hk_symbol,
+                period="daily",
+                start_date=start_date_formatted,
+                end_date=end_date_formatted,
+                adjust=""
+            )
 
             # 等待60秒
-            thread.join(timeout=60)
-
-            if thread.is_alive():
-                # 超时了
-                logger.warning(f" AKShare港股历史数据获取超时（60秒）: {symbol}")
-                raise Exception(f"AKShare港股历史数据获取超时（60秒）: {symbol}")
-            elif exception[0]:
-                # 有异常
-                raise exception[0]
-            else:
-                # 成功
-                data = result[0]
+            try:
+                data = future.result(timeout=60)
+            except FuturesTimeoutError:
+                logger.warning(f"AKShare港股历史数据获取超时（60秒）: {symbol}")
+                return None
+            except Exception as e:
+                logger.error(f"AKShare获取港股历史数据失败: {e}")
+                return None
 
             if not data.empty:
                 # 数据预处理
@@ -232,41 +233,32 @@ class AKShareProvider:
         try:
             hk_symbol = self._normalize_hk_symbol_for_akshare(symbol)
 
-            logger.info(f" AKShare获取港股信息: {hk_symbol}")
+            logger.info(f"AKShare获取港股信息: {hk_symbol}")
 
-            # 尝试获取港股实时行情数据来获取基本信息
-            # 使用线程超时包装（兼容Windows）
-            import threading
-            import time
-
-
-            result = [None]
-            exception = [None]
-
-            def fetch_data():
-                try:
-                    result[0] = self.ak.stock_hk_spot_em()
-                except Exception as e:
-                    exception[0] = e
-
-            # 启动线程
-            thread = threading.Thread(target=fetch_data)
-            thread.daemon = True
-            thread.start()
+            # 使用线程池执行，带超时保护
+            future = self._executor.submit(self.ak.stock_hk_spot_em)
 
             # 等待60秒
-            thread.join(timeout=60)
-
-            if thread.is_alive():
-                # 超时了
-                logger.warning(f" AKShare港股信息获取超时（60秒），使用备用方案")
-                raise Exception("AKShare港股信息获取超时（60秒）")
-            elif exception[0]:
-                # 有异常
-                raise exception[0]
-            else:
-                # 成功
-                spot_data = result[0]
+            try:
+                spot_data = future.result(timeout=60)
+            except FuturesTimeoutError:
+                logger.warning(f"AKShare港股信息获取超时（60秒），使用备用方案")
+                return {
+                    'symbol': symbol,
+                    'name': f'港股{symbol}',
+                    'currency': 'HKD',
+                    'exchange': 'HKG',
+                    'source': 'akshare_timeout'
+                }
+            except Exception as e:
+                logger.error(f"AKShare获取港股信息失败: {e}")
+                return {
+                    'symbol': symbol,
+                    'name': f'港股{symbol}',
+                    'currency': 'HKD',
+                    'exchange': 'HKG',
+                    'source': 'akshare_error'
+                }
 
             # 查找对应的股票信息
             if not spot_data.empty:
