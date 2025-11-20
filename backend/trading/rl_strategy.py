@@ -168,20 +168,36 @@ class RLStrategy(BaseStrategy):
         cash = portfolio_state.get('cash', 100000)
         total_equity = portfolio_state.get('total_equity', 100000)
 
-        # 计算未实现盈亏
+        # 从完整的position信息中获取未实现盈亏
         unrealized_pnl = 0.0
-        if self.has_position and hasattr(self, 'entry_price') and self.entry_price > 0:
+        position_info = portfolio_state.get('position')
+        if position_info:
+            # 使用真实的未实现盈亏百分比
+            unrealized_pnl = position_info.get('unrealized_pnl_pct', 0.0) / 100.0
+        elif self.has_position and hasattr(self, 'entry_price') and self.entry_price > 0:
+            # 降级：使用旧的计算方式
             unrealized_pnl = (close - self.entry_price) / self.entry_price
 
+        # 使用真实的现金比例和持仓比例
+        cash_ratio = portfolio_state.get('cash_ratio', cash / total_equity if total_equity > 0 else 1.0)
+        position_ratio = portfolio_state.get('position_ratio', 1.0 - cash_ratio)
+
         account_features = np.array([
-            cash / total_equity if total_equity > 0 else 1.0,
-            1.0 - (cash / total_equity) if total_equity > 0 else 0.0,
+            cash_ratio,
+            position_ratio,
             unrealized_pnl
         ], dtype=np.float32)
 
         # ===== T+1状态 (1维) =====
-        # 简化版本：如果有持仓就是可以卖出的（实际应用中需要跟踪买入日期）
-        can_sell_ratio = 1.0 if self.has_position else 0.0
+        # 使用真实的T+1可卖比例
+        can_sell_ratio = 0.0
+        if position_info:
+            # 如果有持仓信息，使用真实的can_sell_today标志
+            can_sell_ratio = 1.0 if position_info.get('can_sell_today', False) else 0.0
+        elif self.has_position:
+            # 降级：假设有持仓就可以卖
+            can_sell_ratio = 1.0
+
         t1_features = np.array([can_sell_ratio], dtype=np.float32)
 
         # ===== 组合观察 (14维) =====

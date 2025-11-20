@@ -190,11 +190,54 @@ class MultiStrategyManager:
         for strategy_id, strategy in self.strategies.items():
             broker = self.brokers[strategy_id]
 
-            # 准备portfolio_state
+            # 准备完整的portfolio_state
+            current_price = market_prices.get(symbol, 0.0)
+
+            # 获取持仓信息
+            has_position = symbol in broker.positions
+            position_info = None
+            if has_position:
+                position = broker.positions[symbol]
+                # 更新持仓的当前价格
+                position.update_price(current_price)
+                position_info = {
+                    'symbol': symbol,
+                    'quantity': position.quantity,
+                    'avg_price': position.avg_price,
+                    'cost_basis': position.cost_basis,
+                    'current_price': current_price,
+                    'market_value': position.market_value,
+                    'unrealized_pnl': position.unrealized_pnl,
+                    'unrealized_pnl_pct': position.unrealized_pnl_pct,
+                    'can_sell_today': position.can_sell_today(),
+                    'bought_date': position.bought_date.isoformat() if position.bought_date else None
+                }
+
+            # 计算总权益（现金 + 所有持仓市值）
+            total_equity = broker.cash
+            for pos_symbol, pos in broker.positions.items():
+                pos_price = market_prices.get(pos_symbol, pos.avg_price)
+                pos.update_price(pos_price)
+                total_equity += pos.market_value
+
+            # 构建完整的portfolio_state
             portfolio_state = {
                 'cash': broker.cash,
-                'total_equity': broker.cash,  # 简化版本
-                'has_position': symbol in broker.positions
+                'total_equity': total_equity,
+                'has_position': has_position,
+                'position': position_info,  # 当前股票的持仓详情
+                'all_positions': {
+                    s: {
+                        'quantity': p.quantity,
+                        'avg_price': p.avg_price,
+                        'market_value': p.market_value,
+                        'unrealized_pnl': p.unrealized_pnl
+                    }
+                    for s, p in broker.positions.items()
+                },
+                'num_positions': len(broker.positions),
+                'cash_ratio': broker.cash / total_equity if total_equity > 0 else 1.0,
+                'position_ratio': (total_equity - broker.cash) / total_equity if total_equity > 0 else 0.0
             }
 
             # 生成信号
