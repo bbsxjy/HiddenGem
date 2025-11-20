@@ -110,6 +110,9 @@ class EnhancedTimeTravelTrainer:
         self.failed_episodes = 0
         self.total_return = 0.0
 
+        # 🆕 Episodes storage for JSONL export
+        self.episodes_for_export: List[Dict[str, Any]] = []
+
         # 🆕 TaskMonitor for checkpoint support
         self.task_monitor = get_task_monitor()
         self.task_id = f"timetravel_{symbol.replace('.', '_')}_{start_date}_{end_date}"
@@ -780,11 +783,208 @@ class EnhancedTimeTravelTrainer:
                 self.failed_episodes += 1
                 logger.info("Episode stored successfully (loss)")
 
+            # 🆕 8. Store episode for JSONL export (small model training)
+            self._store_episode_for_export(
+                current_date=current_date,
+                final_state=final_state,
+                market_state=market_state,
+                agent_analyses=agent_analyses,
+                decision_chain=decision_chain,
+                outcome=outcome,
+                success=success
+            )
+
             return True
 
         except Exception as e:
             logger.error(f"Training failed: {e}", exc_info=True)
             return False
+
+    def _store_episode_for_export(
+        self,
+        current_date: datetime,
+        final_state: Dict[str, Any],
+        market_state: 'MarketState',
+        agent_analyses: Dict[str, 'AgentAnalysis'],
+        decision_chain: 'DecisionChain',
+        outcome: 'TradeOutcome',
+        success: bool
+    ):
+        """
+        存储episode用于JSONL导出（小模型训练）
+
+        格式化为instruction-following格式，适用于SFT/LoRA训练：
+        {
+            "instruction": "...",  # 系统prompt + 任务描述
+            "input": "...",         # 市场数据 + Agent分析
+            "output": "...",        # 决策 + 推理过程
+            "metadata": {...}       # 元数据（用于过滤/分析）
+        }
+        """
+        try:
+            # 构建instruction（系统prompt）
+            instruction = """你是一个专业的量化交易分析师。根据市场数据和各个分析师的报告，做出合理的交易决策。
+
+请分析以下信息，并给出你的交易建议（买入/持有/卖出），以及详细的推理过程。"""
+
+            # 构建input（市场数据 + Agent分析）
+            input_parts = []
+
+            # 市场状态
+            input_parts.append(f"## 市场状态")
+            input_parts.append(f"- 日期: {current_date.strftime('%Y-%m-%d')}")
+            input_parts.append(f"- 股票: {self.symbol}")
+            input_parts.append(f"- 当前价格: ¥{market_state.price:.2f}")
+            if market_state.volume:
+                input_parts.append(f"- 成交量: {market_state.volume:,.0f}")
+            input_parts.append("")
+
+            # Agent分析（简化版，只包含关键信息）
+            input_parts.append("## 分析师报告")
+            for agent_name, analysis in agent_analyses.items():
+                input_parts.append(f"### {agent_name.upper()} Analyst")
+                # 只取报告的前500字符（避免过长）
+                report_summary = analysis.full_report[:500] + "..." if len(analysis.full_report) > 500 else analysis.full_report
+                input_parts.append(report_summary)
+                input_parts.append("")
+
+            input_text = "\n".join(input_parts)
+
+            # 构建output（决策 + 推理过程）
+            output_parts = []
+
+            # 多空辩论
+            if decision_chain.investment_debate_conclusion:
+                output_parts.append("## 投资辩论结论")
+                output_parts.append(decision_chain.investment_debate_conclusion)
+                output_parts.append("")
+
+            # 风险评估
+            if decision_chain.risk_debate_conclusion:
+                output_parts.append("## 风险评估结论")
+                output_parts.append(decision_chain.risk_debate_conclusion)
+                output_parts.append("")
+
+            # 最终决策
+            output_parts.append("## 最终决策")
+            output_parts.append(decision_chain.final_decision if decision_chain.final_decision else "持有")
+            output_parts.append("")
+
+            # 决策理由（提取key_lesson的关键部分）
+            output_parts.append("## 决策依据")
+            action_str = "买入" if outcome.action == "buy" else ("卖出" if outcome.action == "sell" else "持有")
+            output_parts.append(f"基于以上分析，我的决策是：{action_str}")
+
+            if outcome.action != "hold":
+                output_parts.append(f"入场价格：¥{outcome.entry_price:.2f}")
+                output_parts.append(f"目标持仓天数：{outcome.holding_period_days}天")
+
+            output_text = "\n".join(output_parts)
+
+            # 构建metadata（用于过滤和分析）
+            metadata = {
+                "date": current_date.strftime("%Y-%m-%d"),
+                "symbol": self.symbol,
+                "action": outcome.action,
+                "success": success,
+                "percentage_return": outcome.percentage_return,
+                "holding_days": outcome.holding_period_days,
+                "entry_price": outcome.entry_price,
+                "exit_price": outcome.exit_price,
+            }
+
+            # 存储episode
+            episode_data = {
+                "instruction": instruction,
+                "input": input_text,
+                "output": output_text,
+                "metadata": metadata
+            }
+
+            self.episodes_for_export.append(episode_data)
+
+            logger.debug(f"✓ Episode stored for export: {current_date.strftime('%Y-%m-%d')}")
+
+        except Exception as e:
+            logger.error(f"Failed to store episode for export: {e}", exc_info=True)
+
+    def export_jsonl(self):
+        """
+        导出所有episodes到JSONL文件（用于小模型训练）
+
+        JSONL格式：每行一个JSON对象
+        适用于：LoRA/SFT微调、Knowledge Distillation、Prompt Engineering
+
+        导出文件：
+        - training_data/sft_training_data_{symbol}_{timestamp}.jsonl
+        - 包含所有成功和失败的交易案例
+        """
+        if not self.episodes_for_export:
+            logger.warning("⚠️  No episodes to export")
+            return
+
+        try:
+            # 创建输出目录
+            output_dir = Path("training_data")
+            output_dir.mkdir(exist_ok=True)
+
+            # 生成文件名
+            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+            output_file = output_dir / f"sft_training_data_{self.symbol.replace('.', '_')}_{timestamp}.jsonl"
+
+            # 写入JSONL
+            with open(output_file, 'w', encoding='utf-8') as f:
+                for episode in self.episodes_for_export:
+                    json_line = json.dumps(episode, ensure_ascii=False)
+                    f.write(json_line + '\n')
+
+            logger.info(f"📦 JSONL training data exported:")
+            logger.info(f"   File: {output_file}")
+            logger.info(f"   Total episodes: {len(self.episodes_for_export)}")
+
+            # 统计信息
+            successful = sum(1 for ep in self.episodes_for_export if ep['metadata']['success'])
+            failed = len(self.episodes_for_export) - successful
+
+            buy_actions = sum(1 for ep in self.episodes_for_export if ep['metadata']['action'] == 'buy')
+            sell_actions = sum(1 for ep in self.episodes_for_export if ep['metadata']['action'] == 'sell')
+            hold_actions = sum(1 for ep in self.episodes_for_export if ep['metadata']['action'] == 'hold')
+
+            logger.info(f"   Successful: {successful} ({successful/len(self.episodes_for_export)*100:.1f}%)")
+            logger.info(f"   Failed: {failed} ({failed/len(self.episodes_for_export)*100:.1f}%)")
+            logger.info(f"   Actions: BUY={buy_actions}, SELL={sell_actions}, HOLD={hold_actions}")
+
+            # 导出元数据摘要
+            metadata_file = output_dir / f"sft_metadata_{self.symbol.replace('.', '_')}_{timestamp}.json"
+            metadata_summary = {
+                "symbol": self.symbol,
+                "start_date": self.start_date.strftime("%Y-%m-%d"),
+                "end_date": self.end_date.strftime("%Y-%m-%d"),
+                "total_episodes": len(self.episodes_for_export),
+                "successful_episodes": successful,
+                "failed_episodes": failed,
+                "action_distribution": {
+                    "buy": buy_actions,
+                    "sell": sell_actions,
+                    "hold": hold_actions
+                },
+                "export_timestamp": datetime.now().isoformat(),
+                "jsonl_file": str(output_file)
+            }
+
+            with open(metadata_file, 'w', encoding='utf-8') as f:
+                json.dump(metadata_summary, f, indent=2, ensure_ascii=False)
+
+            logger.info(f"   Metadata: {metadata_file}")
+
+            # 使用说明
+            logger.info(f"\n📚 使用方法:")
+            logger.info(f"   1. LoRA微调: python scripts/train_small_model.py --data {output_file}")
+            logger.info(f"   2. SFT训练: 使用FastChat/vLLM等框架加载JSONL")
+            logger.info(f"   3. Prompt Engineering: 直接使用instruction/input/output作为few-shot示例")
+
+        except Exception as e:
+            logger.error(f"❌ Failed to export JSONL: {e}", exc_info=True)
 
     def run(self):
         """Execute complete Time Travel training with checkpoint support"""
@@ -888,6 +1088,7 @@ class EnhancedTimeTravelTrainer:
 
         self.print_statistics()
         self.save_results()
+        self.export_jsonl()  # 🆕 导出JSONL训练数据
 
     def print_statistics(self):
         """Print training statistics"""
