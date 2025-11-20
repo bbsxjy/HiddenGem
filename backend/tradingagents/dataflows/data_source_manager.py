@@ -11,6 +11,9 @@ from enum import Enum
 import warnings
 import pandas as pd
 
+# 导入TTL缓存
+from .ttl_cache import ttl_cache
+
 # 导入日志模块
 from tradingagents.utils.logging_manager import get_logger
 logger = get_logger('agents')
@@ -436,6 +439,7 @@ class DataSourceManager:
                         }, exc_info=True)
             return self._try_fallback_sources(symbol, start_date, end_date)
     
+    @ttl_cache(ttl=3600)  # 缓存1小时，减少Tushare API调用
     def _get_tushare_data(self, symbol: str, start_date: str, end_date: str) -> str:
         """使用Tushare获取数据 - 直接调用适配器，避免循环调用"""
         logger.debug(f" [Tushare] 调用参数: symbol={symbol}, start_date={start_date}, end_date={end_date}")
@@ -526,7 +530,8 @@ class DataSourceManager:
             import traceback
             logger.error(f" [DataSourceManager详细日志] 异常堆栈: {traceback.format_exc()}")
             raise
-    
+
+    @ttl_cache(ttl=3600)  # 缓存1小时，减少AKShare API调用
     def _get_akshare_data(self, symbol: str, start_date: str, end_date: str) -> str:
         """使用AKShare获取数据"""
         logger.debug(f" [AKShare] 调用参数: symbol={symbol}, start_date={start_date}, end_date={end_date}")
@@ -929,6 +934,7 @@ def get_data_source_manager() -> DataSourceManager:
     return _data_source_manager
 
 
+@ttl_cache(ttl=3600)  # 缓存1小时，减少重复的数据源查询
 def get_china_stock_data_unified(symbol: str, start_date: str, end_date: str) -> str:
     """
     统一的中国股票数据获取接口
