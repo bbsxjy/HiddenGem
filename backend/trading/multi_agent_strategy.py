@@ -150,15 +150,19 @@ class MultiAgentStrategy(BaseStrategy):
             # 转换为交易信号
             if direction == 'long' and not self.has_position and confidence > 0.6:
                 action = 'buy'
+                target_ratio = min(confidence, 0.5)  # 根据置信度调整买入比例，最高50%
             elif direction == 'short' and self.has_position:
                 action = 'sell'
+                target_ratio = 1.0  # 卖出全部
             else:
                 action = 'hold'
+                target_ratio = 0.0
 
             self.last_signal = {
                 'action': action,
                 'reason': f"Multi-Agent({direction}, {confidence:.2f}): {reasoning[:50]}",
                 'confidence': confidence,
+                'target_ratio': target_ratio,
                 'llm_analysis': llm_analysis
             }
 
@@ -180,12 +184,14 @@ class MultiAgentStrategy(BaseStrategy):
         if not self.has_position:
             return {
                 'action': 'buy',
-                'reason': 'Multi-Agent fallback: 初始买入'
+                'reason': 'Multi-Agent fallback: 初始买入',
+                'target_ratio': 0.1  # 使用10%现金
             }
         else:
             return {
                 'action': 'hold',
-                'reason': 'Multi-Agent fallback: 持有'
+                'reason': 'Multi-Agent fallback: 持有',
+                'target_ratio': 0.0
             }
 
     def on_trade(self, trade_info: Dict[str, Any]):

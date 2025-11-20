@@ -204,14 +204,14 @@ class RLStrategy(BaseStrategy):
             action: PPO 模型输出的动作（可能是 int, numpy array, list 等）
 
         Returns:
-            交易信号字典
+            交易信号字典，包含 target_ratio 字段
 
         Action空间（enhanced_trading_env）：
             0: HOLD
-            1: BUY_25 (买入25%)
-            2: BUY_50 (买入50%)
-            3: SELL_50 (卖出50%)
-            4: SELL_ALL (卖出全部)
+            1: BUY_25 (买入25%现金)
+            2: BUY_50 (买入50%现金)
+            3: SELL_50 (卖出50%持仓)
+            4: SELL_ALL (卖出全部持仓)
         """
         action_names = ['HOLD', 'BUY_25', 'BUY_50', 'SELL_50', 'SELL_ALL']
 
@@ -245,31 +245,93 @@ class RLStrategy(BaseStrategy):
 
         # HOLD
         if action_int == 0:
-            return {'action': 'hold', 'reason': f'RL: {action_name}'}
+            return {
+                'action': 'hold',
+                'reason': f'RL: {action_name}',
+                'target_ratio': 0.0
+            }
 
-        # BUY_25 or BUY_50
-        elif action_int in [1, 2]:
+        # BUY_25 (买入25%现金)
+        elif action_int == 1:
             if not self.has_position:
-                return {'action': 'buy', 'reason': f'RL: {action_name}'}
+                return {
+                    'action': 'buy',
+                    'reason': f'RL: {action_name}',
+                    'target_ratio': 0.25  # 使用25%现金
+                }
             else:
-                return {'action': 'hold', 'reason': f'RL: {action_name} but already holding'}
+                return {
+                    'action': 'hold',
+                    'reason': f'RL: {action_name} but already holding',
+                    'target_ratio': 0.0
+                }
 
-        # SELL_50 or SELL_ALL
-        elif action_int in [3, 4]:
-            if self.has_position:
-                return {'action': 'sell', 'reason': f'RL: {action_name}'}
+        # BUY_50 (买入50%现金)
+        elif action_int == 2:
+            if not self.has_position:
+                return {
+                    'action': 'buy',
+                    'reason': f'RL: {action_name}',
+                    'target_ratio': 0.50  # 使用50%现金
+                }
             else:
-                return {'action': 'hold', 'reason': f'RL: {action_name} but no position'}
+                return {
+                    'action': 'hold',
+                    'reason': f'RL: {action_name} but already holding',
+                    'target_ratio': 0.0
+                }
+
+        # SELL_50 (卖出50%持仓)
+        elif action_int == 3:
+            if self.has_position:
+                return {
+                    'action': 'sell',
+                    'reason': f'RL: {action_name}',
+                    'target_ratio': 0.50  # 卖出50%持仓
+                }
+            else:
+                return {
+                    'action': 'hold',
+                    'reason': f'RL: {action_name} but no position',
+                    'target_ratio': 0.0
+                }
+
+        # SELL_ALL (卖出全部持仓)
+        elif action_int == 4:
+            if self.has_position:
+                return {
+                    'action': 'sell',
+                    'reason': f'RL: {action_name}',
+                    'target_ratio': 1.0  # 卖出100%持仓
+                }
+            else:
+                return {
+                    'action': 'hold',
+                    'reason': f'RL: {action_name} but no position',
+                    'target_ratio': 0.0
+                }
 
         else:
-            return {'action': 'hold', 'reason': 'RL: Unknown action'}
+            return {
+                'action': 'hold',
+                'reason': 'RL: Unknown action',
+                'target_ratio': 0.0
+            }
 
     def _simple_fallback(self, current_data: pd.DataFrame, portfolio_state: Dict[str, Any]) -> Dict[str, Any]:
         self.has_position = portfolio_state.get('has_position', False)
         if not self.has_position:
-            return {'action': 'buy', 'reason': 'RL fallback: initial buy'}
+            return {
+                'action': 'buy',
+                'reason': 'RL fallback: initial buy',
+                'target_ratio': 0.1  # 使用10%现金
+            }
         else:
-            return {'action': 'hold', 'reason': 'RL fallback: hold'}
+            return {
+                'action': 'hold',
+                'reason': 'RL fallback: hold',
+                'target_ratio': 0.0
+            }
 
     def on_trade(self, trade_info: Dict[str, Any]):
         side = trade_info.get('side')

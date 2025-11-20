@@ -244,8 +244,11 @@ class MultiStrategyManager:
             try:
                 # 执行交易
                 if action == 'buy':
-                    # 计算买入数量（使用10%的资金）
-                    max_value = broker.cash * 0.1
+                    # 从信号中获取目标比例，默认10%
+                    target_ratio = signal.get('target_ratio', 0.1)
+
+                    # 计算买入数量（使用target_ratio比例的资金）
+                    max_value = broker.cash * target_ratio
                     quantity = int(max_value / current_price / 100) * 100  # 取整到100的倍数
 
                     if quantity >= 100 and broker.cash >= quantity * current_price:
@@ -294,7 +297,17 @@ class MultiStrategyManager:
                     # 检查是否有持仓
                     if symbol in broker.positions:
                         position = broker.positions[symbol]
-                        quantity = position.quantity
+
+                        # 从信号中获取目标比例，默认100%（全部卖出）
+                        target_ratio = signal.get('target_ratio', 1.0)
+
+                        # 计算卖出数量（target_ratio * 持仓量）
+                        quantity = int(position.quantity * target_ratio / 100) * 100  # 取整到100的倍数
+
+                        # 确保至少卖出100股，且不超过持仓量
+                        if quantity < 100:
+                            quantity = min(100, position.quantity)
+                        quantity = min(quantity, position.quantity)
 
                         # 提交订单
                         from trading.order import Order, OrderSide, OrderType
