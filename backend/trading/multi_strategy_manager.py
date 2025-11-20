@@ -344,12 +344,18 @@ class MultiStrategyManager:
                         # 从信号中获取目标比例，默认100%（全部卖出）
                         target_ratio = signal.get('target_ratio', 1.0)
 
-                        # 计算卖出数量（target_ratio * 持仓量）
-                        quantity = int(position.quantity * target_ratio / 100) * 100  # 取整到100的倍数
+                        # 计算卖出数量（target_ratio已经是0.5/1.0等比例值，不需要再除以100）
+                        # 例如：持仓1000股，target_ratio=0.5，应该卖出500股
+                        raw_quantity = position.quantity * target_ratio
 
-                        # 确保至少卖出100股，且不超过持仓量
-                        if quantity < 100:
-                            quantity = min(100, position.quantity)
+                        # 向下取整到100的倍数
+                        quantity = int(raw_quantity / 100) * 100
+
+                        # 如果计算结果小于100股但原始目标>0，则至少卖100股（A股最小交易单位）
+                        if quantity < 100 and raw_quantity > 0:
+                            quantity = 100
+
+                        # 确保不超过实际持仓量
                         quantity = min(quantity, position.quantity)
 
                         # 提交订单
