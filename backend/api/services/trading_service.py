@@ -102,9 +102,23 @@ class TradingService:
 
     def get_positions(self) -> list:
         """获取当前所有持仓"""
-        broker_positions = self.broker.get_positions()
-        # broker.get_positions()已经返回正确格式的列表
-        return broker_positions
+        # 将broker的Position对象转换为前端期望的格式
+        positions = []
+        for symbol, position in self.broker.positions.items():
+            positions.append({
+                "symbol": symbol,
+                "name": symbol.split('.')[0],  # 简化处理，取代码部分作为名称
+                "quantity": position.quantity,
+                "avg_cost": position.avg_cost,
+                "current_price": position.current_price if position.current_price else position.avg_price,  # 如果没有当前价，使用成本价
+                "market_value": position.market_value,
+                "cost_basis": position.cost_basis,
+                "unrealized_pnl": position.unrealized_pnl,
+                "unrealized_pnl_pct": position.unrealized_pnl_pct,
+                "today_pnl": 0.0,  # TODO: 需要从历史记录计算
+                "today_pnl_pct": 0.0
+            })
+        return positions
 
     def get_position(self, symbol: str) -> Optional[dict]:
         """获取单个持仓"""
