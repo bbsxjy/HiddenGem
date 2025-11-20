@@ -19,10 +19,12 @@ from trading.strategy_factory import StrategyFactory, StrategyMode
 from trading.multi_strategy_manager import MultiStrategyManager
 from tradingagents.utils.logging_init import get_logger
 from tradingagents.utils.market_context import MarketContext
+from tradingagents.utils.monitoring_metrics import get_metrics_collector  # 🆕 监控指标
 from api.services.realtime_data_service import realtime_data_service
 from api.services.trading_service import trading_service  # 导入trading_service
 
 logger = get_logger("auto_trading_service")
+metrics = get_metrics_collector()  # 🆕 全局指标收集器
 
 
 class AutoTradingService:
@@ -140,6 +142,8 @@ class AutoTradingService:
     def _update_heartbeat(self):
         """更新心跳时间"""
         self.last_heartbeat = datetime.now()
+        # 🆕 记录心跳指标
+        metrics.record_heartbeat(self.last_heartbeat)
 
     def _is_healthy(self) -> bool:
         """检查交易循环是否健康
@@ -148,13 +152,17 @@ class AutoTradingService:
             是否健康（心跳在允许间隔内）
         """
         if not self.last_heartbeat:
-            return False
+            is_healthy = False
+        else:
+            elapsed = (datetime.now() - self.last_heartbeat).total_seconds()
+            # 允许的最大心跳间隔 = heartbeat_interval * 2 + 60秒容错
+            max_allowed = self.heartbeat_interval * 2 + 60
+            is_healthy = elapsed < max_allowed
 
-        elapsed = (datetime.now() - self.last_heartbeat).total_seconds()
-        # 允许的最大心跳间隔 = heartbeat_interval * 2 + 60秒容错
-        max_allowed = self.heartbeat_interval * 2 + 60
+        # 🆕 记录健康状态指标
+        metrics.record_health(is_healthy)
 
-        return elapsed < max_allowed
+        return is_healthy
 
     def _run_supervisor(self):
         """Supervisor线程：监控交易循环健康状态，必要时重启
@@ -197,6 +205,9 @@ class AutoTradingService:
 
                         # 尝试重启
                         self.restart_count += 1
+                        # 🆕 记录重启指标
+                        metrics.record_restart()
+
                         logger.warning(
                             f"🔄 尝试重启交易循环... (第{self.restart_count}/{self.max_restart_count}次)"
                         )
