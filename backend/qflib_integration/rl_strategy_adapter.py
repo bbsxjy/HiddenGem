@@ -26,8 +26,12 @@ except ImportError:
 # Stable-Baselines3 imports
 try:
     from stable_baselines3 import PPO
+    from stable_baselines3.common.vec_env import VecNormalize
+    import pickle
+    import os
 except ImportError:
     PPO = None
+    VecNormalize = None
 
 logger = logging.getLogger(__name__)
 
@@ -43,6 +47,7 @@ class RLStrategyAdapter(AlphaModel if AlphaModel != object else object):
         -  动态计算技术指标（只使用历史数据）
         -  支持多种RL模型（PPO、A2C、SAC等）
         -  天然防护Look-Ahead Bias
+        -  支持VecNormalize观测归一化
     """
 
     def __init__(
@@ -69,7 +74,10 @@ class RLStrategyAdapter(AlphaModel if AlphaModel != object else object):
         # 加载RL模型
         self.model = self._load_model(model_path)
 
-        logger.info(f" RLStrategyAdapter initialized: model={model_path}, ticker={ticker}")
+        # 加载VecNormalize统计数据
+        self.vec_normalize = self._load_vec_normalize(model_path)
+
+        logger.info(f"RLStrategyAdapter initialized: model={model_path}, ticker={ticker}, vec_normalize={'loaded' if self.vec_normalize else 'not available'}")
 
     def _load_model(self, model_path: str):
         """加载RL模型
@@ -85,11 +93,49 @@ class RLStrategyAdapter(AlphaModel if AlphaModel != object else object):
 
         try:
             model = PPO.load(model_path)
-            logger.info(f" RL model loaded from {model_path}")
+            logger.info(f"RL model loaded from {model_path}")
             return model
         except Exception as e:
-            logger.error(f" Failed to load model from {model_path}: {e}")
+            logger.error(f"Failed to load model from {model_path}: {e}")
             raise
+
+    def _load_vec_normalize(self, model_path: str):
+        """加载VecNormalize统计数据
+
+        Args:
+            model_path: 模型文件路径
+
+        Returns:
+            VecNormalize对象或None
+        """
+        if VecNormalize is None:
+            logger.warning("VecNormalize not available, observations will not be normalized")
+            return None
+
+        # 推断VecNormalize文件路径
+        if model_path.endswith('.zip'):
+            vec_norm_path = model_path.replace('.zip', '_vecnormalize.pkl')
+        else:
+            vec_norm_path = model_path + '_vecnormalize.pkl'
+
+        if not os.path.exists(vec_norm_path):
+            logger.warning(
+                f'VecNormalize file not found: {vec_norm_path}. '
+                'Observations will NOT be normalized during backtesting.'
+            )
+            return None
+
+        try:
+            with open(vec_norm_path, 'rb') as f:
+                vec_normalize = pickle.load(f)
+
+            # 设置为推理模式
+            vec_normalize.training = False
+            logger.info(f'VecNormalize loaded: {vec_norm_path}')
+            return vec_normalize
+        except Exception as e:
+            logger.error(f'Failed to load VecNormalize: {e}')
+            return None
 
     def calculate_exposure(
         self,
@@ -114,6 +160,13 @@ class RLStrategyAdapter(AlphaModel if AlphaModel != object else object):
 
         # 准备观察（动态计算技术指标）
         obs = self._prepare_observation(historical_data)
+
+        # 如果有VecNormalize，则归一化观测值
+        if self.vec_normalize is not None:
+            # VecNormalize期望输入形状为 (n_envs, obs_dim)
+            obs_normalized = self.vec_normalize.normalize_obs(obs.reshape(1, -1))
+            obs = obs_normalized.flatten()
+            logger.debug(f"Observation normalized using VecNormalize")
 
         # RL模型预测
         action, _ = self.model.predict(obs, deterministic=True)

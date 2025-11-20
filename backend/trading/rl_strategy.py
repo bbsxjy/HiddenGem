@@ -12,9 +12,12 @@ logger = logging.getLogger(__name__)
 
 try:
     from stable_baselines3 import PPO
+    from stable_baselines3.common.vec_env import VecNormalize
+    import pickle
     SB3_AVAILABLE = True
 except ImportError:
     SB3_AVAILABLE = False
+    VecNormalize = None
     logger.warning('stable-baselines3 not available')
 
 
@@ -26,13 +29,19 @@ class RLStrategy(BaseStrategy):
 
         self.model_path = model_path
         self.model = None
+        self.vec_normalize = None
         self.has_position = False
         self.entry_price = 0.0  # 记录买入价格用于计算未实现盈亏
-        
+
         if SB3_AVAILABLE and os.path.exists(model_path):
             try:
+                # 加载模型
                 self.model = PPO.load(model_path)
                 logger.info(f'RL model loaded: {model_path}')
+
+                # 尝试加载 VecNormalize 统计数据
+                self._load_vec_normalize()
+
             except Exception as e:
                 logger.error(f'Failed to load RL model: {e}')
                 self.model = None
@@ -42,6 +51,39 @@ class RLStrategy(BaseStrategy):
             elif not os.path.exists(model_path):
                 logger.warning(f'Model file not found: {model_path}')
 
+    def _load_vec_normalize(self):
+        """加载 VecNormalize 统计数据用于推理时的观测归一化"""
+        # 根据模型路径推断 VecNormalize 文件路径
+        # 例如: final_model.zip -> final_model_vecnormalize.pkl
+        if self.model_path.endswith('.zip'):
+            vec_norm_path = self.model_path.replace('.zip', '_vecnormalize.pkl')
+        else:
+            vec_norm_path = self.model_path + '_vecnormalize.pkl'
+
+        if not os.path.exists(vec_norm_path):
+            logger.warning(
+                f'VecNormalize file not found: {vec_norm_path}. '
+                'Observations will NOT be normalized, which may cause prediction errors.'
+            )
+            return
+
+        try:
+            # 加载 VecNormalize 统计数据
+            with open(vec_norm_path, 'rb') as f:
+                self.vec_normalize = pickle.load(f)
+
+            # 设置为推理模式（不更新统计数据）
+            if self.vec_normalize is not None:
+                self.vec_normalize.training = False
+                logger.info(f'VecNormalize loaded: {vec_norm_path}')
+                logger.info(
+                    f'Observation normalization enabled - '
+                    f'mean shape: {self.vec_normalize.obs_rms.mean.shape}'
+                )
+        except Exception as e:
+            logger.error(f'Failed to load VecNormalize: {e}')
+            self.vec_normalize = None
+
     def generate_signal(self, symbol: str, current_data: pd.DataFrame, portfolio_state: Dict[str, Any]) -> Dict[str, Any]:
         if self.model is None:
             logger.warning('RL model not available, using fallback')
@@ -50,6 +92,15 @@ class RLStrategy(BaseStrategy):
         try:
             self.has_position = portfolio_state.get('has_position', False)
             observation = self._prepare_observation(current_data, portfolio_state)
+
+            # 如果有 VecNormalize，则归一化观测值
+            if self.vec_normalize is not None:
+                # VecNormalize 期望输入形状为 (n_envs, obs_dim)
+                # 我们的观测是一维的，需要 reshape
+                obs_normalized = self.vec_normalize.normalize_obs(observation.reshape(1, -1))
+                observation = obs_normalized.flatten()
+                logger.debug(f'Observation normalized using VecNormalize')
+
             action, _states = self.model.predict(observation, deterministic=True)
             signal = self._action_to_signal(action)
             return signal
