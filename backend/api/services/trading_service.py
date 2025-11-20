@@ -90,14 +90,18 @@ class TradingService:
     def get_portfolio_summary(self) -> dict:
         """获取投资组合摘要"""
         balance = self.broker.get_balance()
+
+        # 🆕 使用 broker 的 get_daily_pnl() 方法
+        daily_pnl_data = self.broker.get_daily_pnl()
+
         return {
             "total_value": balance['total_assets'],
             "cash": balance['cash'],
             "positions_value": balance['market_value'],
             "total_pnl": balance['profit'],
             "total_pnl_percent": balance['profit_pct'] * 100,
-            "daily_pnl": 0.0,  # TODO: 需要从历史记录计算
-            "daily_pnl_percent": 0.0
+            "daily_pnl": daily_pnl_data['daily_pnl'],  # ✅ 真实计算
+            "daily_pnl_percent": daily_pnl_data['daily_pnl_pct'] * 100  # ✅ 真实计算
         }
 
     def get_positions(self) -> list:
@@ -110,13 +114,13 @@ class TradingService:
                 "name": symbol.split('.')[0],  # 简化处理，取代码部分作为名称
                 "quantity": position.quantity,
                 "avg_cost": position.avg_cost,
-                "current_price": position.current_price if position.current_price else position.avg_price,  # 如果没有当前价，使用成本价
+                "current_price": position.current_price if position.current_price else position.avg_price,
                 "market_value": position.market_value,
                 "cost_basis": position.cost_basis,
                 "unrealized_pnl": position.unrealized_pnl,
                 "unrealized_pnl_pct": position.unrealized_pnl_pct,
-                "today_pnl": 0.0,  # TODO: 需要从历史记录计算
-                "today_pnl_pct": 0.0
+                "today_pnl": position.today_pnl,  # ✅ 真实计算
+                "today_pnl_pct": position.today_pnl_pct  # ✅ 真实计算
             })
         return positions
 
@@ -136,14 +140,14 @@ class TradingService:
             "cost_basis": position.cost_basis,
             "unrealized_pnl": position.unrealized_pnl,
             "unrealized_pnl_pct": position.unrealized_pnl_pct,
-            "today_pnl": 0.0,
-            "today_pnl_pct": 0.0
+            "today_pnl": position.today_pnl,  # ✅ 真实计算
+            "today_pnl_pct": position.today_pnl_pct  # ✅ 真实计算
         }
 
     def get_portfolio_history(self, days: int = 30) -> list:
         """获取投资组合历史"""
-        # TODO: 实现equity_history
-        return []
+        # ✅ 使用 broker 的 get_equity_history() 方法
+        return self.broker.get_equity_history(days=days)
 
     def get_orders(self, status: Optional[str] = None) -> list:
         """获取订单列表"""

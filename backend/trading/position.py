@@ -16,6 +16,7 @@ class Position:
     quantity: int              # 持仓数量
     avg_price: float           # 持仓均价
     current_price: float = 0.0 # 当前价格
+    prev_close_price: float = 0.0  # 🆕 昨日收盘价（用于计算today_pnl）
 
     # 时间信息
     opened_time: datetime = None
@@ -58,8 +59,31 @@ class Position:
             return 0.0
         return (self.unrealized_pnl / self.cost_basis) * 100
 
-    def update_price(self, new_price: float):
-        """更新当前价格"""
+    @property
+    def today_pnl(self) -> float:
+        """🆕 今日盈亏（相对于昨日收盘价）"""
+        if self.prev_close_price == 0:
+            return 0.0
+        return self.quantity * (self.current_price - self.prev_close_price)
+
+    @property
+    def today_pnl_pct(self) -> float:
+        """🆕 今日盈亏百分比"""
+        if self.prev_close_price == 0:
+            return 0.0
+        return ((self.current_price - self.prev_close_price) / self.prev_close_price) * 100
+
+    def update_price(self, new_price: float, is_new_day: bool = False):
+        """更新当前价格
+
+        Args:
+            new_price: 新价格
+            is_new_day: 是否是新的一天（如果是，更新prev_close_price）
+        """
+        if is_new_day and self.current_price > 0:
+            # 新的一天开始，将当前价格保存为昨日收盘价
+            self.prev_close_price = self.current_price
+
         self.current_price = new_price
         self.last_updated = datetime.now()
 
@@ -114,10 +138,13 @@ class Position:
             'quantity': self.quantity,
             'avg_price': self.avg_price,
             'current_price': self.current_price,
+            'prev_close_price': self.prev_close_price,  # 🆕
             'market_value': self.market_value,
             'cost_basis': self.cost_basis,
             'unrealized_pnl': self.unrealized_pnl,
             'unrealized_pnl_pct': self.unrealized_pnl_pct,
+            'today_pnl': self.today_pnl,  # 🆕
+            'today_pnl_pct': self.today_pnl_pct,  # 🆕
             'opened_time': self.opened_time.isoformat(),
             'last_updated': self.last_updated.isoformat(),
             'bought_date': self.bought_date.isoformat() if self.bought_date else None,

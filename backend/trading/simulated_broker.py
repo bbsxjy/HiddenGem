@@ -58,6 +58,13 @@ class SimulatedBroker(BaseBroker):
         self.orders: List[Order] = []
         self.trade_history: List[Dict] = []
 
+        # 🆕 权益曲线 - 记录每日快照
+        self.equity_curve: List[Dict] = []
+        self._last_snapshot_date: Optional[str] = None
+
+        # 🆕 记录初始快照
+        self._record_equity_snapshot(force=True)
+
         # Mark as logged in (simulated broker is always "logged in")
         self.is_logged_in = True
 
@@ -214,6 +221,9 @@ class SimulatedBroker(BaseBroker):
                     f"{order.quantity}@¥{fill_price:.2f} "
                     f"(佣金=¥{commission:.2f}, 印花税=¥{stamp_duty:.2f}, 总费用=¥{total_fees:.2f})"
                 )
+
+            # 🆕 交易完成后记录权益快照
+            self._record_equity_snapshot()
 
             return True
 
@@ -394,6 +404,12 @@ class SimulatedBroker(BaseBroker):
         self.positions.clear()
         self.orders.clear()
         self.trade_history.clear()
+        self.equity_curve.clear()
+        self._last_snapshot_date = None
+
+        # 重新记录初始快照
+        self._record_equity_snapshot(force=True)
+
         logger.info("SimulatedBroker reset")
 
     # Abstract methods from BaseBroker
@@ -452,3 +468,101 @@ class SimulatedBroker(BaseBroker):
             }
             for order in filtered_orders
         ]
+
+    def _record_equity_snapshot(self, force: bool = False):
+        """
+        记录权益快照（每日一次）
+
+        Args:
+            force: 强制记录（用于初始化和重置）
+        """
+        from datetime import datetime
+
+        current_date = datetime.now().strftime("%Y-%m-%d")
+
+        # 如果今天已经记录过且不是强制，则跳过
+        if not force and self._last_snapshot_date == current_date:
+            return
+
+        # 计算总资产
+        balance = self.get_balance()
+
+        # 计算 daily PnL（相对于昨日）
+        daily_pnl = 0.0
+        daily_pnl_pct = 0.0
+
+        if len(self.equity_curve) > 0:
+            prev_total = self.equity_curve[-1]['total_assets']
+            daily_pnl = balance['total_assets'] - prev_total
+            daily_pnl_pct = daily_pnl / prev_total if prev_total > 0 else 0.0
+
+        # 记录快照
+        snapshot = {
+            'date': current_date,
+            'timestamp': datetime.now().isoformat(),
+            'cash': balance['cash'],
+            'market_value': balance['market_value'],
+            'total_assets': balance['total_assets'],
+            'profit': balance['profit'],
+            'profit_pct': balance['profit_pct'],
+            'daily_pnl': daily_pnl,
+            'daily_pnl_pct': daily_pnl_pct,
+        }
+
+        self.equity_curve.append(snapshot)
+        self._last_snapshot_date = current_date
+
+        logger.debug(
+            f"📊 Equity snapshot recorded: "
+            f"Total=¥{balance['total_assets']:,.2f}, "
+            f"Daily PnL=¥{daily_pnl:+,.2f} ({daily_pnl_pct:+.2%})"
+        )
+
+    def get_equity_history(self, days: int = 30) -> List[Dict]:
+        """
+        获取权益历史（用于绘制权益曲线）
+
+        Args:
+            days: 获取最近多少天的数据（0表示全部）
+
+        Returns:
+            权益历史列表
+        """
+        if days <= 0:
+            return self.equity_curve.copy()
+
+        return self.equity_curve[-days:].copy()
+
+    def get_daily_pnl(self) -> Dict:
+        """
+        获取今日 PnL
+
+        Returns:
+            包含 daily_pnl 和 daily_pnl_pct 的字典
+        """
+        # 确保今日快照已记录
+        self._record_equity_snapshot()
+
+        if len(self.equity_curve) == 0:
+            return {'daily_pnl': 0.0, 'daily_pnl_pct': 0.0}
+
+        latest = self.equity_curve[-1]
+        return {
+            'daily_pnl': latest['daily_pnl'],
+            'daily_pnl_pct': latest['daily_pnl_pct']
+        }
+
+    def update_position_prices(self, price_map: Dict[str, float]):
+        """
+        更新持仓当前价格（用于计算浮动盈亏）
+
+        Args:
+            price_map: {symbol: current_price} 字典
+        """
+        for symbol, position in self.positions.items():
+            if symbol in price_map:
+                position.update_price(price_map[symbol])
+
+        # 价格更新后，记录新的权益快照
+        self._record_equity_snapshot()
+
