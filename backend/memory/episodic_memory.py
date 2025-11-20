@@ -184,20 +184,33 @@ class EpisodicMemoryBank:
 
         Args:
             episode: TradingEpisode对象
+
+        Note:
+            为了避免future leakage，embedding只基于当前时刻的信息：
+            - 市场状态
+            - Agent分析
+            - 决策理由
+            outcome（未来结果）会被存储但不参与embedding
         """
         try:
-            # 生成embedding（基于key_lesson或完整内容）
+            # ========== 关键改进：只使用当前时刻的信息生成embedding ==========
+            # 不包含outcome，避免future leakage
             if episode.key_lesson:
+                # 如果提供了key_lesson，确保它不包含未来信息
+                # key_lesson应该只描述"当时的决策逻辑"，不包含"事后结果"
                 text_for_embedding = episode.key_lesson
             else:
-                # 组合关键信息
+                # 组合关键信息 - 只使用当前可知的信息
                 text_for_embedding = f"""
                 日期: {episode.date}
                 股票: {episode.symbol}
-                市场regime: {episode.market_state.market_regime}
+                市场状态: {episode.market_state.market_regime or '未知'}
+                RSI: {episode.market_state.rsi}
+                MACD: {episode.market_state.macd}
                 决策: {episode.decision_chain.final_decision}
-                教训: {episode.lesson if episode.lesson else ''}
+                决策信心: {episode.decision_chain.final_confidence}
                 """
+                # 注意：不包含outcome，不包含absolute_return等未来信息
 
             if self.encoder:
                 embedding = self.encoder.encode(text_for_embedding).tolist()
@@ -205,17 +218,20 @@ class EpisodicMemoryBank:
                 logger.warning(" Encoder未初始化，使用空向量")
                 embedding = [0.0] * 384  # MiniLM的维度
 
-            # 序列化为JSON
+            # 序列化为JSON（完整episode，包含outcome，但outcome不参与embedding）
             episode_json = episode.model_dump_json()
 
             # 准备metadata（用于快速过滤）
+            # outcome信息可以在metadata中，方便事后分析，但不影响相似度计算
             metadata = {
                 'date': episode.date,
                 'symbol': episode.symbol,
                 'market_regime': episode.market_state.market_regime or 'unknown',
                 'action': episode.outcome.action if episode.outcome else 'unknown',
                 'mode': episode.mode,
-                'success': str(episode.success) if episode.success is not None else 'unknown'
+                'success': str(episode.success) if episode.success is not None else 'unknown',
+                # 标记：outcome仅供事后分析，不参与检索匹配
+                '_outcome_for_analysis_only': 'true'
             }
 
             # 存入ChromaDB
@@ -227,7 +243,7 @@ class EpisodicMemoryBank:
             )
 
             logger.info(f" [EpisodicMemory] Episode已存储: {episode.episode_id} "
-                       f"({episode.symbol} @ {episode.date})")
+                       f"({episode.symbol} @ {episode.date}) - outcome已隔离")
 
         except Exception as e:
             logger.error(f" [EpisodicMemory] 存储Episode失败: {e}")
