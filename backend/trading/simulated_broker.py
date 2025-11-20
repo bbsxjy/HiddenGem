@@ -446,7 +446,7 @@ class SimulatedBroker(BaseBroker):
                 'limit_price': order.limit_price,
                 'filled_price': order.filled_price,
                 'filled_quantity': order.filled_quantity,
-                'submit_time': order.submit_time,
+                'created_time': order.created_time,
                 'filled_time': order.filled_time,
                 'commission': order.commission
             }

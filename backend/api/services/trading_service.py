@@ -145,7 +145,7 @@ class TradingService:
                 continue
 
             orders.append({
-                "order_id": order_id_counter,
+                "id": order_id_counter,  # 前端期望 id 而不是 order_id
                 "symbol": order.symbol,
                 "name": order.symbol.split('.')[0],
                 "side": order.side.value,
@@ -153,10 +153,12 @@ class TradingService:
                 "quantity": order.quantity,
                 "price": order.limit_price,
                 "filled_quantity": order.filled_quantity,
-                "avg_fill_price": order.filled_price if order.filled_quantity > 0 else None,
+                "avg_filled_price": order.filled_price if order.filled_quantity > 0 else None,
                 "status": order.status.value,
-                "created_at": order.submit_time.isoformat() if order.submit_time else datetime.now().isoformat(),
-                "updated_at": (order.filled_time or order.submit_time or datetime.now()).isoformat()
+                "created_at": order.created_time.isoformat() if order.created_time else datetime.now().isoformat(),
+                "updated_at": (order.filled_time or order.created_time or datetime.now()).isoformat(),
+                "strategy_name": order.strategy_name,  # 策略名称
+                "reasoning": order.reasoning  # 交易原因
             })
             order_id_counter += 1
 
@@ -169,7 +171,7 @@ class TradingService:
         if 0 <= index < len(self.broker.orders):
             order = self.broker.orders[index]
             return {
-                "order_id": order_id,
+                "id": order_id,  # 前端期望 id 而不是 order_id
                 "symbol": order.symbol,
                 "name": order.symbol.split('.')[0],
                 "side": order.side.value,
@@ -177,10 +179,12 @@ class TradingService:
                 "quantity": order.quantity,
                 "price": order.limit_price,
                 "filled_quantity": order.filled_quantity,
-                "avg_fill_price": order.filled_price if order.filled_quantity > 0 else None,
+                "avg_filled_price": order.filled_price if order.filled_quantity > 0 else None,
                 "status": order.status.value,
-                "created_at": (order.submit_time or datetime.now()).isoformat(),
-                "updated_at": (order.filled_time or order.submit_time or datetime.now()).isoformat()
+                "created_at": (order.created_time or datetime.now()).isoformat(),
+                "updated_at": (order.filled_time or order.created_time or datetime.now()).isoformat(),
+                "strategy_name": order.strategy_name,  # 策略名称
+                "reasoning": order.reasoning  # 交易原因
             }
         return None
 
@@ -194,6 +198,8 @@ class TradingService:
         quantity = order_data.get("quantity")
         order_type = OrderType.LIMIT if order_data.get("order_type") == "limit" else OrderType.MARKET
         limit_price = order_data.get("price")
+        strategy_name = order_data.get("strategy_name")  # 策略名称
+        reasoning = order_data.get("reasoning")  # 交易原因
 
         # 创建订单对象
         order = Order(
@@ -201,7 +207,9 @@ class TradingService:
             side=side,
             quantity=quantity,
             order_type=order_type,
-            limit_price=limit_price
+            limit_price=limit_price,
+            strategy_name=strategy_name,
+            reasoning=reasoning
         )
 
         # 提交到broker
@@ -220,7 +228,7 @@ class TradingService:
         order_id = 1000 + len(self.broker.orders) - 1
 
         return {
-            "order_id": order_id,
+            "id": order_id,  # 前端期望 id 而不是 order_id
             "symbol": order.symbol,
             "name": order.symbol.split('.')[0],
             "side": order.side.value,
@@ -228,10 +236,12 @@ class TradingService:
             "quantity": order.quantity,
             "price": order.limit_price,
             "filled_quantity": order.filled_quantity or 0,
-            "avg_fill_price": order.filled_price,
+            "avg_filled_price": order.filled_price,
             "status": order.status.value,
-            "created_at": (order.submit_time or datetime.now()).isoformat(),
-            "updated_at": (order.submit_time or datetime.now()).isoformat()
+            "created_at": (order.created_time or datetime.now()).isoformat(),
+            "updated_at": (order.created_time or datetime.now()).isoformat(),
+            "strategy_name": order.strategy_name,  # 策略名称
+            "reasoning": order.reasoning  # 交易原因
         }
 
     def cancel_order(self, order_id: int) -> bool:

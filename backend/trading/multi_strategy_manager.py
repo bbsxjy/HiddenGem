@@ -256,7 +256,9 @@ class MultiStrategyManager:
                             symbol=symbol,
                             side=OrderSide.BUY,
                             quantity=quantity,
-                            order_type=OrderType.MARKET
+                            order_type=OrderType.MARKET,
+                            strategy_name=strategy.name,  # 添加策略名称
+                            reasoning=signal.get('reasoning', f'{strategy.name}策略买入信号')  # 添加交易原因
                         )
 
                         success = broker.submit_order(order)
@@ -301,7 +303,9 @@ class MultiStrategyManager:
                             symbol=symbol,
                             side=OrderSide.SELL,
                             quantity=quantity,
-                            order_type=OrderType.MARKET
+                            order_type=OrderType.MARKET,
+                            strategy_name=strategy.name,  # 添加策略名称
+                            reasoning=signal.get('reasoning', f'{strategy.name}策略卖出信号')  # 添加交易原因
                         )
 
                         success = broker.submit_order(order)

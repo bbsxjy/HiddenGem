@@ -53,6 +53,10 @@ class Order:
     created_time: datetime = field(default_factory=datetime.now)
     filled_time: Optional[datetime] = None
 
+    # 策略和原因（用于前端显示）
+    strategy_name: Optional[str] = None  # 策略名称
+    reasoning: Optional[str] = None      # 交易原因
+
     def __post_init__(self):
         """初始化后处理"""
         if not self.order_id:
@@ -94,5 +98,7 @@ class Order:
             'filled_price': self.filled_price,
             'commission': self.commission,
             'created_time': self.created_time.isoformat(),
-            'filled_time': self.filled_time.isoformat() if self.filled_time else None
+            'filled_time': self.filled_time.isoformat() if self.filled_time else None,
+            'strategy_name': self.strategy_name,
+            'reasoning': self.reasoning
         }

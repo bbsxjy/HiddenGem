@@ -15,7 +15,7 @@ router = APIRouter()
 
 # Pydantic Models
 class Order(BaseModel):
-    order_id: int
+    id: int  # 前端期望 id 而不是 order_id
     symbol: str
     name: str
     side: str  # buy, sell
@@ -23,10 +23,12 @@ class Order(BaseModel):
     quantity: int
     price: Optional[float] = None
     filled_quantity: int
-    avg_fill_price: Optional[float] = None
+    avg_filled_price: Optional[float] = None
     status: str  # pending, filled, cancelled, rejected
     created_at: str
     updated_at: str
+    strategy_name: Optional[str] = None  # 策略名称
+    reasoning: Optional[str] = None  # 交易原因
 
 
 @router.get("/")
