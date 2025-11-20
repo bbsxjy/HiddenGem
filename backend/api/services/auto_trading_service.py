@@ -302,17 +302,13 @@ class AutoTradingService:
                         except Exception as e1:
                             logger.warning(f"⚠️ [{symbol}] 真实数据获取失败: {e1}")
 
-                            # 创建足够大的模拟数据（至少50行供技术指标计算）
-                            current_price = market_prices[symbol]
-                            n_rows = 50
-                            stock_data[symbol] = pd.DataFrame({
-                                'close': [current_price * (1 + np.random.randn() * 0.02) for _ in range(n_rows)],
-                                'high': [current_price * (1 + np.random.rand() * 0.03) for _ in range(n_rows)],
-                                'low': [current_price * (1 - np.random.rand() * 0.03) for _ in range(n_rows)],
-                                'open': [current_price * (1 + np.random.randn() * 0.01) for _ in range(n_rows)],
-                                'volume': [1000000 * (1 + np.random.rand()) for _ in range(n_rows)]
-                            })
-                            logger.warning(f"⚠️ [{symbol}] 使用模拟历史数据（{n_rows}行）")
+                            # ❌ 不再使用随机数据！改为跳过该标的
+                            # 随机数据会导致策略基于虚假信息做决策，影响回测和实盘准确性
+                            logger.warning(f"⚠️ [{symbol}] 跳过该标的（无有效历史数据）")
+                            # 从market_prices中移除，后续不会生成信号
+                            if symbol in market_prices:
+                                del market_prices[symbol]
+                            continue  # 跳过该股票
 
                     except Exception as e:
                         logger.error(f"❌ [{symbol}] 获取数据失败: {e}")
