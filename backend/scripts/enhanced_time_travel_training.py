@@ -489,152 +489,192 @@ class EnhancedTimeTravelTrainer:
         market_state: 'MarketState',
         decision_chain: 'DecisionChain'
     ) -> tuple[str, str, bool]:
-        """Abstract comprehensive lesson from trade outcome with markdown formatting"""
+        """
+        Abstract comprehensive lesson from trade outcome with markdown formatting
+
+        ⚠️  IMPORTANT: To prevent future information leakage:
+        - The lesson is split into two parts:
+          1. DECISION_CONTEXT: Info available at decision time (for retrieval query)
+          2. OUTCOME_RESULT: Future results (for learning only, not for query)
+
+        This ensures that when retrieving similar cases, the model only sees
+        market conditions and decision process, NOT the future outcomes.
+        """
         # Determine success - profitable trades are considered successful
         # For 5-day holding period, any positive return is good
         success = outcome.percentage_return > 0.0  # Profitable = success
 
-        # Build comprehensive markdown-formatted lesson
-        lesson_parts = []
+        # ==========================================
+        # PART 1: DECISION CONTEXT (No Future Info)
+        # ==========================================
+        decision_parts = []
 
-        # === Header ===
-        if success:
-            lesson_parts.append(f"# 成功案例: {outcome.action}")
-            lesson_parts.append(f"**收益率**: +{outcome.percentage_return:.2%}")
-        else:
-            lesson_parts.append(f"# 失败案例: {outcome.action}")
-            lesson_parts.append(f"**亏损率**: {outcome.percentage_return:.2%}")
-
-        lesson_parts.append(f"**持仓天数**: {outcome.holding_period_days}天")
-        lesson_parts.append(f"**入场价**: ¥{outcome.entry_price:.2f}")
-        lesson_parts.append(f"**出场价**: ¥{outcome.exit_price:.2f}")
-        lesson_parts.append("")
-
-        # === Market Environment ===
-        lesson_parts.append("##  市场环境")
-        lesson_parts.append(f"- **当前价格**: ¥{market_state.price:.2f}")
-        lesson_parts.append(f"- **交易日期**: {market_state.date}")
+        # === Market Environment (Decision Time) ===
+        decision_parts.append("# 决策时的市场环境")
+        decision_parts.append(f"- **交易日期**: {market_state.date}")
+        decision_parts.append(f"- **当前价格**: ¥{market_state.price:.2f}")
+        decision_parts.append(f"- **股票代码**: {market_state.symbol}")
         if hasattr(market_state, 'volume') and market_state.volume:
-            lesson_parts.append(f"- **成交量**: {market_state.volume:,.0f}")
-        lesson_parts.append("")
+            decision_parts.append(f"- **成交量**: {market_state.volume:,.0f}")
+        if hasattr(market_state, 'open') and market_state.open:
+            decision_parts.append(f"- **开盘价**: ¥{market_state.open:.2f}")
+        if hasattr(market_state, 'high') and market_state.high:
+            decision_parts.append(f"- **最高价**: ¥{market_state.high:.2f}")
+        if hasattr(market_state, 'low') and market_state.low:
+            decision_parts.append(f"- **最低价**: ¥{market_state.low:.2f}")
+        decision_parts.append("")
 
         # === Decision Process ===
-        lesson_parts.append("##  决策过程")
+        decision_parts.append("## 决策过程")
 
         if decision_chain.bull_argument:
-            lesson_parts.append("###  多头观点")
-            lesson_parts.append(decision_chain.bull_argument)
-            lesson_parts.append("")
+            decision_parts.append("### 多头观点")
+            decision_parts.append(decision_chain.bull_argument)
+            decision_parts.append("")
 
         if decision_chain.bear_argument:
-            lesson_parts.append("###  空头观点")
-            lesson_parts.append(decision_chain.bear_argument)
-            lesson_parts.append("")
+            decision_parts.append("### 空头观点")
+            decision_parts.append(decision_chain.bear_argument)
+            decision_parts.append("")
 
         if decision_chain.investment_debate_conclusion:
-            lesson_parts.append("###  投资辩论结论")
-            lesson_parts.append(decision_chain.investment_debate_conclusion)
-            lesson_parts.append("")
+            decision_parts.append("### 投资辩论结论")
+            decision_parts.append(decision_chain.investment_debate_conclusion)
+            decision_parts.append("")
 
         # === Risk Analysis ===
-        lesson_parts.append("##  风险分析")
+        decision_parts.append("## 风险分析")
 
         if decision_chain.aggressive_view:
-            lesson_parts.append("### 激进视角")
-            lesson_parts.append(decision_chain.aggressive_view)
-            lesson_parts.append("")
+            decision_parts.append("### 激进视角")
+            decision_parts.append(decision_chain.aggressive_view)
+            decision_parts.append("")
 
         if decision_chain.neutral_view:
-            lesson_parts.append("### 中性视角")
-            lesson_parts.append(decision_chain.neutral_view)
-            lesson_parts.append("")
+            decision_parts.append("### 中性视角")
+            decision_parts.append(decision_chain.neutral_view)
+            decision_parts.append("")
 
         if decision_chain.conservative_view:
-            lesson_parts.append("### 保守视角")
-            lesson_parts.append(decision_chain.conservative_view)
-            lesson_parts.append("")
+            decision_parts.append("### 保守视角")
+            decision_parts.append(decision_chain.conservative_view)
+            decision_parts.append("")
 
         if decision_chain.risk_debate_conclusion:
-            lesson_parts.append("###  风险辩论结论")
-            lesson_parts.append(decision_chain.risk_debate_conclusion)
-            lesson_parts.append("")
+            decision_parts.append("### 风险辩论结论")
+            decision_parts.append(decision_chain.risk_debate_conclusion)
+            decision_parts.append("")
 
         # === Final Decision ===
-        lesson_parts.append("##  最终决策")
-        lesson_parts.append(decision_chain.final_decision if decision_chain.final_decision else "无最终决策记录")
-        lesson_parts.append("")
+        decision_parts.append("## 最终决策")
+        decision_parts.append(decision_chain.final_decision if decision_chain.final_decision else "无最终决策记录")
+        decision_parts.append(f"**计划行动**: {outcome.action}")
+        decision_parts.append("")
 
-        # === Post-Outcome Analysis ===
-        lesson_parts.append("##  结果分析")
+        # ==========================================
+        # PART 2: OUTCOME RESULT (Future Info - For Learning Only)
+        # ==========================================
+        outcome_parts = []
+
+        # === Outcome Header ===
+        outcome_parts.append("# 交易结果（未来信息）")
         if success:
-            lesson_parts.append("###  成功原因")
+            outcome_parts.append(f"## ✅ 成功案例")
+            outcome_parts.append(f"**收益率**: +{outcome.percentage_return:.2%}")
+        else:
+            outcome_parts.append(f"## ❌ 失败案例")
+            outcome_parts.append(f"**亏损率**: {outcome.percentage_return:.2%}")
 
+        outcome_parts.append(f"**持仓天数**: {outcome.holding_period_days}天")
+        outcome_parts.append(f"**入场价**: ¥{outcome.entry_price:.2f}")
+        outcome_parts.append(f"**出场价**: ¥{outcome.exit_price:.2f}")
+        outcome_parts.append(f"**绝对收益**: ¥{outcome.absolute_return:.2f}")
+        if hasattr(outcome, 'max_drawdown_during'):
+            outcome_parts.append(f"**期间最大回撤**: {outcome.max_drawdown_during:.2%}")
+        outcome_parts.append("")
+
+        # === Result Analysis ===
+        outcome_parts.append("## 结果分析")
+        if success:
+            outcome_parts.append("### 成功原因")
             profit_rate = outcome.percentage_return * 100
-            lesson_parts.append(f"此次交易获得了 **{profit_rate:.2f}%** 的收益，主要成功因素包括：")
-            lesson_parts.append("")
+            outcome_parts.append(f"此次交易获得了 **{profit_rate:.2f}%** 的收益，主要成功因素包括：")
+            outcome_parts.append("")
 
-            # Analyze why it succeeded based on decision chain
+            # Analyze why it succeeded
             if "买入" in outcome.action or "buy" in outcome.action.lower():
-                lesson_parts.append("- **方向判断正确**: 买入后价格上涨符合预期")
-                lesson_parts.append(f"- **入场时机把握**: 在 ¥{outcome.entry_price:.2f} 入场，出场价 ¥{outcome.exit_price:.2f}")
+                outcome_parts.append("- **方向判断正确**: 买入后价格上涨符合预期")
+                outcome_parts.append(f"- **入场时机把握**: 在 ¥{outcome.entry_price:.2f} 入场，出场价 ¥{outcome.exit_price:.2f}")
             else:
-                lesson_parts.append("- **方向判断正确**: 卖出后规避了下跌风险或锁定了利润")
-                lesson_parts.append(f"- **出场时机把握**: 在 ¥{outcome.entry_price:.2f} 出场，避免了进一步损失")
+                outcome_parts.append("- **方向判断正确**: 卖出后规避了下跌风险或锁定了利润")
+                outcome_parts.append(f"- **出场时机把握**: 在 ¥{outcome.entry_price:.2f} 出场，避免了进一步损失")
 
             # Extract key decision factors
             if decision_chain.investment_debate_conclusion and ("买入" in decision_chain.investment_debate_conclusion or "持有" in decision_chain.investment_debate_conclusion):
-                lesson_parts.append("- **决策依据充分**: 投资辩论形成了明确的多头共识")
+                outcome_parts.append("- **决策依据充分**: 投资辩论形成了明确的多头共识")
 
             if decision_chain.risk_debate_conclusion and ("风险可控" in decision_chain.risk_debate_conclusion or "适度" in decision_chain.risk_debate_conclusion):
-                lesson_parts.append("- **风险控制得当**: 风险评估识别了主要风险并制定了应对策略")
+                outcome_parts.append("- **风险控制得当**: 风险评估识别了主要风险并制定了应对策略")
 
         else:
-            lesson_parts.append("###  失败原因")
-
+            outcome_parts.append("### 失败原因")
             loss_rate = abs(outcome.percentage_return * 100)
-            lesson_parts.append(f"此次交易产生了 **{loss_rate:.2f}%** 的亏损，主要失败因素包括：")
-            lesson_parts.append("")
+            outcome_parts.append(f"此次交易产生了 **{loss_rate:.2f}%** 的亏损，主要失败因素包括：")
+            outcome_parts.append("")
 
             # Analyze why it failed
             if "买入" in outcome.action or "buy" in outcome.action.lower():
-                lesson_parts.append("- **方向判断失误**: 买入后价格下跌，与预期相反")
-                lesson_parts.append(f"- **入场时机欠佳**: 在 ¥{outcome.entry_price:.2f} 入场过早，出场价 ¥{outcome.exit_price:.2f}")
+                outcome_parts.append("- **方向判断失误**: 买入后价格下跌，与预期相反")
+                outcome_parts.append(f"- **入场时机欠佳**: 在 ¥{outcome.entry_price:.2f} 入场过早，出场价 ¥{outcome.exit_price:.2f}")
             else:
-                lesson_parts.append("- **方向判断失误**: 卖出后错失了盈利机会")
-                lesson_parts.append(f"- **出场时机欠佳**: 在 ¥{outcome.entry_price:.2f} 过早退出")
+                outcome_parts.append("- **方向判断失误**: 卖出后错失了盈利机会")
+                outcome_parts.append(f"- **出场时机欠佳**: 在 ¥{outcome.entry_price:.2f} 过早退出")
 
             # Identify potential decision flaws
             if decision_chain.bear_argument and decision_chain.bull_argument:
-                lesson_parts.append("- **多空分歧明显**: 多空双方观点存在较大分歧，市场不确定性高")
+                outcome_parts.append("- **多空分歧明显**: 多空双方观点存在较大分歧，市场不确定性高")
 
             if decision_chain.risk_debate_conclusion and ("高风险" in decision_chain.risk_debate_conclusion or "谨慎" in decision_chain.risk_debate_conclusion):
-                lesson_parts.append("- **风险警示不足**: 风险评估已识别高风险，但未充分重视")
+                outcome_parts.append("- **风险警示不足**: 风险评估已识别高风险，但未充分重视")
 
-        lesson_parts.append("")
+        outcome_parts.append("")
 
         # === Key Lessons Learned ===
-        lesson_parts.append("##  关键经验")
+        outcome_parts.append("## 关键经验")
         if success:
-            lesson_parts.append(f"- 在类似市场环境下（价格约 ¥{market_state.price:.2f}），{outcome.action}决策是合理的")
-            lesson_parts.append(f"- {outcome.holding_period_days}天持仓周期适合当前市场节奏")
-            lesson_parts.append("- 多空辩论形成的共识方向可作为重要参考")
+            outcome_parts.append(f"- 在类似市场环境下（价格约 ¥{market_state.price:.2f}），{outcome.action}决策是合理的")
+            outcome_parts.append(f"- {outcome.holding_period_days}天持仓周期适合当前市场节奏")
+            outcome_parts.append("- 多空辩论形成的共识方向可作为重要参考")
         else:
-            lesson_parts.append(f"- 在类似市场环境下（价格约 ¥{market_state.price:.2f}），需要更谨慎评估{outcome.action}决策")
-            lesson_parts.append(f"- {outcome.holding_period_days}天持仓周期可能需要调整")
-            lesson_parts.append("- 当多空分歧较大时，应考虑降低仓位或观望")
+            outcome_parts.append(f"- 在类似市场环境下（价格约 ¥{market_state.price:.2f}），需要更谨慎评估{outcome.action}决策")
+            outcome_parts.append(f"- {outcome.holding_period_days}天持仓周期可能需要调整")
+            outcome_parts.append("- 当多空分歧较大时，应考虑降低仓位或观望")
 
-        lesson_parts.append("")
-        lesson_parts.append("---")
-        lesson_parts.append(f"*记录时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}*")
+        outcome_parts.append("")
+        outcome_parts.append("---")
+        outcome_parts.append(f"*记录时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}*")
 
-        # Combine all parts into complete lesson
-        lesson = "\n".join(lesson_parts)
+        # ==========================================
+        # COMBINE: Decision Context + Outcome Result
+        # ==========================================
+        decision_context = "\n".join(decision_parts)
+        outcome_result = "\n".join(outcome_parts)
 
-        # Condensed version (for embedding retrieval) - keep it simple
-        if success:
-            key_lesson = f"{outcome.action} SUCCESS: return {outcome.percentage_return:.1%}, price {market_state.price:.2f}, held {outcome.holding_period_days} days"
-        else:
-            key_lesson = f"{outcome.action} FAILURE: loss {outcome.percentage_return:.1%}, price {market_state.price:.2f}, held {outcome.holding_period_days} days"
+        # Full lesson includes both parts, separated by a clear marker
+        lesson = decision_context + "\n\n" + "="*60 + "\n" + "## ⚠️ 以下是未来信息（仅用于学习参考）\n" + "="*60 + "\n\n" + outcome_result
+
+        # Key lesson for embedding retrieval - ONLY includes decision context, NO future info
+        # This ensures retrieval is based on similar market conditions, not on outcomes
+        key_lesson = f"Market: {market_state.symbol} @ {market_state.date}, Price: ¥{market_state.price:.2f}, Action: {outcome.action}"
+
+        if decision_chain.investment_debate_conclusion:
+            # Extract key sentiment (simplified)
+            if "买入" in decision_chain.investment_debate_conclusion or "看涨" in decision_chain.investment_debate_conclusion:
+                key_lesson += ", Sentiment: Bullish"
+            elif "卖出" in decision_chain.investment_debate_conclusion or "看跌" in decision_chain.investment_debate_conclusion:
+                key_lesson += ", Sentiment: Bearish"
+            else:
+                key_lesson += ", Sentiment: Neutral"
 
         return lesson, key_lesson, success
 
