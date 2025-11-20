@@ -52,6 +52,9 @@ except ImportError:
 # Import data interface
 from tradingagents.dataflows.tushare_utils import get_china_stock_data_tushare
 
+# Import TaskMonitor for checkpoint support
+from tradingagents.utils.task_monitor import get_task_monitor
+
 # Setup logging
 logging.basicConfig(
     level=logging.INFO,
@@ -107,6 +110,11 @@ class EnhancedTimeTravelTrainer:
         self.failed_episodes = 0
         self.total_return = 0.0
 
+        # 🆕 TaskMonitor for checkpoint support
+        self.task_monitor = get_task_monitor()
+        self.task_id = f"timetravel_{symbol.replace('.', '_')}_{start_date}_{end_date}"
+        self.resume_from_day = 0  # Will be set if resuming from checkpoint
+
         # 🆕 Data cache for performance optimization
         self.data_cache = None
         self.date_index = {}
@@ -115,6 +123,7 @@ class EnhancedTimeTravelTrainer:
         logger.info(f"   Symbol: {symbol}")
         logger.info(f"   Time range: {start_date} to {end_date}")
         logger.info(f"   Holding period: {holding_days} days")
+        logger.info(f"   Task ID: {self.task_id}")
 
         # 🆕 Preload all data into memory cache
         self._preload_data()
@@ -778,7 +787,7 @@ class EnhancedTimeTravelTrainer:
             return False
 
     def run(self):
-        """Execute complete Time Travel training"""
+        """Execute complete Time Travel training with checkpoint support"""
         logger.info(f"\n{'='*60}")
         logger.info("Starting Enhanced Time Travel Training")
         logger.info(f"{'='*60}\n")
@@ -794,20 +803,83 @@ class EnhancedTimeTravelTrainer:
         buffer_days = self.holding_days + 5
         training_days = trading_days[:-buffer_days]
 
+        total_days = len(training_days)
+
         logger.info("Training statistics:")
         logger.info(f"   Total trading days: {len(trading_days)}")
-        logger.info(f"   Trainable days: {len(training_days)}")
+        logger.info(f"   Trainable days: {total_days}")
         logger.info(f"   Buffer reserve: {buffer_days} days\n")
 
-        # Train each day
-        for i, current_date in enumerate(training_days, 1):
-            logger.info(f"[{i}/{len(training_days)}] Progress: {i/len(training_days):.1%}")
+        # 🆕 Check for existing checkpoint
+        checkpoint = self.task_monitor.get_checkpoint(self.task_id)
+        start_index = 0
 
+        if checkpoint and checkpoint.status != "COMPLETED":
+            start_index = checkpoint.completed_steps
+            logger.info(f"🔄 Resuming from checkpoint: Day {start_index + 1}/{total_days}")
+            logger.info(f"   Previous progress: {checkpoint.progress:.1%}")
+            logger.info(f"   Last step: {checkpoint.current_step}\n")
+
+            # Restore statistics from metadata
+            if checkpoint.metadata:
+                self.total_episodes = checkpoint.metadata.get('total_episodes', 0)
+                self.successful_episodes = checkpoint.metadata.get('successful_episodes', 0)
+                self.failed_episodes = checkpoint.metadata.get('failed_episodes', 0)
+                self.total_return = checkpoint.metadata.get('total_return', 0.0)
+
+        else:
+            # Start new task
+            self.task_monitor.start_task(
+                task_id=self.task_id,
+                task_type="TIME_TRAVEL_TRAINING",
+                total_steps=total_days,
+                metadata={
+                    'symbol': self.symbol,
+                    'start_date': self.start_date.strftime("%Y-%m-%d"),
+                    'end_date': self.end_date.strftime("%Y-%m-%d"),
+                    'holding_days': self.holding_days
+                }
+            )
+            logger.info("✓ New training task created\n")
+
+        # Train each day (with checkpoint support)
+        for i in range(start_index, total_days):
+            current_date = training_days[i]
+            progress_num = i + 1
+
+            logger.info(f"[{progress_num}/{total_days}] Progress: {progress_num/total_days:.1%}")
+
+            # Execute training for this day
             self.train_one_day(current_date)
 
+            # 🆕 Update checkpoint
+            self.task_monitor.update_progress(
+                task_id=self.task_id,
+                current_step=f"Day {progress_num}: {current_date}",
+                completed_steps=progress_num,
+                metadata_update={
+                    'total_episodes': self.total_episodes,
+                    'successful_episodes': self.successful_episodes,
+                    'failed_episodes': self.failed_episodes,
+                    'total_return': self.total_return,
+                    'current_date': current_date
+                }
+            )
+
             # Print statistics every 10 episodes
-            if i % 10 == 0:
+            if progress_num % 10 == 0:
                 self.print_statistics()
+
+        # 🆕 Mark task as completed
+        self.task_monitor.complete_task(
+            task_id=self.task_id,
+            final_metadata={
+                'total_episodes': self.total_episodes,
+                'successful_episodes': self.successful_episodes,
+                'success_rate': self.successful_episodes / self.total_episodes if self.total_episodes > 0 else 0,
+                'average_return': self.total_return / self.total_episodes if self.total_episodes > 0 else 0
+            }
+        )
 
         # Final statistics
         logger.info(f"\n{'='*60}")
