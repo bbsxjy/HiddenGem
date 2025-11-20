@@ -6,10 +6,19 @@ from dashscope import TextEmbedding
 import os
 import threading
 import hashlib
-from typing import Dict, Optional
+from typing import Dict, Optional, List
+
+# 导入自定义异常
+from .memory_exceptions import (
+    EmbeddingError,
+    EmbeddingServiceUnavailable,
+    EmbeddingTextTooLong,
+    EmbeddingInvalidInput,
+    MemoryDisabled
+)
 
 # 导入统一日志系统
-from tradingagents.utils.logging_init import get_logger
+from tradingagents.utils.logging_manager import get_logger
 logger = get_logger("agents.utils.memory")
 
 
@@ -506,25 +515,31 @@ class FinancialSituationMemory:
     def get_embedding(self, text):
         """Get embedding for a text using the configured provider
         添加缓存机制，避免短时间内重复调用
+
+        Raises:
+            MemoryDisabled: 当Memory功能被禁用时
+            EmbeddingInvalidInput: 当输入文本无效时
+            EmbeddingTextTooLong: 当文本超过长度限制时
+            EmbeddingServiceUnavailable: 当embedding服务不可用时
         """
         import hashlib
         import time
 
         # 检查记忆功能是否被禁用
         if self.client == "DISABLED":
-            # 内存功能已禁用，返回空向量
-            logger.debug(f" 记忆功能已禁用，返回空向量")
-            return [0.0] * 1024  # 返回1024维的零向量
+            logger.error("记忆功能已禁用，无法生成embedding")
+            raise MemoryDisabled()
 
         # 验证输入文本
         if not text or not isinstance(text, str):
-            logger.warning(f" 输入文本为空或无效，返回空向量")
-            return [0.0] * 1024
+            reason = "文本为None" if not text else f"文本类型错误: {type(text)}"
+            logger.error(f"输入文本无效: {reason}")
+            raise EmbeddingInvalidInput(reason)
 
         text_length = len(text)
         if text_length == 0:
-            logger.warning(f" 输入文本长度为0，返回空向量")
-            return [0.0] * 1024
+            logger.error("输入文本长度为0")
+            raise EmbeddingInvalidInput("文本长度为0")
 
         # 检查缓存
         cache_key = hashlib.md5(text.encode('utf-8')).hexdigest()
@@ -533,14 +548,14 @@ class FinancialSituationMemory:
         if cache_key in self._embedding_cache:
             cached_embedding, cached_time = self._embedding_cache[cache_key]
             if current_time - cached_time < self._embedding_cache_ttl:
-                logger.debug(f" [Embedding缓存] 使用缓存向量，缓存时间: {int(current_time - cached_time)}秒前")
+                logger.debug(f"[Embedding缓存] 使用缓存向量，缓存时间: {int(current_time - cached_time)}秒前")
                 return cached_embedding
 
-        logger.debug(f" [Embedding] 生成新向量，文本长度: {text_length}字符")
+        logger.debug(f"[Embedding] 生成新向量，文本长度: {text_length}字符")
 
         # 检查是否启用长度限制
         if self.enable_embedding_length_check and text_length > self.max_embedding_length:
-            logger.warning(f" 文本过长({text_length:,}字符 > {self.max_embedding_length:,}字符)，跳过向量化")
+            logger.error(f"文本过长({text_length:,}字符 > {self.max_embedding_length:,}字符)")
             # 存储跳过信息
             self._last_text_info = {
                 'original_length': text_length,
@@ -548,13 +563,10 @@ class FinancialSituationMemory:
                 'was_truncated': False,
                 'was_skipped': True,
                 'provider': self.llm_provider,
-                'strategy': 'length_limit_skip',
+                'strategy': 'length_limit_exceeded',
                 'max_length': self.max_embedding_length
             }
-            empty_vector = [0.0] * 1024
-            # 缓存空向量
-            self._embedding_cache[cache_key] = (empty_vector, current_time)
-            return empty_vector
+            raise EmbeddingTextTooLong(text_length, self.max_embedding_length)
 
         #  新增：智能截断文本（根据模型限制）
         processed_text, was_truncated = self._smart_text_truncation(text)
