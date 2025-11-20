@@ -10,8 +10,15 @@ DEFAULT_CONFIG = {
     ),
     # LLM settings - 从环境变量读取，支持SiliconFlow等自定义提供商
     "llm_provider": os.getenv("LLM_PROVIDER", "openai"),
-    "deep_think_llm": os.getenv("DEEP_THINK_LLM", "o4-mini"),
-    "quick_think_llm": os.getenv("QUICK_THINK_LLM", "gpt-4o-mini"),
+
+    # 🆕 三层LLM模型配置
+    "small_llm": os.getenv("SMALL_LLM", "gpt-4o-mini"),        # 小模型：简单任务（如格式化）
+    "quick_think_llm": os.getenv("QUICK_THINK_LLM", "gpt-4o-mini"),  # 中模型：常规分析
+    "deep_think_llm": os.getenv("DEEP_THINK_LLM", "o4-mini"),        # 大模型：复杂推理
+
+    # 🆕 小模型路由开关（默认关闭，保持向后兼容）
+    "enable_small_model_routing": os.getenv("ENABLE_SMALL_MODEL_ROUTING", "false").lower() == "true",
+
     "backend_url": os.getenv("BACKEND_URL", "https://api.openai.com/v1"),
     # Debate and discussion settings
     "max_debate_rounds": 1,
