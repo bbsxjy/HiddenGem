@@ -16,8 +16,8 @@ DEFAULT_CONFIG = {
     "quick_think_llm": os.getenv("QUICK_THINK_LLM", "gpt-4o-mini"),  # 中模型：常规分析
     "deep_think_llm": os.getenv("DEEP_THINK_LLM", "o4-mini"),        # 大模型：复杂推理
 
-    # 🆕 小模型路由开关（默认关闭，保持向后兼容）
-    "enable_small_model_routing": os.getenv("ENABLE_SMALL_MODEL_ROUTING", "false").lower() == "true",
+    # ✅ 小模型路由开关（默认启用，优化成本和性能）
+    "enable_small_model_routing": os.getenv("ENABLE_SMALL_MODEL_ROUTING", "true").lower() == "true",
 
     "backend_url": os.getenv("BACKEND_URL", "https://api.openai.com/v1"),
     # Debate and discussion settings
