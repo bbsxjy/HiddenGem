@@ -4,7 +4,8 @@ import os
 from pathlib import Path
 import json
 from datetime import date
-from typing import Dict, Any, Tuple, List, Optional
+from typing import Dict, Any, Tuple, List, Optional, Callable
+from copy import deepcopy
 
 from langchain_openai import ChatOpenAI
 from langchain_anthropic import ChatAnthropic
@@ -388,7 +389,12 @@ class TradingAgentsGraph:
             ),
         }
 
-    def propagate(self, company_name, trade_date):
+    def propagate(
+        self,
+        company_name,
+        trade_date,
+        progress_callback: Optional[Callable[[str, Dict[str, Any], Dict[str, Any]], None]] = None
+    ):
         """Run the trading agents graph for a company on a specific date."""
 
         # 添加详细的接收日志
@@ -408,7 +414,13 @@ class TradingAgentsGraph:
         logger.debug(f" [GRAPH DEBUG] 初始状态中的trade_date: '{init_agent_state.get('trade_date', 'NOT_FOUND')}'")
         args = self.propagator.get_graph_args()
 
-        if self.debug:
+        if progress_callback is not None:
+            final_state = self._run_with_progress_updates(
+                init_agent_state,
+                args,
+                progress_callback
+            )
+        elif self.debug:
             # Debug mode with tracing
             trace = []
             for chunk in self.graph.stream(init_agent_state, **args):
@@ -431,6 +443,39 @@ class TradingAgentsGraph:
 
         # Return decision and processed signal
         return final_state, self.process_signal(final_state["final_trade_decision"], company_name)
+
+    def _run_with_progress_updates(
+        self,
+        initial_state: Dict[str, Any],
+        base_args: Dict[str, Any],
+        progress_callback: Callable[[str, Dict[str, Any], Dict[str, Any]], None]
+    ) -> Dict[str, Any]:
+        """Execute the graph while invoking a callback on each node update."""
+        stream_args = dict(base_args)
+        stream_args["stream_mode"] = "updates"
+
+        current_state = deepcopy(initial_state)
+
+        for update_chunk in self.graph.stream(initial_state, **stream_args):
+            if not isinstance(update_chunk, dict):
+                continue
+
+            for node_name, update in update_chunk.items():
+                if not isinstance(update, dict):
+                    continue
+
+                for key, value in update.items():
+                    current_state[key] = value
+
+                try:
+                    progress_callback(node_name, update, current_state)
+                except Exception as callback_error:
+                    logger.warning(
+                        f"[GRAPH] Progress callback failed for node {node_name}: {callback_error}",
+                        exc_info=True
+                    )
+
+        return current_state
 
     def _log_state(self, trade_date, final_state):
         """Log the final state to a JSON file."""

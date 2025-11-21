@@ -31,6 +31,45 @@ from tradingagents.agents.utils.memory_exceptions import (
     MemoryDisabled
 )
 
+PRIMARY_AGENT_FIELDS = [
+    ("market_report", {"agent": "technical", "label": "技术面"}),
+    ("fundamentals_report", {"agent": "fundamental", "label": "基本面"}),
+    ("sentiment_report", {"agent": "sentiment", "label": "情绪面"}),
+    ("news_report", {"agent": "policy", "label": "政策面"}),
+]
+PRIMARY_AGENT_TOTAL = len(PRIMARY_AGENT_FIELDS)
+AGENT_PROGRESS_START = 25
+AGENT_PROGRESS_END = 75
+
+
+def _detect_agent_progress_update(update: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """Inspect a graph update and extract agent progress info if available."""
+    if not isinstance(update, dict):
+        return None
+
+    for field, meta in PRIMARY_AGENT_FIELDS:
+        report = update.get(field)
+        if isinstance(report, str) and report.strip():
+            return {
+                "field": field,
+                "agent_key": meta["agent"],
+                "agent_label": meta["label"],
+                "report": report.strip()
+            }
+    return None
+
+
+def _agent_progress_percentage(completed_count: int) -> int:
+    """Convert completed primary agents to a coarse progress percentage."""
+    if PRIMARY_AGENT_TOTAL == 0:
+        return AGENT_PROGRESS_START
+
+    clamped = min(max(completed_count, 0), PRIMARY_AGENT_TOTAL)
+    ratio = clamped / PRIMARY_AGENT_TOTAL
+    span = AGENT_PROGRESS_END - AGENT_PROGRESS_START
+    return AGENT_PROGRESS_START + int(span * ratio)
+
+
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
@@ -280,13 +319,38 @@ async def _run_analysis_task(task: Task, symbol: str, trade_date: str):
         # 启动进度模拟任务
         progress_cancel = asyncio.Event()
         progress_task = asyncio.create_task(_simulate_progress(task.task_id, progress_cancel))
+        completed_agents = set()
 
         def sync_propagate():
             # 更新进度：20% - 分析开始
             task_manager.update_progress(task.task_id, 20, "初始化分析系统...")
 
+            def progress_callback(node_name: str, update: Dict[str, Any], state: Dict[str, Any]):
+                info = _detect_agent_progress_update(update)
+                if not info:
+                    return
+
+                agent_key = info["agent_key"]
+                if agent_key in completed_agents:
+                    return
+
+                completed_agents.add(agent_key)
+                if not progress_cancel.is_set():
+                    try:
+                        loop.call_soon_threadsafe(progress_cancel.set)
+                    except RuntimeError:
+                        # 事件循环可能已经关闭，忽略即可
+                        pass
+                progress_value = _agent_progress_percentage(len(completed_agents))
+                message = f"{info['agent_label']}分析完成"
+                task_manager.update_progress(task.task_id, progress_value, message)
+
             # 执行实际分析（这个过程可能需要几分钟）
-            final_state, processed_signal = trading_graph.propagate(symbol, trade_date)
+            final_state, processed_signal = trading_graph.propagate(
+                symbol,
+                trade_date,
+                progress_callback=progress_callback
+            )
 
             return final_state, processed_signal
 
@@ -985,8 +1049,62 @@ async def analyze_all_agents_stream(
 
     async def event_generator():
         """生成SSE事件流"""
+        loop = asyncio.get_running_loop()
+        progress_queue: asyncio.Queue = asyncio.Queue()
+
+        def enqueue_event(event: Dict[str, Any]):
+            loop.call_soon_threadsafe(progress_queue.put_nowait, event)
+
+        def run_analysis():
+            completed = set()
+
+            def progress_callback(node_name: str, update: Dict[str, Any], state: Dict[str, Any]):
+                info = _detect_agent_progress_update(update)
+                if not info:
+                    return
+
+                agent_key = info["agent_key"]
+                if agent_key in completed:
+                    return
+
+                completed.add(agent_key)
+                enqueue_event({
+                    "type": "agent_progress",
+                    "agent": agent_key,
+                    "label": info["agent_label"],
+                    "report": info["report"],
+                    "progress": _agent_progress_percentage(len(completed))
+                })
+
+            try:
+                logger.info(f"[SSE] Starting analysis for {symbol} on {analysis_date}")
+                final_state, processed_signal = trading_graph.propagate(
+                    symbol,
+                    analysis_date,
+                    progress_callback=progress_callback
+                )
+                response = _format_response(final_state, processed_signal, symbol)
+                enqueue_event({
+                    "type": "complete",
+                    "data": response
+                })
+                logger.info(f"[SSE] Analysis complete for {symbol}")
+            except (MemoryDisabled, EmbeddingServiceUnavailable,
+                    EmbeddingTextTooLong, EmbeddingInvalidInput, EmbeddingError) as mem_exc:
+                enqueue_event({
+                    "type": "memory_error",
+                    "error": mem_exc
+                })
+            except Exception as exc:
+                enqueue_event({
+                    "type": "error",
+                    "error": exc
+                })
+
+        analysis_future = None
+        analysis_future = loop.run_in_executor(None, run_analysis)
+
         try:
-            # 发送开始事件
             yield _sse_event({
                 "type": "start",
                 "symbol": symbol,
@@ -994,80 +1112,73 @@ async def analyze_all_agents_stream(
                 "timestamp": datetime.now().isoformat()
             })
 
-            # 模拟进度更新（真实实现应该hook到TradingGraph的各个节点）
-            agents = ['technical', 'fundamental', 'sentiment', 'policy']
-            for i, agent in enumerate(agents):
-                await asyncio.sleep(1)  # 模拟处理时间
-                yield _sse_event({
-                    "type": "progress",
-                    "symbol": symbol,
-                    "agent": agent,
-                    "status": "completed",
-                    "message": f"{agent} 分析完成",
-                    "progress": int((i + 1) / len(agents) * 100),
-                    "timestamp": datetime.now().isoformat()
-                })
+            while True:
+                event = await progress_queue.get()
+                evt_type = event.get("type")
 
-            # 执行实际分析
-            logger.info(f"[SSE] Starting analysis for {symbol} on {analysis_date}")
-            final_state, processed_signal = trading_graph.propagate(symbol, analysis_date)
+                if evt_type == "agent_progress":
+                    yield _sse_event({
+                        "type": "progress",
+                        "symbol": symbol,
+                        "agent": event["agent"],
+                        "agent_label": event["label"],
+                        "message": f"{event['label']}分析完成",
+                        "progress": event["progress"],
+                        "data": {
+                            "report": event["report"]
+                        },
+                        "timestamp": datetime.now().isoformat()
+                    })
+                elif evt_type == "complete":
+                    yield _sse_event({
+                        "type": "complete",
+                        "symbol": symbol,
+                        "message": "分析完成",
+                        "data": event["data"],
+                        "timestamp": datetime.now().isoformat()
+                    })
+                    break
+                elif evt_type == "memory_error":
+                    err = event.get("error")
+                    http_exception = handle_memory_exception(err, f"流式分析{symbol}")
+                    if http_exception:
+                        detail = http_exception.detail
+                        if isinstance(detail, dict):
+                            error_message = detail.get('message', str(err))
+                            error_description = detail.get('description', '')
+                            error_suggestion = detail.get('suggestion', '')
+                        else:
+                            error_message = str(detail)
+                            error_description = ''
+                            error_suggestion = ''
+                    else:
+                        error_message = str(err)
+                        error_description = ''
+                        error_suggestion = ''
 
-            # 格式化结果
-            response = _format_response(final_state, processed_signal, symbol)
-
-            # 发送完成事件
-            yield _sse_event({
-                "type": "complete",
-                "symbol": symbol,
-                "message": "分析完成",
-                "data": response,
-                "timestamp": datetime.now().isoformat()
-            })
-
-            logger.info(f"[SSE] Analysis complete for {symbol}")
-
-        except (MemoryDisabled, EmbeddingServiceUnavailable,
-                EmbeddingTextTooLong, EmbeddingInvalidInput, EmbeddingError) as e:
-            # 处理memory相关异常
-            logger.warning(f"[SSE] Memory exception for {symbol}: {e}")
-            http_exception = handle_memory_exception(e, f"流式分析{symbol}")
-            if http_exception:
-                error_detail = http_exception.detail
-                if isinstance(error_detail, dict):
-                    error_message = error_detail.get('message', str(e))
-                    error_description = error_detail.get('description', '')
-                    error_suggestion = error_detail.get('suggestion', '')
-                else:
-                    error_message = str(error_detail)
-                    error_description = ''
-                    error_suggestion = ''
-
-                yield _sse_event({
-                    "type": "error",
-                    "symbol": symbol,
-                    "error": error_message,
-                    "description": error_description,
-                    "suggestion": error_suggestion,
-                    "error_type": "memory_error",
-                    "timestamp": datetime.now().isoformat()
-                })
-            else:
-                # 理论上不会到这里
-                yield _sse_event({
-                    "type": "error",
-                    "symbol": symbol,
-                    "error": str(e),
-                    "timestamp": datetime.now().isoformat()
-                })
-
-        except Exception as e:
-            logger.error(f"[SSE] Analysis failed for {symbol}: {e}", exc_info=True)
-            yield _sse_event({
-                "type": "error",
-                "symbol": symbol,
-                "error": str(e),
-                "timestamp": datetime.now().isoformat()
-            })
+                    yield _sse_event({
+                        "type": "error",
+                        "symbol": symbol,
+                        "error": error_message,
+                        "description": error_description,
+                        "suggestion": error_suggestion,
+                        "error_type": "memory_error",
+                        "timestamp": datetime.now().isoformat()
+                    })
+                    break
+                elif evt_type == "error":
+                    error_message = str(event.get("error", "Unknown error"))
+                    logger.error(f"[SSE] Analysis failed for {symbol}: {error_message}")
+                    yield _sse_event({
+                        "type": "error",
+                        "symbol": symbol,
+                        "error": error_message,
+                        "timestamp": datetime.now().isoformat()
+                    })
+                    break
+        finally:
+            if analysis_future and not analysis_future.done():
+                analysis_future.cancel()
 
     return StreamingResponse(
         event_generator(),

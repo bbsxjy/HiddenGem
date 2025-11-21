@@ -19,6 +19,63 @@ interface SSEEvent {
   timestamp: string;
 }
 
+const PRIMARY_AGENT_KEYS = ['technical', 'fundamental', 'sentiment', 'policy'] as const;
+const PRIMARY_AGENT_SET = new Set(PRIMARY_AGENT_KEYS);
+const LLM_PHASE_AGENTS = new Set(['debate', 'risk', 'system']);
+
+const AGENT_KEYWORDS: Record<string, string[]> = {
+  technical: ['技术', '技术面', 'technical'],
+  fundamental: ['基本', '基本面', 'fundamental'],
+  sentiment: ['情绪', 'sentiment'],
+  policy: ['政策', 'news', 'policy'],
+  debate: ['辩论', 'debate'],
+  risk: ['风险', 'risk'],
+  system: ['系统', '格式化', '生成', 'report'],
+};
+
+type ProgressMessage = {
+  progress: number;
+  message?: string;
+  timestamp: string;
+};
+
+const detectAgentFromMessage = (message?: string): string | null => {
+  if (!message) {
+    return null;
+  }
+
+  for (const [agent, keywords] of Object.entries(AGENT_KEYWORDS)) {
+    if (keywords.some((keyword) => keyword && message.includes(keyword))) {
+      return agent;
+    }
+  }
+  return null;
+};
+
+const mergeCompletedPrimaryAgents = (existing: string[], agentKey?: string | null): string[] => {
+  if (!agentKey || !PRIMARY_AGENT_SET.has(agentKey)) {
+    return existing;
+  }
+  if (existing.includes(agentKey)) {
+    return existing;
+  }
+  return [...existing, agentKey];
+};
+
+const extractCompletedAgentsFromHistory = (messages?: ProgressMessage[]): string[] => {
+  if (!messages || messages.length === 0) {
+    return [];
+  }
+
+  return messages.reduce<string[]>((completed, entry) => {
+    const agentKey = detectAgentFromMessage(entry.message);
+    if (agentKey && PRIMARY_AGENT_SET.has(agentKey) && !completed.includes(agentKey)) {
+      completed.push(agentKey);
+    }
+    return completed;
+  }, []);
+};
+
 interface StreamingAnalysisState {
   taskId: string | null;          // 当前任务ID
   agentResults: Record<string, AgentAnalysisResult>;
@@ -30,6 +87,7 @@ interface StreamingAnalysisState {
   isLLMAnalyzing: boolean;
   currentAgent: string;            // Currently analyzing agent
   currentMessage: string;          // Current progress message
+  completedAgents: string[];       // 已完成的一线Agent
 }
 
 const TASK_ID_KEY = 'current_analysis_task_id';
@@ -46,6 +104,7 @@ export function useStreamingAnalysis() {
     isLLMAnalyzing: false,
     currentAgent: '',
     currentMessage: '',
+    completedAgents: [],
   });
 
   const eventSourceRef = useRef<EventSource | null>(null);
@@ -63,10 +122,12 @@ export function useStreamingAnalysis() {
         if (task.status === 'running' || task.status === 'pending') {
           // 任务还在进行中，恢复连接
           console.log(`[Resume] 检测到进行中的任务: ${savedTaskId}, 正在恢复...`);
-          connectToTask(savedTaskId, task.symbol);
+          const completedHistory = extractCompletedAgentsFromHistory(task.progress_messages as ProgressMessage[]);
+          connectToTask(savedTaskId, task.symbol, completedHistory);
         } else if (task.status === 'completed' && task.result) {
           // 任务已完成，直接显示结果
           console.log(`[Resume] 任务已完成: ${savedTaskId}`);
+          const completed = PRIMARY_AGENT_KEYS.filter((agent) => task.result?.agent_results?.[agent]);
           setState({
             taskId: savedTaskId,
             agentResults: task.result.agent_results || {},
@@ -78,6 +139,7 @@ export function useStreamingAnalysis() {
             isLLMAnalyzing: false,
             currentAgent: '',
             currentMessage: '分析已完成',
+            completedAgents: completed,
           });
           // 清除localStorage
           localStorage.removeItem(TASK_ID_KEY);
@@ -94,7 +156,7 @@ export function useStreamingAnalysis() {
     resumeTask();
   }, []);
 
-  const connectToTask = useCallback((taskId: string, symbol: string) => {
+  const connectToTask = useCallback((taskId: string, symbol: string, initialCompletedAgents: string[] = []) => {
     // Close existing connection
     if (eventSourceRef.current) {
       eventSourceRef.current.close();
@@ -114,8 +176,9 @@ export function useStreamingAnalysis() {
       finalResult: null,
       error: null,
       isLLMAnalyzing: false,
-      currentAgent: '',
+      currentAgent: initialCompletedAgents.at(-1) || '',
       currentMessage: '连接中...',
+      completedAgents: initialCompletedAgents,
     }));
 
     // 连接到task stream
@@ -132,16 +195,23 @@ export function useStreamingAnalysis() {
         console.log(`[SSE] 进度更新: ${event.progress}% - ${event.message}`);
 
         const progressPercent = event.progress || 0;
-        const isLLMPhase = (event.agent === 'debate' || event.agent === 'risk' || event.agent === 'system') && progressPercent > 80;
+        const messageAgent = detectAgentFromMessage(event.message);
 
-        setState(prev => ({
-          ...prev,
-          progress: `${progressPercent}%`,
-          progressPercent,
-          currentAgent: event.agent || prev.currentAgent,
-          currentMessage: event.message || prev.currentMessage,
-          isLLMAnalyzing: isLLMPhase,
-        }));
+        setState(prev => {
+          const currentAgent = event.agent || messageAgent || prev.currentAgent;
+          const completedAgents = mergeCompletedPrimaryAgents(prev.completedAgents, messageAgent);
+          const isLLMPhase = currentAgent ? (LLM_PHASE_AGENTS.has(currentAgent) && progressPercent >= 80) : prev.isLLMAnalyzing;
+
+          return {
+            ...prev,
+            progress: `${progressPercent}%`,
+            progressPercent,
+            currentAgent,
+            currentMessage: event.message || prev.currentMessage,
+            isLLMAnalyzing: isLLMPhase,
+            completedAgents,
+          };
+        });
       },
 
       onComplete: (data) => {
@@ -159,6 +229,7 @@ export function useStreamingAnalysis() {
           ...prev,
           agentResults,
           finalResult: data,
+          completedAgents: PRIMARY_AGENT_KEYS.filter((agent) => agentResults[agent]),
           isAnalyzing: false,
           isLLMAnalyzing: false,
           progress: '100%',
@@ -226,6 +297,7 @@ export function useStreamingAnalysis() {
       ...prev,
       isAnalyzing: false,
       isLLMAnalyzing: false,
+      completedAgents: [],
     }));
   }, [state.taskId]);
 
@@ -255,13 +327,16 @@ export function useStreamingAnalysis() {
           currentMessage: '分析已完成',
           currentAgent: '',
           error: null,
+          completedAgents: PRIMARY_AGENT_KEYS.filter((agent) => agentResults[agent]),
         });
 
         console.log(`[LoadTask] 任务结果已加载:`, task.result);
       } else if (task.status === 'running' || task.status === 'pending') {
         // 任务还在进行中，连接SSE
-        connectToTask(taskId, task.symbol);
+        const completedHistory = extractCompletedAgentsFromHistory(task.progress_messages as ProgressMessage[]);
+        connectToTask(taskId, task.symbol, completedHistory);
       } else if (task.status === 'failed') {
+        const completedHistory = extractCompletedAgentsFromHistory(task.progress_messages as ProgressMessage[]);
         setState({
           taskId,
           agentResults: {},
@@ -273,6 +348,7 @@ export function useStreamingAnalysis() {
           currentMessage: '分析失败',
           currentAgent: '',
           error: task.error || '分析失败',
+          completedAgents: completedHistory,
         });
       }
     } catch (error) {

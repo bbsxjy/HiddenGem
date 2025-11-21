@@ -119,16 +119,23 @@ class UnifiedNewsAnalyzer:
                 logger.info(f"[统一新闻工具] 尝试东方财富实时新闻...")
                 # 使用LangChain工具的正确调用方式：.invoke()方法和字典参数
                 result = self.toolkit.get_realtime_stock_news.invoke({"ticker": stock_code, "curr_date": curr_date})
-                
+
                 #  详细记录东方财富返回的内容
+                logger.info(f"[统一新闻工具]  东方财富返回类型: {type(result)}")
                 logger.info(f"[统一新闻工具]  东方财富返回内容长度: {len(result) if result else 0} 字符")
-                logger.info(f"[统一新闻工具]  东方财富返回内容预览 (前500字符): {result[:500] if result else 'None'}")
-                
-                if result and len(result.strip()) > 100:
+                if result:
+                    logger.info(f"[统一新闻工具]  东方财富返回内容预览 (前500字符): {result[:500]}")
+                else:
+                    logger.info(f"[统一新闻工具]  东方财富返回None，表示无可用新闻数据")
+
+                # 检查是否为None（表示无新闻数据）
+                if result is None:
+                    logger.warning(f"[统一新闻工具]  东方财富未获取到新闻数据（None），将尝试其他新闻源")
+                elif result and len(result.strip()) > 100:
                     logger.info(f"[统一新闻工具]  东方财富新闻获取成功: {len(result)} 字符")
                     return self._format_news_result(result, "东方财富实时新闻", model_info)
                 else:
-                    logger.warning(f"[统一新闻工具]  东方财富新闻内容过短或为空")
+                    logger.warning(f"[统一新闻工具]  东方财富新闻内容过短")
         except Exception as e:
             logger.warning(f"[统一新闻工具] 东方财富新闻获取失败: {e}")
         
@@ -157,7 +164,24 @@ class UnifiedNewsAnalyzer:
         except Exception as e:
             logger.warning(f"[统一新闻工具] OpenAI新闻获取失败: {e}")
         
-        return " 无法获取A股新闻数据，所有新闻源均不可用"
+        return """
+=== NO_VALID_NEWS_DATA_AVAILABLE ===
+状态: 无可用新闻数据
+原因: 所有A股新闻源均未返回有效数据（Tushare、财联社、华尔街见闻、Google等均失败）
+
+重要说明:
+- 本标记表明确实无法获取任何新闻数据，而非数据存在但为空
+- 所有可用的新闻API均已尝试但返回失败或空数据
+- 这不是技术错误，而是当前时间段内确实无相关新闻
+
+强制要求:
+1. 必须立即停止新闻分析流程
+2. 不得基于任何假设、推测或记忆编造新闻相关内容
+3. 必须明确告知用户无法提供新闻面评估
+4. 建议用户稍后重试或使用其他数据源（技术分析、基本面分析等）
+
+=== NO_VALID_NEWS_DATA_AVAILABLE ===
+"""
     
     def _get_hk_share_news(self, stock_code: str, max_news: int, model_info: str = "") -> str:
         """获取港股新闻"""
@@ -203,7 +227,24 @@ class UnifiedNewsAnalyzer:
         except Exception as e:
             logger.warning(f"[统一新闻工具] 实时港股新闻获取失败: {e}")
         
-        return " 无法获取港股新闻数据，所有新闻源均不可用"
+        return """
+=== NO_VALID_NEWS_DATA_AVAILABLE ===
+状态: 无可用新闻数据
+原因: 所有港股新闻源均未返回有效数据（Google、OpenAI、实时新闻等均失败）
+
+重要说明:
+- 本标记表明确实无法获取任何新闻数据，而非数据存在但为空
+- 所有可用的新闻API均已尝试但返回失败或空数据
+- 这不是技术错误，而是当前时间段内确实无相关新闻
+
+强制要求:
+1. 必须立即停止新闻分析流程
+2. 不得基于任何假设、推测或记忆编造新闻相关内容
+3. 必须明确告知用户无法提供新闻面评估
+4. 建议用户稍后重试或使用其他数据源（技术分析、基本面分析等）
+
+=== NO_VALID_NEWS_DATA_AVAILABLE ===
+"""
     
     def _get_us_share_news(self, stock_code: str, max_news: int, model_info: str = "") -> str:
         """获取美股新闻"""
@@ -249,7 +290,24 @@ class UnifiedNewsAnalyzer:
         except Exception as e:
             logger.warning(f"[统一新闻工具] FinnHub美股新闻获取失败: {e}")
         
-        return " 无法获取美股新闻数据，所有新闻源均不可用"
+        return """
+=== NO_VALID_NEWS_DATA_AVAILABLE ===
+状态: 无可用新闻数据
+原因: 所有美股新闻源均未返回有效数据（OpenAI、Google、FinnHub等均失败）
+
+重要说明:
+- 本标记表明确实无法获取任何新闻数据，而非数据存在但为空
+- 所有可用的新闻API均已尝试但返回失败或空数据
+- 这不是技术错误，而是当前时间段内确实无相关新闻
+
+强制要求:
+1. 必须立即停止新闻分析流程
+2. 不得基于任何假设、推测或记忆编造新闻相关内容
+3. 必须明确告知用户无法提供新闻面评估
+4. 建议用户稍后重试或使用其他数据源（技术分析、基本面分析等）
+
+=== NO_VALID_NEWS_DATA_AVAILABLE ===
+"""
     
     def _format_news_result(self, news_content: str, source: str, model_info: str = "") -> str:
         """格式化新闻结果"""

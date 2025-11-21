@@ -247,8 +247,15 @@ def create_social_media_analyst(llm, toolkit):
 
                         if news_tool:
                             news_result = news_tool.invoke({'ticker': ticker, 'curr_date': current_date})
-                            forced_tool_results.append(f"### 实时新闻数据\n{news_result}\n\n")
-                            logger.info(f" [社交媒体分析师] 成功获取实时新闻，长度: {len(news_result)}")
+
+                            # 检查是否包含无新闻标记
+                            if news_result and 'NO_VALID_NEWS_DATA_AVAILABLE' in str(news_result):
+                                logger.warning(f" [社交媒体分析师] 检测到无新闻数据标记，跳过新闻数据")
+                            elif news_result and len(str(news_result).strip()) > 100:
+                                forced_tool_results.append(f"### 实时新闻数据\n{news_result}\n\n")
+                                logger.info(f" [社交媒体分析师] 成功获取实时新闻，长度: {len(news_result)}")
+                            else:
+                                logger.warning(f" [社交媒体分析师] 实时新闻数据为空或过短")
                         else:
                             logger.warning(f" [社交媒体分析师] 未找到get_realtime_stock_news工具")
                     except Exception as e:
@@ -350,6 +357,12 @@ def create_social_media_analyst(llm, toolkit):
                             if current_tool_name == tool_name:
                                 try:
                                     tool_result = tool.invoke(tool_args)
+
+                                    # 检查工具返回结果是否包含无新闻标记
+                                    if tool_result and 'NO_VALID_NEWS_DATA_AVAILABLE' in str(tool_result):
+                                        logger.warning(f" [社交媒体分析师] 工具{tool_name}检测到无新闻数据标记")
+                                        tool_result = f"注意：无法获取{ticker}的新闻数据（所有新闻源均失败）。建议基于其他数据源进行分析。"
+
                                     logger.info(f" [社交媒体分析师] 工具执行成功，结果长度: {len(str(tool_result))}")
                                     break
                                 except Exception as tool_error:

@@ -1373,10 +1373,10 @@ def get_realtime_stock_news(ticker: str, curr_date: str, hours_back: int = 6) ->
     except Exception as e:
         logger.error(f"[新闻分析] Google 新闻获取失败: {e}，所有备用方案均已尝试")
     
-    # 所有方法都失败，返回错误信息
+    # 所有方法都失败，返回None表示无新闻数据
     total_time_taken = (datetime.now() - start_total_time).total_seconds()
     logger.error(f"[新闻分析] {ticker} 的所有新闻获取方法均已失败，总耗时 {total_time_taken:.2f} 秒")
-    
+
     # 记录详细的失败信息
     failure_details = {
         "股票代码": ticker,
@@ -1386,24 +1386,10 @@ def get_realtime_stock_news(ticker: str, curr_date: str, hours_back: int = 6) ->
         "总耗时": f"{total_time_taken:.2f}秒"
     }
     logger.error(f"[新闻分析] 新闻获取失败详情: {failure_details}")
+    logger.info(f"[新闻分析] 返回None，表示无可用新闻数据")
 
-    result = f"""
-实时新闻获取失败 - {ticker}
-分析日期: {curr_date}
+    # 缓存None结果，避免短时间内重复失败
+    _news_cache[cache_key] = (None, current_time)
+    logger.info(f" [新闻缓存] 缓存None结果: {ticker}, TTL: {_news_cache_ttl}秒")
 
- 错误信息: 所有可用的新闻源都未能获取到相关新闻
-
- 备用建议:
-1. 检查网络连接和API密钥配置
-2. 使用基础新闻分析作为备选
-3. 关注官方财经媒体的最新报道
-4. 考虑使用专业金融终端获取实时新闻
-
-注: 实时新闻获取依赖外部API服务的可用性。
-"""
-
-    # 即使失败也缓存结果（使用较短的TTL），避免短时间内重复失败
-    _news_cache[cache_key] = (result, current_time)
-    logger.info(f" [新闻缓存] 缓存失败结果: {ticker}, TTL: {_news_cache_ttl}秒")
-
-    return result
+    return None

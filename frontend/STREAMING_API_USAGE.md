@@ -68,6 +68,7 @@ function MyComponent() {
     progressPercent,      // 进度数值 (0-100)
     currentAgent,         // 当前执行的 Agent
     currentMessage,       // 当前状态消息
+    completedAgents,      // 已完成的核心 Agent（用于展示 X/4）
     agentResults,         // 已完成的 Agent 结果
     finalResult,          // 最终完整结果
     error,                // 错误信息

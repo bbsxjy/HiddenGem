@@ -41,6 +41,7 @@ export function Market() {
     progressPercent,
     currentAgent,
     currentMessage,
+    completedAgents,
     isAnalyzing,
     finalResult,
     error: analysisError,
@@ -148,6 +149,12 @@ export function Market() {
     sentiment: '情绪分析',
     policy: '政策分析',
   };
+  const primaryAgentList = ['technical', 'fundamental', 'sentiment', 'policy'] as const;
+  type PrimaryAgent = typeof primaryAgentList[number];
+  const completedPrimaryAgents = completedAgents.filter((agent): agent is PrimaryAgent =>
+    primaryAgentList.includes(agent as PrimaryAgent)
+  );
+  const completedPrimaryCount = completedPrimaryAgents.length;
 
   // 判断板块
   const getBoardType = (symbol?: string) => {
@@ -954,7 +961,7 @@ export function Market() {
                     </div>
                     <div className="flex items-center gap-4 pl-8 sm:pl-0">
                       <span className="text-xs text-text-secondary">
-                        {Object.values(agentResults).filter(r => !r.is_error).length} / 4 个Agent已完成
+                        {completedPrimaryCount} / 4 个Agent已完成
                       </span>
                       <span className="text-xs font-semibold text-primary-600">
                         {progressPercent.toFixed(0)}%
@@ -1030,9 +1037,9 @@ export function Market() {
                 {/* Real-time agent results grid */}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
                   {/* Show all 4 agents - completed or waiting */}
-                  {['technical', 'fundamental', 'sentiment', 'policy'].map((agentName) => {
+                  {primaryAgentList.map((agentName) => {
                     const result = agentResults[agentName];
-                    const isCompleted = !!result;
+                    const isCompleted = completedPrimaryAgents.includes(agentName);
                     const isWaiting = isAnalyzing && !isCompleted;
 
                     return (
@@ -1041,7 +1048,7 @@ export function Market() {
                           onClick={() => result?.reasoning && setExpandedAgent(agentName)}
                           className={`p-4 border rounded-lg transition-all ${
                             isCompleted
-                              ? result.reasoning
+                              ? result?.reasoning
                                 ? 'bg-white border-gray-200 cursor-pointer hover:border-primary-300 hover:shadow-md'
                                 : 'bg-white border-gray-200'
                               : 'bg-gray-50 border-gray-200'
@@ -1065,52 +1072,59 @@ export function Market() {
                           </div>
 
                           {isCompleted ? (
-                            result.is_error ? (
-                              // Show error state
-                              <div className="text-center py-4">
-                                <p className="text-xs text-red-600 mb-2">分析失败</p>
-                                <p className="text-xs text-text-secondary">
-                                  该 Agent 未能返回有效结果
-                                </p>
-                              </div>
-                            ) : (
-                              // Show result
-                              <div className="space-y-2">
-                                <div className="flex items-center justify-between">
-                                  <span className="text-xs text-text-secondary">方向</span>
-                                  <span className={`text-sm font-semibold ${
-                                    getDirectionColor(result.direction as 'long' | 'short' | 'hold', selectedSymbol)
-                                  }`}>
-                                    {result.direction === 'long' ? '看多' :
-                                     result.direction === 'short' ? '看空' : '持有'}
-                                  </span>
+                            result ? (
+                              result.is_error ? (
+                                // Show error state
+                                <div className="text-center py-4">
+                                  <p className="text-xs text-red-600 mb-2">分析失败</p>
+                                  <p className="text-xs text-text-secondary">
+                                    该 Agent 未能返回有效结果
+                                  </p>
                                 </div>
-                                <div className="flex items-center justify-between">
-                                  <span className="text-xs text-text-secondary">置信度</span>
-                                  <span className="text-sm font-medium text-text-primary">
-                                    {(result.confidence * 100).toFixed(0)}%
-                                  </span>
-                                </div>
-                                <div className="flex items-center justify-between">
-                                  <span className="text-xs text-text-secondary">评分</span>
-                                  <span className="text-sm font-medium text-text-primary">
-                                    {(result.score * 100).toFixed(0)}
-                                  </span>
-                                </div>
-                                {result.reasoning && (
-                                  <div className="mt-2 pt-2 border-t border-gray-100">
-                                    <p className="text-xs text-text-secondary line-clamp-2">
-                                      {result.reasoning}
-                                    </p>
+                              ) : (
+                                // Show result
+                                <div className="space-y-2">
+                                  <div className="flex items-center justify-between">
+                                    <span className="text-xs text-text-secondary">方向</span>
+                                    <span className={`text-sm font-semibold ${
+                                      getDirectionColor(result.direction as 'long' | 'short' | 'hold', selectedSymbol)
+                                    }`}>
+                                      {result.direction === 'long' ? '看多' :
+                                       result.direction === 'short' ? '看空' : '持有'}
+                                    </span>
                                   </div>
-                                )}
+                                  <div className="flex items-center justify-between">
+                                    <span className="text-xs text-text-secondary">置信度</span>
+                                    <span className="text-sm font-medium text-text-primary">
+                                      {(result.confidence * 100).toFixed(0)}%
+                                    </span>
+                                  </div>
+                                  <div className="flex items-center justify-between">
+                                    <span className="text-xs text-text-secondary">评分</span>
+                                    <span className="text-sm font-medium text-text-primary">
+                                      {(result.score * 100).toFixed(0)}
+                                    </span>
+                                  </div>
+                                  {result.reasoning && (
+                                    <div className="mt-2 pt-2 border-t border-gray-100">
+                                      <p className="text-xs text-text-secondary line-clamp-2">
+                                        {result.reasoning}
+                                      </p>
+                                    </div>
+                                  )}
+                                </div>
+                              )
+                            ) : (
+                              <div className="text-center py-4">
+                                <p className="text-xs text-text-primary mb-1">分析完成</p>
+                                <p className="text-xs text-text-secondary">等待AI整合信号...</p>
                               </div>
                             )
                           ) : (
                             // Show waiting state
                             <div className="text-center py-4">
                               <div className="text-xs text-text-secondary">
-                                {isWaiting ? '等待分析...' : '未开始'}
+                                {isWaiting ? '分析中...' : '排队中'}
                               </div>
                             </div>
                           )}

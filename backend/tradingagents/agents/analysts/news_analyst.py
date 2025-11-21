@@ -237,10 +237,23 @@ def create_news_analyst(llm, toolkit):
                 # 强制预先获取新闻数据
                 logger.info(f"[新闻分析师]  预处理：强制调用统一新闻工具...")
                 pre_fetched_news = unified_news_tool(stock_code=ticker, max_news=10, model_info=model_info)
-                
+
+                # 检查是否包含无新闻标记
+                if pre_fetched_news and 'NO_VALID_NEWS_DATA_AVAILABLE' in pre_fetched_news:
+                    logger.warning(f"[新闻分析师]  预处理检测到无新闻数据标记，跳过新闻分析")
+                    report = f"由于无法获取{ticker}的新闻数据（所有新闻源均失败），本次分析无法提供新闻面评估。建议稍后重试或联系技术支持。"
+
+                    from langchain_core.messages import AIMessage
+                    clean_message = AIMessage(content=report)
+
+                    return {
+                        "messages": [clean_message],
+                        "news_report": report,
+                    }
+
                 if pre_fetched_news and len(pre_fetched_news.strip()) > 100:
                     logger.info(f"[新闻分析师]  预处理成功获取新闻: {len(pre_fetched_news)} 字符")
-                    
+
                     # 直接基于预获取的新闻生成分析，跳过工具调用
                     enhanced_prompt = f"""
 您是一位专业的财经新闻分析师。请基于以下已获取的最新新闻数据，对股票 {ticker} 进行详细分析：
@@ -253,33 +266,37 @@ def create_news_analyst(llm, toolkit):
 
 请基于上述真实新闻数据撰写详细的中文分析报告。注意：新闻数据已经提供，您无需再调用任何工具。
 """
-                    
+
                     logger.info(f"[新闻分析师]  使用预获取新闻数据直接生成分析...")
                     llm_start_time = datetime.now()
                     result = llm.invoke([{"role": "user", "content": enhanced_prompt}])
-                    
+
                     llm_end_time = datetime.now()
                     llm_time_taken = (llm_end_time - llm_start_time).total_seconds()
                     logger.info(f"[新闻分析师] LLM调用完成（预处理模式），耗时: {llm_time_taken:.2f}秒")
-                    
+
                     # 直接返回结果，跳过后续的工具调用检测
                     if hasattr(result, 'content') and result.content:
                         report = result.content
                         logger.info(f"[新闻分析师]  预处理模式成功，报告长度: {len(report)} 字符")
-                        
+
                         # 跳转到最终处理
                         state["messages"].append(result)
                         end_time = datetime.now()
                         time_taken = (end_time - start_time).total_seconds()
                         logger.info(f"[新闻分析师] 新闻分析完成，总耗时: {time_taken:.2f}秒")
+
+                        from langchain_core.messages import AIMessage
+                        clean_message = AIMessage(content=report)
+
                         return {
-                            "messages": [result],
+                            "messages": [clean_message],
                             "news_report": report,
                         }
-                    
+
                 else:
                     logger.warning(f"[新闻分析师]  预处理获取新闻失败，回退到标准模式")
-                    
+
             except Exception as e:
                 logger.error(f"[新闻分析师]  预处理失败: {e}，回退到标准模式")
         
@@ -368,7 +385,11 @@ def create_news_analyst(llm, toolkit):
                     logger.info(f"[新闻分析师]  强制调用统一新闻工具获取新闻数据...")
                     forced_news = unified_news_tool(stock_code=ticker, max_news=10, model_info="")
 
-                    if forced_news and len(forced_news.strip()) > 100:
+                    # 检查是否包含无新闻标记
+                    if forced_news and 'NO_VALID_NEWS_DATA_AVAILABLE' in forced_news:
+                        logger.warning(f"[新闻分析师]  强制获取检测到无新闻数据标记，跳过新闻分析")
+                        report = f"由于无法获取{ticker}的新闻数据（所有新闻源均失败），本次分析无法提供新闻面评估。建议稍后重试或联系技术支持。"
+                    elif forced_news and len(forced_news.strip()) > 100:
                         logger.info(f"[新闻分析师]  强制获取新闻成功: {len(forced_news)} 字符")
 
                         # 基于真实新闻数据重新生成分析
@@ -416,7 +437,11 @@ def create_news_analyst(llm, toolkit):
                         logger.info(f"[新闻分析师]  执行工具调用获取新闻数据...")
                         tool_news = unified_news_tool(stock_code=ticker, max_news=10, model_info="")
 
-                        if tool_news and len(tool_news.strip()) > 100:
+                        # 检查是否包含无新闻标记
+                        if tool_news and 'NO_VALID_NEWS_DATA_AVAILABLE' in tool_news:
+                            logger.warning(f"[新闻分析师]  工具执行检测到无新闻数据标记，跳过新闻分析")
+                            report = f"由于无法获取{ticker}的新闻数据（所有新闻源均失败），本次分析无法提供新闻面评估。建议稍后重试或联系技术支持。"
+                        elif tool_news and len(tool_news.strip()) > 100:
                             logger.info(f"[新闻分析师]  工具执行成功: {len(tool_news)} 字符")
 
                             # 基于工具结果生成分析
