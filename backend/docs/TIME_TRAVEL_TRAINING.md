@@ -1,10 +1,16 @@
-# 时间旅行训练系统使用指南
+# 时间旅行训练系统使用指南 (Enhanced Version)
 
-本指南介绍如何使用时间旅行训练系统从历史数据中学习交易经验。
+本指南介绍如何使用**增强版时间旅行训练系统**从历史数据中学习交易经验。
+
+> **⚠️ 重要说明**:
+> - 本系统已升级为 `enhanced_time_travel_training.py`（增强版）
+> - 旧版 `time_travel_training.py` 已弃用并删除
+> - **关键改进**: 修复了未来信息泄漏问题，符合时间序列ML原则
 
 ## 目录
 
 - [系统概述](#系统概述)
+- [Enhanced版本改进](#enhanced版本改进)
 - [快速开始](#快速开始)
 - [工作原理](#工作原理)
 - [使用示例](#使用示例)
@@ -26,6 +32,47 @@
 - ✅ 可以快速学习大量历史案例
 - ✅ 能够学习到市场的真实规律
 - ✅ 支持可复现的学习过程
+- ✅ **防止未来信息泄漏**（Enhanced版本关键特性）
+
+## Enhanced版本改进
+
+### 🆕 关键改进 (2025-11-21)
+
+**问题**: 旧版`time_travel_training.py`存在时间序列ML的严重问题 - **未来信息泄漏**：
+- ❌ `lesson`中包含`outcome.percentage_return`等未来结果
+- ❌ 训练时模型能"看到"未来收益
+- ❌ 实盘表现远低于回测
+
+**解决方案**: `enhanced_time_travel_training.py`严格分离决策上下文和未来结果：
+
+```python
+# ✅ Enhanced版本: 分离决策上下文和未来结果
+def abstract_lesson(self, outcome, market_state, decision_chain):
+    """
+    PART 1: DECISION_CONTEXT (决策时可见信息 - 用于检索)
+    - 市场状态
+    - Agent分析
+    - 决策链
+    - ❌ 不包含未来收益！
+
+    PART 2: OUTCOME_RESULT (未来结果 - 仅用于学习评估)
+    - 实际收益率
+    - 最大回撤
+    - 成功/失败标记
+    """
+```
+
+**实际影响**:
+- ✅ 训练数据质量提升
+- ✅ 实盘表现更接近回测
+- ✅ 符合时间序列ML最佳实践
+
+### 其他改进
+
+- ✅ TaskMonitor支持（断点续跑）
+- ✅ 更详细的日志输出
+- ✅ JSONL数据导出（支持小模型微调）
+- ✅ 改进的统计报告
 
 ## 快速开始
 
@@ -71,7 +118,7 @@ python scripts/demo_memory_system.py
 训练单只股票（示例：贵州茅台）：
 
 ```bash
-python scripts/time_travel_training.py \
+python scripts/enhanced_time_travel_training.py \
   --symbol 600519.SH \
   --start 2020-01-01 \
   --end 2023-12-31 \
@@ -243,21 +290,21 @@ TradingEpisode(
 
 ```bash
 # 贵州茅台 - 消费龙头
-python scripts/time_travel_training.py \
+python scripts/enhanced_time_travel_training.py \
   --symbol 600519.SH \
   --start 2015-01-01 \
   --end 2024-12-31 \
   --holding-days 10
 
 # 宁德时代 - 新能源龙头
-python scripts/time_travel_training.py \
+python scripts/enhanced_time_travel_training.py \
   --symbol 300750.SZ \
   --start 2018-06-01 \
   --end 2024-12-31 \
   --holding-days 5
 
 # 中国平安 - 金融龙头
-python scripts/time_travel_training.py \
+python scripts/enhanced_time_travel_training.py \
   --symbol 601318.SH \
   --start 2010-01-01 \
   --end 2024-12-31 \
@@ -268,14 +315,14 @@ python scripts/time_travel_training.py \
 
 ```bash
 # Apple
-python scripts/time_travel_training.py \
+python scripts/enhanced_time_travel_training.py \
   --symbol AAPL \
   --start 2015-01-01 \
   --end 2024-12-31 \
   --holding-days 10
 
 # NVIDIA
-python scripts/time_travel_training.py \
+python scripts/enhanced_time_travel_training.py \
   --symbol NVDA \
   --start 2018-01-01 \
   --end 2024-12-31 \
@@ -286,14 +333,14 @@ python scripts/time_travel_training.py \
 
 ```bash
 # COVID-19疫情期间 (2020年)
-python scripts/time_travel_training.py \
+python scripts/enhanced_time_travel_training.py \
   --symbol 600519.SH \
   --start 2020-01-01 \
   --end 2020-12-31 \
   --holding-days 5
 
 # 2015年股灾期间
-python scripts/time_travel_training.py \
+python scripts/enhanced_time_travel_training.py \
   --symbol 600519.SH \
   --start 2015-06-01 \
   --end 2015-12-31 \
@@ -304,7 +351,7 @@ python scripts/time_travel_training.py \
 
 ### 自定义持仓策略
 
-修改 `time_travel_training.py` 中的 `simulate_trade()` 方法：
+修改 `enhanced_time_travel_training.py` 中的 `simulate_trade()` 方法：
 
 ```python
 def simulate_trade(self, entry_date, processed_signal):
@@ -344,7 +391,7 @@ end_date="2024-12-31"
 # 遍历训练
 for symbol in "${symbols[@]}"; do
     echo "🚀 开始训练: $symbol"
-    python scripts/time_travel_training.py \
+    python scripts/enhanced_time_travel_training.py \
         --symbol "$symbol" \
         --start "$start_date" \
         --end "$end_date" \
@@ -366,7 +413,7 @@ chmod +x scripts/batch_training.sh
 
 ### 自定义市场Regime检测
 
-在 `time_travel_training.py` 中添加市场regime检测逻辑：
+在 `enhanced_time_travel_training.py` 中添加市场regime检测逻辑：
 
 ```python
 def detect_market_regime(self, current_date):
@@ -489,8 +536,8 @@ A: 可以，有两种方式：
 
 **方式1: 顺序训练**（推荐）
 ```bash
-python scripts/time_travel_training.py --symbol 600519.SH ...
-python scripts/time_travel_training.py --symbol 300750.SZ ...
+python scripts/enhanced_time_travel_training.py --symbol 600519.SH ...
+python scripts/enhanced_time_travel_training.py --symbol 300750.SZ ...
 ```
 
 **方式2: 批量训练**
