@@ -512,6 +512,118 @@ class FinancialSituationMemory:
         logger.warning(f" 强制截断前{max_length}字符，原长度{len(text)}字符")
         return truncated, True
 
+    def _chunk_and_embed(self, text):
+        """
+        🆕 将超长文本分块并生成embedding（平均合并策略）
+
+        Args:
+            text: 超长文本
+
+        Returns:
+            embedding向量（多个chunk的平均向量）
+        """
+        import numpy as np
+
+        chunk_size = self.max_embedding_length - 100  # 留100字符余量
+        overlap = chunk_size // 4  # 25% 重叠以保持上下文连贯性
+
+        # 分块
+        chunks = []
+        start = 0
+        while start < len(text):
+            end = start + chunk_size
+            chunk = text[start:end]
+
+            # 尝试在句子或段落边界分割
+            if end < len(text):
+                # 查找最近的句号或换行
+                last_period = chunk.rfind('。')
+                last_newline = chunk.rfind('\n')
+                split_point = max(last_period, last_newline)
+
+                if split_point > chunk_size // 2:  # 至少保留一半内容
+                    chunk = chunk[:split_point + 1]
+                    end = start + len(chunk)
+
+            chunks.append(chunk)
+            start = end - overlap  # 重叠部分
+
+        logger.info(f"📦 文本分块: {len(text)}字符 → {len(chunks)}个块（每块~{chunk_size}字符，重叠{overlap}字符）")
+
+        # 为每个chunk生成embedding
+        chunk_embeddings = []
+        for i, chunk in enumerate(chunks):
+            logger.debug(f"  处理第{i+1}/{len(chunks)}块...")
+
+            # 递归调用get_embedding（但这次chunk不会超过限制）
+            # 暂时禁用长度检查以避免无限递归
+            original_check = self.enable_embedding_length_check
+            self.enable_embedding_length_check = False
+
+            try:
+                processed_chunk, _ = self._smart_text_truncation(chunk, self.max_embedding_length)
+                embedding = self._generate_embedding_direct(processed_chunk)
+                chunk_embeddings.append(embedding)
+            finally:
+                self.enable_embedding_length_check = original_check
+
+        # 合并所有chunk的embedding（简单平均）
+        avg_embedding = np.mean(chunk_embeddings, axis=0)
+
+        logger.info(f"✅ 分块处理完成: {len(chunks)}个块 → 平均embedding（维度{len(avg_embedding)}）")
+
+        # 存储文本处理信息
+        self._last_text_info = {
+            'original_length': len(text),
+            'processed_length': sum(len(c) for c in chunks),
+            'was_truncated': False,
+            'was_chunked': True,
+            'num_chunks': len(chunks),
+            'chunk_size': chunk_size,
+            'overlap': overlap,
+            'provider': self.llm_provider,
+            'strategy': 'chunking_with_overlap'
+        }
+
+        return avg_embedding.tolist()
+
+    def _generate_embedding_direct(self, text):
+        """
+        🆕 直接生成embedding（不经过长度检查和缓存）
+
+        内部方法，仅供_chunk_and_embed使用
+        """
+        try:
+            # 根据provider选择实现
+            if self.llm_provider == "openai":
+                return self.client.embeddings.create(
+                    input=text,
+                    model="text-embedding-3-large"
+                ).data[0].embedding
+            elif self.llm_provider == "dashscope":
+                # Dashscope embedding实现
+                from http import HTTPStatus
+                import dashscope
+
+                dashscope.api_key = self.llm_api_key
+
+                resp = dashscope.TextEmbedding.call(
+                    model=dashscope.TextEmbedding.Models.text_embedding_v3,
+                    input=text
+                )
+
+                if resp.status_code == HTTPStatus.OK:
+                    return resp.output['embeddings'][0]['embedding']
+                else:
+                    raise EmbeddingServiceUnavailable(f"Dashscope错误: {resp.message}")
+            else:
+                raise EmbeddingServiceUnavailable(f"不支持的provider: {self.llm_provider}")
+
+        except Exception as e:
+            logger.error(f"生成embedding失败: {e}")
+            raise EmbeddingServiceUnavailable(str(e))
+
+
     def get_embedding(self, text):
         """Get embedding for a text using the configured provider
         添加缓存机制，避免短时间内重复调用
@@ -553,20 +665,10 @@ class FinancialSituationMemory:
 
         logger.debug(f"[Embedding] 生成新向量，文本长度: {text_length}字符")
 
-        # 检查是否启用长度限制
+        # 🆕 检查是否需要分块处理（超过最大长度）
         if self.enable_embedding_length_check and text_length > self.max_embedding_length:
-            logger.error(f"文本过长({text_length:,}字符 > {self.max_embedding_length:,}字符)")
-            # 存储跳过信息
-            self._last_text_info = {
-                'original_length': text_length,
-                'processed_length': 0,
-                'was_truncated': False,
-                'was_skipped': True,
-                'provider': self.llm_provider,
-                'strategy': 'length_limit_exceeded',
-                'max_length': self.max_embedding_length
-            }
-            raise EmbeddingTextTooLong(text_length, self.max_embedding_length)
+            logger.warning(f"文本过长({text_length:,}字符 > {self.max_embedding_length:,}字符)，启用自动分块处理")
+            return self._chunk_and_embed(text)
 
         #  新增：智能截断文本（根据模型限制）
         processed_text, was_truncated = self._smart_text_truncation(text)
