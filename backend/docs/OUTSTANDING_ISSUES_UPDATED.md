@@ -88,11 +88,20 @@
 
 ---
 
-#### 7. ❌ **Embedding 异常未捕获** (Additional Issue #1)
-**状态**: 未解决
+#### 7. ✅ **Embedding 异常捕获** (Additional Issue #1) - 已解决
+**状态**: ✅ 已解决
 **问题**: API/调用层没有捕获 `EmbeddingTextTooLong`/`MemoryDisabled` 等异常
-**影响**: 用户看到 HTTP 500 而非友好错误消息
-**建议**: 在API层添加异常处理
+**修复方案**:
+- ✅ 创建 `api/utils/exception_handlers.py` 统一异常处理模块
+- ✅ `handle_memory_exception()` 函数将memory异常转换为用户友好的HTTP响应
+- ✅ 在 `api/routers/agents.py` 的所有4个 `trading_graph.propagate()` 调用点添加异常处理
+- ✅ 在 `api/routers/memorybank_training.py` 添加异常处理
+- ✅ 提供详细的错误信息：错误类型、描述、建议、影响
+**影响**:
+- ❌ 修复前: 用户看到HTTP 500和技术错误信息
+- ✅ 修复后: 用户看到友好的错误消息，包含问题描述和解决建议
+- 📊 不同异常返回不同HTTP状态码（400/503/500）
+**Commit**: 待提交
 
 ---
 
@@ -195,10 +204,10 @@
 | 优先级 | 总数 | 已解决 | 部分解决 | 未解决 | 完成率 |
 |--------|------|--------|----------|--------|--------|
 | Critical | 3 | 3 | 0 | 0 | ✅ 100% |
-| High | 5 | 3 | 1 | 1 | 🟡 60% |
+| High | 5 | 4 | 1 | 0 | ✅ 80% |
 | Medium | 4 | 0 | 1 | 3 | ⚠️ 0% |
 | Low | 3 | 0 | 1 | 2 | ⚠️ 0% |
-| **总计** | **15** | **6** | **3** | **6** | **✅ 40%** |
+| **总计** | **15** | **7** | **3** | **5** | **✅ 47%** |
 
 **关键进展**: 所有Critical问题已全部解决，系统核心功能稳定可靠。
 
@@ -339,11 +348,20 @@ def fetch_with_timeout(url, timeout=10):
 
 ---
 
-#### 7. ❌ **Embedding 异常未捕获** (Additional Issue #1)
-**状态**: 未解决
+#### 7. ✅ **Embedding 异常捕获** (Additional Issue #1) - 已解决
+**状态**: ✅ 已解决
 **问题**: API/调用层没有捕获 `EmbeddingTextTooLong`/`MemoryDisabled` 等异常
-**影响**: 用户看到 HTTP 500 而非友好错误消息
-**建议**: 在API层添加异常处理
+**修复方案**:
+- ✅ 创建 `api/utils/exception_handlers.py` 统一异常处理模块
+- ✅ `handle_memory_exception()` 函数将memory异常转换为用户友好的HTTP响应
+- ✅ 在 `api/routers/agents.py` 的所有4个 `trading_graph.propagate()` 调用点添加异常处理
+- ✅ 在 `api/routers/memorybank_training.py` 添加异常处理
+- ✅ 提供详细的错误信息：错误类型、描述、建议、影响
+**影响**:
+- ❌ 修复前: 用户看到HTTP 500和技术错误信息
+- ✅ 修复后: 用户看到友好的错误消息，包含问题描述和解决建议
+- 📊 不同异常返回不同HTTP状态码（400/503/500）
+**Commit**: 待提交
 
 ---
 

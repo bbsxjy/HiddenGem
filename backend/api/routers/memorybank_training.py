@@ -14,6 +14,16 @@ import os
 import asyncio
 from pathlib import Path
 
+# 导入memory异常
+from tradingagents.agents.utils.memory_exceptions import (
+    EmbeddingError,
+    EmbeddingServiceUnavailable,
+    EmbeddingTextTooLong,
+    EmbeddingInvalidInput,
+    MemoryDisabled
+)
+from api.utils.exception_handlers import handle_memory_exception
+
 router = APIRouter(prefix="/api/v1/memorybank", tags=["memorybank-training"])
 
 logger = logging.getLogger(__name__)
@@ -270,6 +280,24 @@ async def run_memorybank_training_async(
         training_tasks[training_id].completed_at = datetime.now()
 
         logger.info(f"✅ MemoryBank training completed: {training_id}")
+
+    except (MemoryDisabled, EmbeddingServiceUnavailable,
+            EmbeddingTextTooLong, EmbeddingInvalidInput, EmbeddingError) as e:
+        # 处理memory相关异常
+        logger.error(f"❌ MemoryBank training failed due to memory exception: {training_id}")
+        http_exception = handle_memory_exception(e, f"MemoryBank训练{training_id}")
+        if http_exception:
+            error_detail = http_exception.detail
+            if isinstance(error_detail, dict):
+                error_message = f"{error_detail.get('message', str(e))}: {error_detail.get('description', '')}"
+            else:
+                error_message = str(error_detail)
+        else:
+            error_message = str(e)
+
+        training_tasks[training_id].status = TrainingStatus.FAILED
+        training_tasks[training_id].error_message = error_message
+        logger.error(f"Memory exception in MemoryBank training: {error_message}")
 
     except Exception as e:
         logger.error(f"❌ MemoryBank training failed: {training_id} - {e}")

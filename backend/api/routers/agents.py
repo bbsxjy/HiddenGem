@@ -21,6 +21,16 @@ from tradingagents.default_config import DEFAULT_CONFIG
 # 导入任务管理器
 from api.services.task_manager import task_manager, Task, TaskStatus
 
+# 导入异常处理工具
+from api.utils.exception_handlers import handle_memory_exception
+from tradingagents.agents.utils.memory_exceptions import (
+    EmbeddingError,
+    EmbeddingServiceUnavailable,
+    EmbeddingTextTooLong,
+    EmbeddingInvalidInput,
+    MemoryDisabled
+)
+
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
@@ -166,6 +176,17 @@ async def analyze_all_agents(symbol: str, trade_date: Optional[str] = None):
         logger.info(f"[ANALYZE] Analysis complete for {symbol}")
         return response
 
+    except (MemoryDisabled, EmbeddingServiceUnavailable,
+            EmbeddingTextTooLong, EmbeddingInvalidInput, EmbeddingError) as e:
+        # 处理memory相关异常，返回用户友好的错误信息
+        http_exception = handle_memory_exception(e, f"分析{symbol}")
+        if http_exception:
+            raise http_exception
+        else:
+            # 理论上不会到这里
+            logger.error(f"[ERROR] Unhandled memory exception for {symbol}: {e}", exc_info=True)
+            raise HTTPException(status_code=500, detail=str(e))
+
     except Exception as e:
         logger.error(f"[ERROR] Analysis failed for {symbol}: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
@@ -296,6 +317,27 @@ async def _run_analysis_task(task: Task, symbol: str, trade_date: str):
 
     except Exception as e:
         logger.error(f"[TASK] Analysis failed for {symbol} (task: {task.task_id}): {e}", exc_info=True)
+
+        # 检查是否是memory相关异常
+        if isinstance(e, (MemoryDisabled, EmbeddingServiceUnavailable,
+                         EmbeddingTextTooLong, EmbeddingInvalidInput, EmbeddingError)):
+            # 处理memory异常，但不抛出HTTPException（因为是后台任务）
+            # 而是将错误信息记录到任务状态中
+            http_exception = handle_memory_exception(e, f"异步分析{symbol}")
+            if http_exception:
+                # 提取友好的错误信息
+                error_detail = http_exception.detail
+                if isinstance(error_detail, dict):
+                    error_message = f"{error_detail.get('message', str(e))} - {error_detail.get('description', '')}"
+                else:
+                    error_message = str(error_detail)
+
+                # 更新任务为失败状态，但包含友好的错误信息
+                task_manager.update_task(task.task_id, status=TaskStatus.FAILED, error=error_message)
+                logger.warning(f"⚠️ [TASK] Memory exception in {symbol}: {error_message}")
+                return
+
+        # 其他异常正常抛出
         raise
 
 
@@ -984,6 +1026,40 @@ async def analyze_all_agents_stream(
 
             logger.info(f"[SSE] Analysis complete for {symbol}")
 
+        except (MemoryDisabled, EmbeddingServiceUnavailable,
+                EmbeddingTextTooLong, EmbeddingInvalidInput, EmbeddingError) as e:
+            # 处理memory相关异常
+            logger.warning(f"[SSE] Memory exception for {symbol}: {e}")
+            http_exception = handle_memory_exception(e, f"流式分析{symbol}")
+            if http_exception:
+                error_detail = http_exception.detail
+                if isinstance(error_detail, dict):
+                    error_message = error_detail.get('message', str(e))
+                    error_description = error_detail.get('description', '')
+                    error_suggestion = error_detail.get('suggestion', '')
+                else:
+                    error_message = str(error_detail)
+                    error_description = ''
+                    error_suggestion = ''
+
+                yield _sse_event({
+                    "type": "error",
+                    "symbol": symbol,
+                    "error": error_message,
+                    "description": error_description,
+                    "suggestion": error_suggestion,
+                    "error_type": "memory_error",
+                    "timestamp": datetime.now().isoformat()
+                })
+            else:
+                # 理论上不会到这里
+                yield _sse_event({
+                    "type": "error",
+                    "symbol": symbol,
+                    "error": str(e),
+                    "timestamp": datetime.now().isoformat()
+                })
+
         except Exception as e:
             logger.error(f"[SSE] Analysis failed for {symbol}: {e}", exc_info=True)
             yield _sse_event({
@@ -1295,6 +1371,17 @@ async def analyze_position(
 
         logger.info(f"[POSITION] Position analysis complete for {symbol}: {decision}")
         return response
+
+    except (MemoryDisabled, EmbeddingServiceUnavailable,
+            EmbeddingTextTooLong, EmbeddingInvalidInput, EmbeddingError) as e:
+        # 处理memory相关异常，返回用户友好的错误信息
+        http_exception = handle_memory_exception(e, f"持仓分析{symbol}")
+        if http_exception:
+            raise http_exception
+        else:
+            # 理论上不会到这里
+            logger.error(f"[POSITION] Unhandled memory exception for {symbol}: {e}", exc_info=True)
+            raise HTTPException(status_code=500, detail=str(e))
 
     except Exception as e:
         logger.error(f"[POSITION] Position analysis failed for {symbol}: {e}", exc_info=True)
