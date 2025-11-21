@@ -8,9 +8,10 @@ from fastapi import APIRouter, Query
 from pydantic import BaseModel
 from typing import List, Optional
 from datetime import datetime, timedelta
-import random
+import logging
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 
 # Pydantic Models
@@ -38,54 +39,53 @@ async def get_recent_signals(limit: int = Query(20, description="Maximum number 
 
 @router.get("/current")
 async def get_current_signals(limit: int = Query(20, description="Maximum number of signals")):
-    """获取当前有效的交易信号"""
-    # TODO: 从Agent分析结果或信号系统获取真实信号
-    # 当前返回模拟数据
+    """获取当前有效的交易信号
 
-    symbols = [
-        ("600519.SH", "贵州茅台"),
-        ("000001.SZ", "平安银行"),
-        ("NVDA", "英伟达"),
-        ("AAPL", "苹果"),
-        ("TSLA", "特斯拉"),
-        ("600036.SS", "招商银行"),
-        ("000858.SZ", "五粮液"),
-    ]
+    TODO (Critical): 集成TradingAgentsGraph生成真实信号
+    需要实现：
+    1. 调用 TradingAgentsGraph.propagate() 对股票池进行分析
+    2. 将 agent_results 和 aggregated_signal 转换为 Signal 格式
+    3. 使用 Redis 缓存最近的信号（TTL: 1小时）
+    4. 提供信号过滤和排序功能
 
-    signals = []
-    for i in range(min(limit, len(symbols))):
-        symbol, name = symbols[i]
-        direction_raw = random.choice(["buy", "sell", "hold"])
+    当前返回空列表 - 避免返回误导性的随机数据
+    """
 
-        # 生成合理的价格
-        base_price = round(random.uniform(100, 2000), 2)
-        entry_price = base_price
-        target_price = round(base_price * (1.1 if direction_raw == "buy" else 0.9), 2) if direction_raw != "hold" else None
-        stop_loss_price = round(base_price * (0.95 if direction_raw == "buy" else 1.05), 2) if direction_raw != "hold" else None
+    # 🚧 待实现：从 TradingAgentsGraph 获取真实信号
+    # 示例集成代码：
+    # from tradingagents.graph.trading_graph import TradingAgentsGraph
+    # from datetime import datetime
+    #
+    # trading_graph = TradingAgentsGraph(config=DEFAULT_CONFIG)
+    # signals = []
+    #
+    # for symbol in STOCK_POOL:  # 需要定义股票池
+    #     final_state, processed_signal = trading_graph.propagate(
+    #         symbol, datetime.now().strftime("%Y-%m-%d")
+    #     )
+    #
+    #     if processed_signal.get('direction') != 'hold':
+    #         signals.append({
+    #             "id": ...,
+    #             "symbol": symbol,
+    #             "direction": processed_signal.get('direction'),
+    #             "strength": processed_signal.get('confidence', 0.5),
+    #             "agent_name": "multi-agent",
+    #             "strategy_name": None,
+    #             "entry_price": ...,
+    #             "target_price": ...,
+    #             "stop_loss_price": ...,
+    #             "reasoning": final_state.get('final_trade_decision', ''),
+    #             "timestamp": datetime.now().isoformat(),
+    #             "is_executed": False,
+    #         })
 
-        created_time = datetime.now() - timedelta(hours=random.randint(0, 24))
-
-        signals.append({
-            "id": 5000 + i,  # 前端期望id而不是signal_id
-            "symbol": symbol,
-            "direction": direction_raw,  # buy, sell, hold (前端期望这些值)
-            "strength": round(random.uniform(0.5, 1.0), 2),
-            "agent_name": random.choice(["technical", "fundamental", "sentiment", "multi-agent"]),  # 前端期望agent_name
-            "strategy_name": None,
-            "entry_price": entry_price,  # 前端期望entry_price
-            "target_price": target_price,
-            "stop_loss_price": stop_loss_price,  # 前端期望stop_loss_price而不是stop_loss
-            "reasoning": f"基于{random.choice(['技术面', '基本面', '情绪面', '多Agent综合'])}分析，{name}显示{direction_raw}信号",
-            "timestamp": created_time.isoformat(),  # 前端期望timestamp
-            "is_executed": False,  # 前端期望is_executed
-        })
-
-    # Sort by strength descending
-    signals.sort(key=lambda x: x["strength"], reverse=True)
+    logger.warning("⚠️ get_current_signals() 未实现真实信号生成，返回空列表")
 
     return {
         "success": True,
-        "data": signals[:limit],
+        "data": [],  # 返回空列表而非随机数据
+        "message": "Signal generation not yet implemented - requires TradingAgentsGraph integration",
         "timestamp": datetime.now().isoformat()
     }
 
@@ -95,99 +95,88 @@ async def get_signal_history(
     days: int = Query(30, description="Number of days to look back"),
     symbol: Optional[str] = Query(None, description="Filter by symbol")
 ):
-    """获取历史信号"""
-    # TODO: 从数据库获取真实信号历史
+    """获取历史信号
 
-    signals = []
-    for i in range(20):
-        created_time = datetime.now() - timedelta(days=random.randint(0, days-1))
+    TODO (Future): 实现信号历史存储和查询
+    需要实现：
+    1. MongoDB signals collection 存储所有生成的信号
+    2. 记录信号的执行状态和实际收益
+    3. 提供按时间、股票、策略等维度的查询
+    4. 计算信号的准确率统计
 
-        signals.append({
-            "signal_id": 6000 + i,
-            "symbol": symbol if symbol else random.choice(["600519.SH", "NVDA", "000001.SZ"]),
-            "name": "贵州茅台" if not symbol else "未知",
-            "direction": random.choice(["long", "short", "hold"]),
-            "strength": round(random.uniform(0.5, 1.0), 2),
-            "confidence": round(random.uniform(0.6, 0.95), 2),
-            "source": random.choice(["technical", "fundamental", "sentiment", "multi-agent"]),
-            "reasoning": "历史信号记录",
-            "target_price": round(random.uniform(100, 2000), 2),
-            "stop_loss": round(random.uniform(50, 1500), 2),
-            "created_at": created_time.isoformat(),
-            "expires_at": (created_time + timedelta(days=7)).isoformat(),
-            "actual_return": round(random.uniform(-0.1, 0.2), 4),  # 实际收益率
-            "status": random.choice(["active", "expired", "triggered"]),
-        })
+    当前返回空列表
+    """
 
-    signals.sort(key=lambda x: x["created_at"], reverse=True)
+    logger.warning(f"⚠️ get_signal_history() 未实现，返回空列表 (days={days}, symbol={symbol})")
 
     return {
         "success": True,
-        "data": signals,
+        "data": [],  # 返回空列表而非随机数据
+        "message": "Signal history storage not yet implemented - requires MongoDB integration",
         "timestamp": datetime.now().isoformat()
     }
 
 
 @router.get("/{signal_id}")
 async def get_signal(signal_id: int):
-    """获取单个信号详情"""
-    # TODO: 从数据库获取真实信号
+    """获取单个信号详情
 
-    signal = {
-        "signal_id": signal_id,
-        "symbol": "600519.SH",
-        "name": "贵州茅台",
-        "direction": "long",
-        "strength": 0.85,
-        "confidence": 0.78,
-        "source": "multi-agent",
-        "reasoning": "多Agent综合分析显示强烈买入信号",
-        "target_price": 1800.0,
-        "stop_loss": 1550.0,
-        "created_at": datetime.now().isoformat(),
-        "expires_at": (datetime.now() + timedelta(days=7)).isoformat(),
-        "agent_votes": {
-            "technical": "long",
-            "fundamental": "long",
-            "sentiment": "hold",
-            "policy": "long",
-        }
-    }
+    TODO (Future): 从MongoDB查询信号详情
+    需要实现：
+    - MongoDB signals collection
+    - SignalRepository.get_by_id()
 
-    return {
-        "success": True,
-        "data": signal,
-        "timestamp": datetime.now().isoformat()
-    }
+    当前返回404
+    """
+
+    logger.warning(f"⚠️ get_signal({signal_id}) 未实现")
+
+    from fastapi import HTTPException
+    raise HTTPException(
+        status_code=404,
+        detail=f"Signal {signal_id} not found - signal storage not yet implemented"
+    )
 
 
 @router.get("/stats/summary")
 async def get_signal_stats():
-    """获取信号统计摘要"""
-    # TODO: 从数据库计算真实统计
+    """获取信号统计摘要
+
+    TODO (Future): 实现基于历史数据的统计计算
+    需要实现：
+    1. 从MongoDB signals collection聚合统计数据
+    2. 计算信号准确率（对比actual_return）
+    3. 按来源、方向、策略等维度统计
+    4. 使用Redis缓存统计结果（TTL: 1小时）
+
+    当前返回空统计
+    """
+
+    logger.warning("⚠️ get_signal_stats() 未实现")
 
     stats = {
-        "total_signals": 156,
-        "active_signals": 7,
-        "avg_accuracy": 0.68,
-        "total_profit": 45600.0,
-        "win_rate": 0.65,
-        "best_performing_source": "multi-agent",
+        "total_signals": 0,
+        "active_signals": 0,
+        "avg_accuracy": 0.0,
+        "total_profit": 0.0,
+        "win_rate": 0.0,
+        "best_performing_source": None,
         "signals_by_direction": {
-            "long": 89,
-            "short": 45,
-            "hold": 22,
+            "long": 0,
+            "short": 0,
+            "hold": 0,
         },
         "signals_by_source": {
-            "technical": 52,
-            "fundamental": 38,
-            "sentiment": 31,
-            "multi-agent": 35,
+            "technical": 0,
+            "fundamental": 0,
+            "sentiment": 0,
+            "multi-agent": 0,
         }
     }
 
     return {
         "success": True,
         "data": stats,
+        "message": "Signal statistics not yet implemented - requires historical signal storage",
         "timestamp": datetime.now().isoformat()
     }

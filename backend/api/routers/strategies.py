@@ -111,10 +111,19 @@ class BacktestResult(BaseModel):
 
 @router.get("/")
 async def get_strategies():
-    """获取所有策略列表"""
-    # TODO: 从数据库获取真实策略
-    # 当前返回模拟数据
+    """获取所有策略列表
 
+    注意：当前返回的是系统可用策略的静态配置，而非数据库存储的用户自定义策略。
+    这些策略代表了系统实际支持的策略类型（RL、技术面、基本面、多Agent）。
+
+    TODO (Future): 实现用户自定义策略的数据库存储和管理
+    - 需要MongoDB collection: strategies
+    - 需要实现StrategyRepository
+    - 支持用户创建、修改、删除自定义策略配置
+    """
+
+    # 系统内置策略列表（静态配置）
+    # 这些是实际可用于回测的策略类型
     strategies = [
         {
             "strategy_name": "rl_agent_v1",
@@ -190,8 +199,11 @@ async def get_strategies():
 
 @router.get("/{strategy_name}")
 async def get_strategy(strategy_name: str):
-    """获取单个策略详情"""
-    # TODO: 从数据库获取真实策略
+    """获取单个策略详情
+
+    TODO (Future): 从数据库获取用户自定义策略
+    当前返回静态配置的策略信息
+    """
 
     strategy = {
         "strategy_name": strategy_name,
@@ -224,8 +236,15 @@ async def get_strategy(strategy_name: str):
 
 @router.post("/")
 async def create_strategy(strategy: dict):
-    """创建新策略"""
-    # TODO: 保存策略到数据库
+    """创建新策略
+
+    TODO (Future): 实现策略持久化到MongoDB
+    当前仅返回echo响应，不实际存储
+    需要实现：
+    - MongoDB strategies collection
+    - StrategyRepository.create()
+    - 参数验证和schema定义
+    """
 
     new_strategy = {
         "strategy_name": strategy.get("strategy_name"),
@@ -248,8 +267,14 @@ async def create_strategy(strategy: dict):
 
 @router.put("/{strategy_name}")
 async def update_strategy(strategy_name: str, updates: dict):
-    """更新策略配置"""
-    # TODO: 更新数据库中的策略
+    """更新策略配置
+
+    TODO (Future): 实现策略更新到MongoDB
+    当前仅返回echo响应，不实际存储
+    需要实现：
+    - MongoDB strategies collection
+    - StrategyRepository.update()
+    """
 
     updated_strategy = {
         "strategy_name": strategy_name,
@@ -272,8 +297,14 @@ async def update_strategy(strategy_name: str, updates: dict):
 
 @router.delete("/{strategy_name}")
 async def delete_strategy(strategy_name: str):
-    """删除策略"""
-    # TODO: 从数据库删除策略
+    """删除策略
+
+    TODO (Future): 实现从MongoDB删除策略
+    当前仅返回成功响应，不实际删除
+    需要实现：
+    - MongoDB strategies collection
+    - StrategyRepository.delete()
+    """
 
     return {
         "success": True,
@@ -394,8 +425,15 @@ async def run_backtest(
 
 @router.get("/{strategy_name}/stats")
 async def get_strategy_stats(strategy_name: str):
-    """获取策略统计数据"""
-    # TODO: 从数据库获取真实统计
+    """获取策略统计数据
+
+    TODO (Future): 从MongoDB/Redis获取真实统计
+    需要实现：
+    - 交易历史记录存储（MongoDB trades collection）
+    - 实时统计计算逻辑
+    - 缓存层（Redis）用于高频访问的统计数据
+    当前返回模拟数据
+    """
 
     stats = {
         "strategy_name": strategy_name,

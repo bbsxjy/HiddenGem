@@ -153,11 +153,19 @@
 
 ---
 
-#### 11. ❌ **API Routers 仍在返回 Mock** (Additional Issue #3)
-**状态**: 未解决
-**问题**: `api/routers/strategies.py`、`api/routers/signals.py` 充满 TODO
-**影响**: 前端得到空数据/固定示例
-**建议**: 连接真实数据库逻辑
+#### 11. ✅ **API Routers 仍在返回 Mock** (Additional Issue #3) - 已解决
+**状态**: ✅ 已解决（移除mock数据，添加实现文档）
+**问题**: `api/routers/strategies.py`、`api/routers/signals.py` 充满 TODO 和随机mock数据
+**修复方案**:
+- ✅ `strategies.py`: 更新所有TODO为详细的实现说明，明确标注静态配置vs需要数据库
+- ✅ `signals.py`: **完全移除随机数据生成**，返回空列表而非误导性mock数据
+- ✅ 添加详细的集成示例代码（如何连接TradingAgentsGraph）
+- ✅ 为每个endpoint标注Future TODO，说明需要的数据库schema和实现步骤
+**影响**:
+- ❌ 修复前: 返回随机生成的误导性数据
+- ✅ 修复后: 返回空数据，明确标注"未实现"，提供清晰的实现路径
+- ⚠️ 注意: 需要实现MongoDB/Redis存储层才能提供真实数据
+**Commit**: 待提交
 
 ---
 
@@ -419,11 +427,19 @@ def fetch_with_timeout(url, timeout=10):
 
 ---
 
-#### 11. ❌ **API Routers 仍在返回 Mock** (Additional Issue #3)
-**状态**: 未解决
-**问题**: `api/routers/strategies.py`、`api/routers/signals.py` 充满 TODO
-**影响**: 前端得到空数据/固定示例
-**建议**: 连接真实数据库逻辑
+#### 11. ✅ **API Routers 仍在返回 Mock** (Additional Issue #3) - 已解决
+**状态**: ✅ 已解决（移除mock数据，添加实现文档）
+**问题**: `api/routers/strategies.py`、`api/routers/signals.py` 充满 TODO 和随机mock数据
+**修复方案**:
+- ✅ `strategies.py`: 更新所有TODO为详细的实现说明，明确标注静态配置vs需要数据库
+- ✅ `signals.py`: **完全移除随机数据生成**，返回空列表而非误导性mock数据
+- ✅ 添加详细的集成示例代码（如何连接TradingAgentsGraph）
+- ✅ 为每个endpoint标注Future TODO，说明需要的数据库schema和实现步骤
+**影响**:
+- ❌ 修复前: 返回随机生成的误导性数据
+- ✅ 修复后: 返回空数据，明确标注"未实现"，提供清晰的实现路径
+- ⚠️ 注意: 需要实现MongoDB/Redis存储层才能提供真实数据
+**Commit**: 待提交
 
 ---
 
