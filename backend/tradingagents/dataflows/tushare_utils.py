@@ -702,13 +702,36 @@ class TushareProvider:
 
 # 全局提供器实例
 _tushare_provider = None
+_tushare_news_provider = None
 
 def get_tushare_provider() -> TushareProvider:
-    """获取全局Tushare提供器实例"""
+    """获取全局Tushare提供器实例（用于通用数据）"""
     global _tushare_provider
     if _tushare_provider is None:
         _tushare_provider = TushareProvider()
     return _tushare_provider
+
+
+def get_tushare_news_provider() -> TushareProvider:
+    """
+    获取全局Tushare新闻专用提供器实例
+
+    优先使用TUSHARE_NEWS_TOKEN，如果未配置则回退到TUSHARE_TOKEN
+    """
+    global _tushare_news_provider
+    if _tushare_news_provider is None:
+        # 尝试获取新闻专用token
+        news_token = os.getenv('TUSHARE_NEWS_TOKEN', '')
+
+        if news_token:
+            logger.info(" [Tushare新闻] 使用专用新闻token初始化provider")
+            _tushare_news_provider = TushareProvider(token=news_token)
+        else:
+            logger.info(" [Tushare新闻] 未配置专用新闻token，使用通用token")
+            # 回退到通用provider
+            _tushare_news_provider = get_tushare_provider()
+
+    return _tushare_news_provider
 
 
 def get_china_stock_data_tushare(symbol: str, start_date: str = None, end_date: str = None) -> pd.DataFrame:
@@ -758,6 +781,8 @@ def get_stock_news_tushare(symbol: str = None, start_date: str = None, end_date:
     使用Tushare新闻接口获取财经新闻
     文档: https://tushare.pro/document/2?doc_id=142
 
+    注意：此函数使用TUSHARE_NEWS_TOKEN（如果配置）或回退到TUSHARE_TOKEN
+
     Args:
         symbol: 股票代码（目前Tushare新闻接口不支持按股票筛选，此参数保留用于未来扩展）
         start_date: 开始日期 (YYYY-MM-DD)
@@ -767,7 +792,8 @@ def get_stock_news_tushare(symbol: str = None, start_date: str = None, end_date:
     Returns:
         pd.DataFrame: 新闻数据，包含datetime, content, title, channels, source列
     """
-    provider = get_tushare_provider()
+    # 使用新闻专用provider（优先使用TUSHARE_NEWS_TOKEN）
+    provider = get_tushare_news_provider()
 
     # 获取新闻（优先使用eastmoney，因为东方财富新闻更丰富）
     news_df = provider.get_stock_news(
