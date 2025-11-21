@@ -175,6 +175,12 @@ class QFLibBacktestRunner:
                 if not current_prices:
                     continue
 
+                # 计算当前总资产（在生成信号之前）
+                portfolio_value = cash
+                for ticker, shares in positions.items():
+                    if shares > 0 and ticker in current_prices:
+                        portfolio_value += shares * current_prices[ticker]
+
                 # ===== 生成交易信号（使用 RL 模型） =====
                 for ticker in tickers:
                     if ticker not in current_prices:
