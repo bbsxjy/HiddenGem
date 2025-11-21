@@ -48,6 +48,7 @@ class RLStrategyAdapter(AlphaModel if AlphaModel != object else object):
         -  支持多种RL模型（PPO、A2C、SAC等）
         -  天然防护Look-Ahead Bias
         -  支持VecNormalize观测归一化
+        -  支持5动作空间（HOLD, BUY_25, BUY_50, SELL_50, SELL_ALL）
     """
 
     def __init__(
@@ -76,6 +77,10 @@ class RLStrategyAdapter(AlphaModel if AlphaModel != object else object):
 
         # 加载VecNormalize统计数据
         self.vec_normalize = self._load_vec_normalize(model_path)
+
+        # 🆕 存储最近的动作和目标仓位比例（用于position sizing）
+        self.last_action: Optional[int] = None
+        self.target_ratio: float = 0.0
 
         logger.info(f"RLStrategyAdapter initialized: model={model_path}, ticker={ticker}, vec_normalize={'loaded' if self.vec_normalize else 'not available'}")
 
@@ -171,10 +176,13 @@ class RLStrategyAdapter(AlphaModel if AlphaModel != object else object):
         # RL模型预测
         action, _ = self.model.predict(obs, deterministic=True)
 
+        # 🆕 存储动作（用于后续position sizing）
+        self.last_action = int(action)
+
         # 转换为QF-Lib持仓信号
         exposure = self._action_to_exposure(action)
 
-        logger.debug(f" {current_time} | {ticker} | Action={action} | Exposure={exposure}")
+        logger.debug(f" {current_time} | {ticker} | Action={action} | Exposure={exposure} | TargetRatio={self.target_ratio:.2%}")
 
         return exposure
 
@@ -336,34 +344,72 @@ class RLStrategyAdapter(AlphaModel if AlphaModel != object else object):
         return current_ma if not np.isnan(current_ma) else close_prices.iloc[-1]
 
     def _action_to_exposure(self, action: int) -> Exposure:
-        """将RL动作转换为QF-Lib持仓信号
+        """将RL动作转换为QF-Lib持仓信号（支持5动作空间）
 
         Args:
             action: RL模型输出的动作
-                    0: HOLD
-                    1: BUY
-                    2: SELL
+                    0: HOLD (保持当前仓位)
+                    1: BUY_25 (买入25%仓位)
+                    2: BUY_50 (买入50%仓位)
+                    3: SELL_50 (卖出50%持仓)
+                    4: SELL_ALL (全部卖出)
 
         Returns:
             QF-Lib Exposure枚举
+
+        Side Effects:
+            设置 self.target_ratio（目标仓位比例）
         """
         if Exposure is None:
             # 占位符（QF-Lib未安装时）
             return action
 
-        # SimpleTradingEnv的动作空间
-        if action == 1:  # BUY
+        # 🆕 EnhancedTradingEnv的5动作空间
+        if action == 0:  # HOLD - 保持当前仓位
+            # 保持当前仓位比例不变（QF-Lib会自动维持）
+            self.target_ratio = 1.0  # 保持100%现有仓位
             return Exposure.LONG
-        elif action == 2:  # SELL
+
+        elif action == 1:  # BUY_25 - 买入25%
+            self.target_ratio = 0.25
+            return Exposure.LONG
+
+        elif action == 2:  # BUY_50 - 买入50%
+            self.target_ratio = 0.50
+            return Exposure.LONG
+
+        elif action == 3:  # SELL_50 - 卖出50%持仓
+            # 减仓50%，即保留50%仓位
+            self.target_ratio = 0.50  # 目标保留50%
+            return Exposure.LONG  # 仍然持有，只是减少仓位
+
+        elif action == 4:  # SELL_ALL - 全部卖出
+            self.target_ratio = 0.0
             return Exposure.OUT
-        else:  # HOLD
-            return Exposure.LONG  # 保持当前持仓
+
+        else:
+            # 未知动作，默认空仓
+            logger.warning(f"Unknown action {action}, defaulting to OUT")
+            self.target_ratio = 0.0
+            return Exposure.OUT
 
     def get_fraction_at_risk(self) -> float:
         """返回风险暴露比例（QF-Lib接口）
 
+        根据最近的RL动作返回目标仓位比例：
+        - BUY_25: 25%
+        - BUY_50: 50%
+        - SELL_50: 50% (保留比例)
+        - SELL_ALL: 0%
+        - HOLD: 保持当前比例（返回1.0表示100%维持）
+
         Returns:
             风险比例（0-1）
         """
-        # SimpleTradingEnv的买入比例是30%
-        return 0.3
+        # 🆕 动态返回基于最近动作的目标仓位比例
+        if self.last_action is None:
+            # 首次调用，默认返回0（空仓）
+            return 0.0
+
+        # 返回之前在_action_to_exposure中设置的target_ratio
+        return self.target_ratio

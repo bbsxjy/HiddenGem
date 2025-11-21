@@ -125,11 +125,16 @@
 
 ### 🟡 Medium（中等优先级）- 影响代码质量
 
-#### 9. ❌ **QF-Lib RL Adapter** (Task 1.4)
-**状态**: 未解决
+#### 9. ✅ **QF-Lib RL Adapter** (Task 1.4) - 已解决
+**状态**: ✅ 已解决
 **问题**: `qflib_integration/rl_strategy_adapter.py` 使用3动作，未同步5动作空间
-**影响**: 回测与线上执行存在差异
-**建议**: 更新适配器以支持5动作 + `target_ratio`
+**修复方案**:
+- ✅ 更新`_action_to_exposure()`方法支持5动作（HOLD, BUY_25, BUY_50, SELL_50, SELL_ALL）
+- ✅ 添加`last_action`和`target_ratio`实例变量
+- ✅ 更新`get_fraction_at_risk()`返回动态仓位比例（0.25/0.50/1.0）
+- ✅ 保持与EnhancedTradingEnv的动作空间一致
+**影响**: 回测与线上执行现在完全一致，支持精细化仓位控制
+**Commit**: 待提交
 
 ---
 
