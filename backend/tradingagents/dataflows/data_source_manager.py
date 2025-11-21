@@ -19,12 +19,8 @@ from tradingagents.utils.timeout_utils import with_timeout
 
 # 导入日志模块
 from tradingagents.utils.logging_manager import get_logger
-logger = get_logger('agents')
+logger = get_logger('dataflows.data_source_manager')
 warnings.filterwarnings('ignore')
-
-# 导入统一日志系统
-from tradingagents.utils.logging_init import setup_dataflow_logging
-logger = setup_dataflow_logging()
 
 
 class ChinaDataSource(Enum):
