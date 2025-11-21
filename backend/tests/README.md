@@ -244,3 +244,96 @@ python tests/test_smart_system.py
 # 降级系统演示
 python tests/demo_fallback_system.py
 ```
+
+---
+
+## 🆕 Pytest单元测试 (2025-11-21)
+
+### 新增核心功能测试
+
+为提高代码质量和可维护性，新增了基于pytest的规范化单元测试：
+
+#### `conftest.py` - Pytest配置
+提供通用fixtures：
+- `default_config`: 默认配置
+- `trading_graph`: TradingAgentsGraph实例
+- `test_symbol`: 测试股票代码
+- `test_date`: 测试日期
+- `date_range`: 测试日期范围
+
+#### `test_rl_training.py` - RL训练测试
+- `TestEnhancedTradingEnv`: 测试增强型交易环境
+  - 环境初始化和重置
+  - 动作空间验证（5动作）
+  - HOLD/BUY/SELL动作执行
+  - 回合完成逻辑
+- `TestRLModel`: 测试RL模型加载和预测
+- `TestRLTrainingScripts`: 测试训练脚本结构
+
+#### `test_multi_agent.py` - Multi-Agent系统测试
+- `TestTradingAgentsGraph`: 测试Agent编排
+  - Graph初始化
+  - Propagate执行
+  - Final state结构验证
+  - Processed signal验证
+- `TestIndividualAgents`: 测试各个Agent
+  - Market/Fundamentals/News/Social Analysts
+- `TestAgentCoordination`: 测试Agent协调
+  - Bull/Bear辩论机制
+  - Risk管理（Aggressive/Neutral/Conservative）
+  - Trader执行
+- `TestAgentState`: 测试状态管理
+- `TestGraphConditionalLogic`: 测试条件路由
+
+#### `test_time_travel_training.py` - Time Travel训练测试
+- `TestEnhancedTimeTravelTraining`: 测试增强型Time Travel
+  - **Future leakage防护**（关键测试）
+- `TestPortfolioTimeTravelTraining`: 测试Portfolio Time Travel
+  - TaskMonitor集成
+  - Portfolio状态管理
+- `TestMemorySystem`: 测试记忆系统
+  - TradingEpisode结构
+  - **关键测试**: lesson不包含未来信息
+- `TestTaskMonitor`: 测试任务监控（Checkpoint/Resume支持）
+
+### 运行Pytest测试
+
+```bash
+# 运行所有核心测试
+pytest tests/test_rl_training.py tests/test_multi_agent.py tests/test_time_travel_training.py -v
+
+# 运行特定测试类
+pytest tests/test_rl_training.py::TestEnhancedTradingEnv -v
+
+# 运行特定测试函数
+pytest tests/test_rl_training.py::TestEnhancedTradingEnv::test_env_initialization -v
+
+# 显示详细输出
+pytest tests/test_*.py -v -s
+
+# 生成覆盖率报告
+pytest tests/test_*.py --cov=tradingagents --cov=trading --cov=scripts --cov-report=html
+```
+
+### 测试覆盖范围
+
+✅ **已覆盖**:
+- RL训练环境基础功能
+- Multi-Agent系统架构
+- Time Travel训练结构
+- **未来信息泄漏防护**（时间序列ML关键原则）
+- TaskMonitor checkpoint/resume机制
+
+🚧 **待扩展**:
+- 更多RL训练场景（不同市场条件）
+- Agent分析结果准确性验证
+- Memory系统embedding测试
+- API层集成测试（需要数据库）
+- 回测引擎端到端测试
+
+### 注意事项
+
+1. **API依赖**: 部分测试需要真实API调用（会自动skip）
+2. **模型文件**: RL模型测试需要训练好的模型文件（不存在会skip）
+3. **Memory系统**: 可选依赖，未安装会skip相关测试
+4. **网络连接**: 部分测试需要网络访问数据源
