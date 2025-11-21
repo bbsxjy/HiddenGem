@@ -77,8 +77,14 @@ class LLMRouter:
         self.medium_model = os.getenv("MEDIUM_LLM", config.get("quick_think_llm", "gpt-4o-mini"))
         self.large_model = os.getenv("LARGE_LLM", config.get("deep_think_llm", "o4-mini"))
 
-        # 是否启用小模型路由（默认false，保持向后兼容）
-        self.enable_small_model_routing = os.getenv("ENABLE_SMALL_MODEL_ROUTING", "false").lower() == "true"
+        # ✅ 是否启用小模型路由（优先读取config，默认启用）
+        # 1. 首先尝试从 config 读取（已经是 boolean）
+        # 2. 如果 config 中没有，从环境变量读取
+        # 3. 环境变量默认为 "true"（默认启用）
+        if "enable_small_model_routing" in config:
+            self.enable_small_model_routing = config["enable_small_model_routing"]
+        else:
+            self.enable_small_model_routing = os.getenv("ENABLE_SMALL_MODEL_ROUTING", "true").lower() == "true"
 
         # 缓存已创建的LLM实例
         self._llm_cache: Dict[str, ChatOpenAI] = {}
