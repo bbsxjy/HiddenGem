@@ -519,9 +519,14 @@ class RealtimeNewsAggregator:
                         skipped_count += 1
                         continue
 
-                    # 检查相关性（可选 - 财联社新闻通常是宏观新闻，不一定包含股票代码）
-                    # 可以根据需求决定是否过滤
+                    # 检查相关性
                     relevance_score = self._calculate_relevance(news_title + ' ' + news_content, ticker)
+
+                    # 过滤低相关性新闻（相关性 < 0.5 则跳过）
+                    if ticker and relevance_score < 0.5:
+                        logger.debug(f"[财联社] 新闻相关性过低 ({relevance_score:.2f})，跳过: {news_title[:30]}...")
+                        skipped_count += 1
+                        continue
 
                     # 评估紧急程度
                     urgency = self._assess_news_urgency(news_title, news_content)
@@ -666,34 +671,55 @@ class RealtimeNewsAggregator:
         """计算新闻相关性分数"""
         text = title.lower()
         ticker_lower = ticker.lower()
-        
+
         # 基础相关性 - 股票代码直接出现在标题中
         if ticker_lower in text:
             logger.debug(f"[相关性计算] 股票代码 {ticker} 直接出现在标题中，相关性评分: 1.0，标题: {title[:50]}...")
             return 1.0
-        
-        # 公司名称匹配
-        company_names = {
-            'aapl': ['apple', 'iphone', 'ipad', 'mac'],
-            'tsla': ['tesla', 'elon musk', 'electric vehicle'],
-            'nvda': ['nvidia', 'gpu', 'ai chip'],
-            'msft': ['microsoft', 'windows', 'azure'],
-            'googl': ['google', 'alphabet', 'search']
-        }
-        
-        # 检查公司相关关键词
-        if ticker_lower in company_names:
-            for name in company_names[ticker_lower]:
-                if name in text:
-                    logger.debug(f"[相关性计算] 检测到公司相关关键词 '{name}' 在标题中，相关性评分: 0.8，标题: {title[:50]}...")
-                    return 0.8
-        
+
         # 提取股票代码的纯数字部分（适用于中国股票）
         pure_code = ''.join(filter(str.isdigit, ticker))
-        if pure_code and pure_code in text:
-            logger.debug(f"[相关性计算] 股票代码数字部分 {pure_code} 出现在标题中，相关性评分: 0.9，标题: {title[:50]}...")
-            return 0.9
-        
+        if pure_code and len(pure_code) == 6 and pure_code in text:  # A股代码是6位数字
+            logger.debug(f"[相关性计算] 股票代码数字部分 {pure_code} 出现在标题中，相关性评分: 1.0，标题: {title[:50]}...")
+            return 1.0
+
+        # 公司名称匹配（美股）
+        us_company_names = {
+            'aapl': ['apple', 'iphone', 'ipad', 'mac', '苹果'],
+            'tsla': ['tesla', 'elon musk', 'electric vehicle', '特斯拉', '马斯克'],
+            'nvda': ['nvidia', 'gpu', 'ai chip', '英伟达'],
+            'msft': ['microsoft', 'windows', 'azure', '微软'],
+            'googl': ['google', 'alphabet', 'search', '谷歌']
+        }
+
+        # A股公司名称匹配（常见股票）
+        a_share_company_names = {
+            '600519': ['茅台', '贵州茅台'],
+            '000001': ['平安银行'],
+            '600036': ['招商银行', '招行'],
+            '601318': ['中国平安', '平安'],
+            '000858': ['五粮液'],
+            '601288': ['农业银行', '农行'],
+            '601398': ['工商银行', '工行'],
+            '600000': ['浦发银行', '浦发'],
+            '000002': ['万科'],
+            '000333': ['美的集团', '美的'],
+        }
+
+        # 检查美股公司关键词
+        if ticker_lower in us_company_names:
+            for name in us_company_names[ticker_lower]:
+                if name in text:
+                    logger.debug(f"[相关性计算] 检测到公司相关关键词 '{name}' 在标题中，相关性评分: 0.9，标题: {title[:50]}...")
+                    return 0.9
+
+        # 检查A股公司关键词
+        if pure_code in a_share_company_names:
+            for name in a_share_company_names[pure_code]:
+                if name in text:
+                    logger.debug(f"[相关性计算] 检测到A股公司关键词 '{name}' 在标题中，相关性评分: 0.9，标题: {title[:50]}...")
+                    return 0.9
+
         logger.debug(f"[相关性计算] 未检测到明确相关性，使用默认评分: 0.3，标题: {title[:50]}...")
         return 0.3  # 默认相关性
     
