@@ -302,88 +302,101 @@ class RealtimeNewsAggregator:
     
     def _get_chinese_finance_news(self, ticker: str, hours_back: int) -> List[NewsItem]:
         """获取中文财经新闻"""
-        # 集成中文财经新闻API：财联社、东方财富等
+        # 集成中文财经新闻API：使用Tushare新闻接口
         logger.info(f"[中文财经新闻] 开始获取 {ticker} 的中文财经新闻，回溯时间: {hours_back}小时")
         start_time = datetime.now()
-        
+
         try:
             news_items = []
-            
-            # 1. 尝试使用AKShare获取东方财富个股新闻
+
+            # 1. 优先使用Tushare获取新闻
             try:
-                logger.info(f"[中文财经新闻] 尝试导入 AKShare 工具")
-                from .akshare_utils import get_stock_news_em
-                
+                logger.info(f"[中文财经新闻] 尝试导入 Tushare 新闻工具")
+                from .tushare_utils import get_stock_news_tushare
+
                 # 处理股票代码格式
-                # 如果是美股代码，不使用东方财富新闻
+                # 如果是美股代码，不使用Tushare新闻
                 if '.' in ticker and any(suffix in ticker for suffix in ['.US', '.N', '.O', '.NYSE', '.NASDAQ']):
-                    logger.info(f"[中文财经新闻] 检测到美股代码 {ticker}，跳过东方财富新闻获取")
+                    logger.info(f"[中文财经新闻] 检测到美股代码 {ticker}，跳过Tushare新闻获取")
                 else:
-                    # 处理A股和港股代码
-                    clean_ticker = ticker.replace('.SH', '').replace('.SZ', '').replace('.SS', '')\
-                                    .replace('.HK', '').replace('.XSHE', '').replace('.XSHG', '')
-                    
-                    # 获取东方财富新闻
-                    logger.info(f"[中文财经新闻] 开始获取 {clean_ticker} 的东方财富新闻")
-                    em_start_time = datetime.now()
-                    news_df = get_stock_news_em(clean_ticker)
-                    
+                    # 计算日期范围
+                    end_date = datetime.now().strftime('%Y-%m-%d')
+                    start_date = (datetime.now() - timedelta(hours=hours_back)).strftime('%Y-%m-%d')
+
+                    # 获取Tushare新闻
+                    logger.info(f"[中文财经新闻] 开始从Tushare获取新闻，日期范围: {start_date} 到 {end_date}")
+                    tushare_start_time = datetime.now()
+                    news_df = get_stock_news_tushare(
+                        symbol=ticker,
+                        start_date=start_date,
+                        end_date=end_date,
+                        max_news=10
+                    )
+
                     if not news_df.empty:
-                        logger.info(f"[中文财经新闻] 东方财富返回 {len(news_df)} 条新闻数据，开始处理")
+                        logger.info(f"[中文财经新闻] Tushare返回 {len(news_df)} 条新闻数据，开始处理")
                         processed_count = 0
                         skipped_count = 0
                         error_count = 0
-                        
+
                         # 转换为NewsItem格式
                         for _, row in news_df.iterrows():
                             try:
                                 # 解析时间
-                                time_str = row.get('时间', '')
+                                time_str = row.get('datetime', '')
                                 if time_str:
-                                    # 尝试解析时间格式，可能是'2023-01-01 12:34:56'格式
                                     try:
-                                        publish_time = datetime.strptime(time_str, '%Y-%m-%d %H:%M:%S')
+                                        # Tushare返回的时间格式：YYYY-MM-DD HH:MM:SS
+                                        publish_time = datetime.strptime(str(time_str)[:19], '%Y-%m-%d %H:%M:%S')
                                     except:
-                                        # 尝试其他可能的格式
                                         try:
-                                            publish_time = datetime.strptime(time_str, '%Y-%m-%d')
+                                            publish_time = datetime.strptime(str(time_str)[:10], '%Y-%m-%d')
                                         except:
                                             logger.warning(f"[中文财经新闻] 无法解析时间格式: {time_str}，使用当前时间")
                                             publish_time = datetime.now()
                                 else:
                                     logger.warning(f"[中文财经新闻] 新闻时间为空，使用当前时间")
                                     publish_time = datetime.now()
-                                
+
                                 # 检查时效性
                                 if publish_time < datetime.now() - timedelta(hours=hours_back):
                                     skipped_count += 1
                                     continue
-                                
+
                                 # 评估紧急程度
-                                title = row.get('标题', '')
-                                content = row.get('内容', '')
+                                title = row.get('title', '')
+                                content = row.get('content', '')
                                 urgency = self._assess_news_urgency(title, content)
-                                
+
+                                # 获取新闻来源
+                                source = row.get('source', 'Tushare')
+                                if source == 'eastmoney':
+                                    source = '东方财富'
+                                elif source == 'sina':
+                                    source = '新浪财经'
+                                elif source == '10jqka':
+                                    source = '同花顺'
+
                                 news_items.append(NewsItem(
                                     title=title,
                                     content=content,
-                                    source='东方财富',
+                                    source=source,
                                     publish_time=publish_time,
-                                    url=row.get('链接', ''),
+                                    url=row.get('channels', ''),
                                     urgency=urgency,
                                     relevance_score=self._calculate_relevance(title, ticker)
                                 ))
                                 processed_count += 1
                             except Exception as item_e:
-                                logger.error(f"[中文财经新闻] 处理东方财富新闻项目失败: {item_e}")
+                                logger.error(f"[中文财经新闻] 处理Tushare新闻项目失败: {item_e}")
                                 error_count += 1
                                 continue
-                        
-                        em_time = (datetime.now() - em_start_time).total_seconds()
-                        logger.info(f"[中文财经新闻] 东方财富新闻处理完成，成功: {processed_count}条，跳过: {skipped_count}条，错误: {error_count}条，耗时: {em_time:.2f}秒")
-            except Exception as ak_e:
-                logger.error(f"[中文财经新闻] 获取东方财富新闻失败: {ak_e}")
-            
+
+                        tushare_time = (datetime.now() - tushare_start_time).total_seconds()
+                        logger.info(f"[中文财经新闻] Tushare新闻处理完成，成功: {processed_count}条，跳过: {skipped_count}条，错误: {error_count}条，耗时: {tushare_time:.2f}秒")
+            except Exception as ts_e:
+                logger.error(f"[中文财经新闻] 获取Tushare新闻失败: {ts_e}")
+
             # 2. 财联社RSS (如果可用)
             logger.info(f"[中文财经新闻] 开始获取财联社RSS新闻")
             rss_start_time = datetime.now()
@@ -391,18 +404,18 @@ class RealtimeNewsAggregator:
                 "https://www.cls.cn/api/sw?app=CailianpressWeb&os=web&sv=7.7.5",
                 # 可以添加更多RSS源
             ]
-            
+
             rss_success_count = 0
             rss_error_count = 0
             total_rss_items = 0
-            
+
             for rss_url in rss_sources:
                 try:
                     logger.info(f"[中文财经新闻] 尝试解析RSS源: {rss_url}")
                     rss_item_start = datetime.now()
                     items = self._parse_rss_feed(rss_url, ticker, hours_back)
                     rss_item_time = (datetime.now() - rss_item_start).total_seconds()
-                    
+
                     if items:
                         logger.info(f"[中文财经新闻] 成功从RSS源获取 {len(items)} 条新闻，耗时: {rss_item_time:.2f}秒")
                         news_items.extend(items)
@@ -414,17 +427,17 @@ class RealtimeNewsAggregator:
                     logger.error(f"[中文财经新闻] 解析RSS源失败: {rss_e}")
                     rss_error_count += 1
                     continue
-            
+
             # 记录RSS获取总结
             rss_total_time = (datetime.now() - rss_start_time).total_seconds()
             logger.info(f"[中文财经新闻] RSS新闻获取完成，成功源: {rss_success_count}个，失败源: {rss_error_count}个，获取新闻: {total_rss_items}条，总耗时: {rss_total_time:.2f}秒")
-            
+
             # 记录中文财经新闻获取总结
             total_time = (datetime.now() - start_time).total_seconds()
             logger.info(f"[中文财经新闻] {ticker} 的中文财经新闻获取完成，总共获取 {len(news_items)} 条新闻，总耗时: {total_time:.2f}秒")
-            
+
             return news_items
-            
+
         except Exception as e:
             logger.error(f"[中文财经新闻] 中文财经新闻获取失败: {e}")
             return []
@@ -744,68 +757,82 @@ def get_realtime_stock_news(ticker: str, curr_date: str, hours_back: int = 6) ->
     
     logger.info(f"[新闻分析] 最终判断结果 - 股票 {ticker} 类型: {stock_type}, 是否A股: {is_china_stock}")
     
-    # 对于A股，优先使用东方财富新闻源
+    # 对于A股，优先使用Tushare新闻
     if is_china_stock:
-        logger.info(f"[新闻分析] ========== 步骤2: A股东方财富新闻获取 ==========")
-        logger.info(f"[新闻分析] 检测到A股股票 {ticker}，优先尝试使用东方财富新闻源")
+        logger.info(f"[新闻分析] ========== 步骤2: A股Tushare新闻获取 ==========")
+        logger.info(f"[新闻分析] 检测到A股股票 {ticker}，优先尝试使用Tushare新闻接口")
         try:
-            logger.info(f"[新闻分析] 尝试导入 akshare_utils.get_stock_news_em")
-            from .akshare_utils import get_stock_news_em
-            logger.info(f"[新闻分析] 成功导入 get_stock_news_em 函数")
-            
-            # 处理A股代码
-            clean_ticker = ticker.replace('.SH', '').replace('.SZ', '').replace('.SS', '')\
-                            .replace('.XSHE', '').replace('.XSHG', '')
-            logger.info(f"[新闻分析] 原始ticker: {ticker} -> 清理后ticker: {clean_ticker}")
-            
-            logger.info(f"[新闻分析] 准备调用 get_stock_news_em({clean_ticker}, max_news=10)")
-            logger.info(f"[新闻分析] 开始从东方财富获取 {clean_ticker} 的新闻数据")
+            logger.info(f"[新闻分析] 尝试导入 tushare_utils.get_stock_news_tushare")
+            from .tushare_utils import get_stock_news_tushare
+            logger.info(f"[新闻分析] 成功导入 get_stock_news_tushare 函数")
+
+            # 计算日期范围
+            end_date = datetime.now().strftime('%Y-%m-%d')
+            start_date = (datetime.now() - timedelta(hours=hours_back)).strftime('%Y-%m-%d')
+
+            logger.info(f"[新闻分析] 准备调用 get_stock_news_tushare(symbol={ticker}, start_date={start_date}, end_date={end_date}, max_news=10)")
+            logger.info(f"[新闻分析] 开始从Tushare获取 {ticker} 的新闻数据")
             start_time = datetime.now()
-            logger.info(f"[新闻分析] 东方财富API调用开始时间: {start_time.strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]}")
-            
-            news_df = get_stock_news_em(clean_ticker, max_news=10)
-            
+            logger.info(f"[新闻分析] Tushare API调用开始时间: {start_time.strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]}")
+
+            news_df = get_stock_news_tushare(
+                symbol=ticker,
+                start_date=start_date,
+                end_date=end_date,
+                max_news=10
+            )
+
             end_time = datetime.now()
             time_taken = (end_time - start_time).total_seconds()
-            logger.info(f"[新闻分析] 东方财富API调用结束时间: {end_time.strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]}")
-            logger.info(f"[新闻分析] 东方财富API调用耗时: {time_taken:.2f}秒")
-            logger.info(f"[新闻分析] 东方财富API返回数据类型: {type(news_df)}")
-            
+            logger.info(f"[新闻分析] Tushare API调用结束时间: {end_time.strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]}")
+            logger.info(f"[新闻分析] Tushare API调用耗时: {time_taken:.2f}秒")
+            logger.info(f"[新闻分析] Tushare API返回数据类型: {type(news_df)}")
+
             if hasattr(news_df, 'empty'):
-                logger.info(f"[新闻分析] 东方财富API返回DataFrame，是否为空: {news_df.empty}")
+                logger.info(f"[新闻分析] Tushare API返回DataFrame，是否为空: {news_df.empty}")
                 if not news_df.empty:
-                    logger.info(f"[新闻分析] 东方财富API返回DataFrame形状: {news_df.shape}")
-                    logger.info(f"[新闻分析] 东方财富API返回DataFrame列名: {list(news_df.columns) if hasattr(news_df, 'columns') else '无列名'}")
+                    logger.info(f"[新闻分析] Tushare API返回DataFrame形状: {news_df.shape}")
+                    logger.info(f"[新闻分析] Tushare API返回DataFrame列名: {list(news_df.columns) if hasattr(news_df, 'columns') else '无列名'}")
             else:
-                logger.info(f"[新闻分析] 东方财富API返回数据: {news_df}")
-            
+                logger.info(f"[新闻分析] Tushare API返回数据: {news_df}")
+
             if not news_df.empty:
                 # 构建简单的新闻报告
                 news_count = len(news_df)
-                logger.info(f"[新闻分析] 成功获取 {news_count} 条东方财富新闻，耗时 {time_taken:.2f} 秒")
-                
-                report = f"# {ticker} 东方财富新闻报告\n\n"
+                logger.info(f"[新闻分析] 成功获取 {news_count} 条Tushare新闻，耗时 {time_taken:.2f} 秒")
+
+                report = f"# {ticker} Tushare新闻报告\n\n"
                 report += f" 生成时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
                 report += f" 新闻总数: {news_count}条\n"
                 report += f" 获取耗时: {time_taken:.2f}秒\n\n"
-                
+
                 # 记录一些新闻标题示例
-                sample_titles = [row.get('新闻标题', '无标题') for _, row in news_df.head(3).iterrows()]
+                sample_titles = [row.get('title', '无标题') for _, row in news_df.head(3).iterrows()]
                 logger.info(f"[新闻分析] 新闻标题示例: {', '.join(sample_titles)}")
-                
+
                 logger.info(f"[新闻分析] 开始构建新闻报告")
                 for idx, (_, row) in enumerate(news_df.iterrows()):
                     if idx < 3:  # 只记录前3条的详细信息
-                        logger.info(f"[新闻分析] 第{idx+1}条新闻: 标题={row.get('新闻标题', '无标题')}, 时间={row.get('发布时间', '无时间')}")
-                    report += f"### {row.get('新闻标题', '')}\n"
-                    report += f" {row.get('发布时间', '')}\n"
-                    report += f" {row.get('新闻链接', '')}\n\n"
-                    report += f"{row.get('新闻内容', '无内容')}\n\n"
-                
+                        logger.info(f"[新闻分析] 第{idx+1}条新闻: 标题={row.get('title', '无标题')}, 时间={row.get('datetime', '无时间')}")
+
+                    # 获取新闻来源
+                    source = row.get('source', 'Tushare')
+                    if source == 'eastmoney':
+                        source = '东方财富'
+                    elif source == 'sina':
+                        source = '新浪财经'
+                    elif source == '10jqka':
+                        source = '同花顺'
+
+                    report += f"### {row.get('title', '')}\n"
+                    report += f" {row.get('datetime', '')}\n"
+                    report += f" 来源: {source}\n\n"
+                    report += f"{row.get('content', '无内容')}\n\n"
+
                 total_time_taken = (datetime.now() - start_total_time).total_seconds()
-                logger.info(f"[新闻分析] 成功生成 {ticker} 的新闻报告，总耗时 {total_time_taken:.2f} 秒，新闻来源: 东方财富")
+                logger.info(f"[新闻分析] 成功生成 {ticker} 的新闻报告，总耗时 {total_time_taken:.2f} 秒，新闻来源: Tushare")
                 logger.info(f"[新闻分析] 报告长度: {len(report)} 字符")
-                logger.info(f"[新闻分析] ========== 东方财富新闻获取成功，函数即将返回 ==========")
+                logger.info(f"[新闻分析] ========== Tushare新闻获取成功，函数即将返回 ==========")
 
                 # 缓存结果
                 _news_cache[cache_key] = (report, current_time)
@@ -813,15 +840,15 @@ def get_realtime_stock_news(ticker: str, curr_date: str, hours_back: int = 6) ->
 
                 return report
             else:
-                logger.warning(f"[新闻分析] 东方财富未获取到 {ticker} 的新闻，耗时 {time_taken:.2f} 秒，尝试使用其他新闻源")
+                logger.warning(f"[新闻分析] Tushare未获取到 {ticker} 的新闻，耗时 {time_taken:.2f} 秒，尝试使用其他新闻源")
         except Exception as e:
-            logger.error(f"[新闻分析] 东方财富新闻获取失败: {e}，将尝试其他新闻源")
+            logger.error(f"[新闻分析] Tushare新闻获取失败: {e}，将尝试其他新闻源")
             logger.error(f"[新闻分析] 异常详情: {type(e).__name__}: {str(e)}")
             import traceback
             logger.error(f"[新闻分析] 异常堆栈: {traceback.format_exc()}")
     else:
-        logger.info(f"[新闻分析] ========== 跳过A股东方财富新闻获取 ==========")
-        logger.info(f"[新闻分析] 股票类型为 {stock_type}，不是A股，跳过东方财富新闻源")
+        logger.info(f"[新闻分析] ========== 跳过A股Tushare新闻获取 ==========")
+        logger.info(f"[新闻分析] 股票类型为 {stock_type}，不是A股，跳过Tushare新闻源")
     
     # 如果不是A股或A股新闻获取失败，使用实时新闻聚合器
     logger.info(f"[新闻分析] ========== 步骤3: 实时新闻聚合器 ==========")
@@ -875,42 +902,57 @@ def get_realtime_stock_news(ticker: str, curr_date: str, hours_back: int = 6) ->
         logger.error(f"[新闻分析] 异常堆栈: {traceback.format_exc()}")
         # 发生异常时，继续尝试备用方案
     
-    # 备用方案1: 对于港股，优先尝试使用东方财富新闻（A股已在前面处理）
+    # 备用方案1: 对于港股，优先尝试使用Tushare新闻（A股已在前面处理）
     if not is_china_stock and '.HK' in ticker:
-        logger.info(f"[新闻分析] 检测到港股代码 {ticker}，尝试使用东方财富新闻源")
+        logger.info(f"[新闻分析] 检测到港股代码 {ticker}，尝试使用Tushare新闻")
         try:
-            from .akshare_utils import get_stock_news_em
-            
-            # 处理港股代码
-            clean_ticker = ticker.replace('.HK', '')
-            
-            logger.info(f"[新闻分析] 开始从东方财富获取港股 {clean_ticker} 的新闻数据")
+            from .tushare_utils import get_stock_news_tushare
+
+            # 计算日期范围
+            end_date = datetime.now().strftime('%Y-%m-%d')
+            start_date = (datetime.now() - timedelta(hours=hours_back)).strftime('%Y-%m-%d')
+
+            logger.info(f"[新闻分析] 开始从Tushare获取港股 {ticker} 的新闻数据")
             start_time = datetime.now()
-            news_df = get_stock_news_em(clean_ticker, max_news=10)
+            news_df = get_stock_news_tushare(
+                symbol=ticker,
+                start_date=start_date,
+                end_date=end_date,
+                max_news=10
+            )
             end_time = datetime.now()
             time_taken = (end_time - start_time).total_seconds()
-            
+
             if not news_df.empty:
                 # 构建简单的新闻报告
                 news_count = len(news_df)
-                logger.info(f"[新闻分析] 成功获取 {news_count} 条东方财富港股新闻，耗时 {time_taken:.2f} 秒")
-                
-                report = f"# {ticker} 东方财富新闻报告\n\n"
+                logger.info(f"[新闻分析] 成功获取 {news_count} 条Tushare港股新闻，耗时 {time_taken:.2f} 秒")
+
+                report = f"# {ticker} Tushare新闻报告\n\n"
                 report += f" 生成时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
                 report += f" 新闻总数: {news_count}条\n"
                 report += f" 获取耗时: {time_taken:.2f}秒\n\n"
-                
-                # 记录一些新闻标题示例
-                sample_titles = [row.get('新闻标题', '无标题') for _, row in news_df.head(3).iterrows()]
-                logger.info(f"[新闻分析] 新闻标题示例: {', '.join(sample_titles)}")
-                
-                for _, row in news_df.iterrows():
-                    report += f"### {row.get('新闻标题', '')}\n"
-                    report += f" {row.get('发布时间', '')}\n"
-                    report += f" {row.get('新闻链接', '')}\n\n"
-                    report += f"{row.get('新闻内容', '无内容')}\n\n"
 
-                logger.info(f"[新闻分析] 成功生成东方财富新闻报告，新闻来源: 东方财富")
+                # 记录一些新闻标题示例
+                sample_titles = [row.get('title', '无标题') for _, row in news_df.head(3).iterrows()]
+                logger.info(f"[新闻分析] 新闻标题示例: {', '.join(sample_titles)}")
+
+                for _, row in news_df.iterrows():
+                    # 获取新闻来源
+                    source = row.get('source', 'Tushare')
+                    if source == 'eastmoney':
+                        source = '东方财富'
+                    elif source == 'sina':
+                        source = '新浪财经'
+                    elif source == '10jqka':
+                        source = '同花顺'
+
+                    report += f"### {row.get('title', '')}\n"
+                    report += f" {row.get('datetime', '')}\n"
+                    report += f" 来源: {source}\n\n"
+                    report += f"{row.get('content', '无内容')}\n\n"
+
+                logger.info(f"[新闻分析] 成功生成Tushare港股新闻报告")
 
                 # 缓存结果
                 _news_cache[cache_key] = (report, current_time)
@@ -918,9 +960,9 @@ def get_realtime_stock_news(ticker: str, curr_date: str, hours_back: int = 6) ->
 
                 return report
             else:
-                logger.warning(f"[新闻分析] 东方财富未获取到 {clean_ticker} 的新闻数据，耗时 {time_taken:.2f} 秒，尝试下一个备用方案")
+                logger.warning(f"[新闻分析] Tushare未获取到 {ticker} 的港股新闻数据，耗时 {time_taken:.2f} 秒，尝试下一个备用方案")
         except Exception as e:
-            logger.error(f"[新闻分析] 东方财富新闻获取失败: {e}，将尝试下一个备用方案")
+            logger.error(f"[新闻分析] Tushare新闻获取失败: {e}，将尝试下一个备用方案")
     
     # 备用方案2: 尝试使用Google新闻
     try:

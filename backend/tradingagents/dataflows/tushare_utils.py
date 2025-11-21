@@ -580,33 +580,123 @@ class TushareProvider:
     def search_stocks(self, keyword: str) -> pd.DataFrame:
         """
         搜索股票
-        
+
         Args:
             keyword: 搜索关键词
-            
+
         Returns:
             DataFrame: 搜索结果
         """
         try:
             stock_list = self.get_stock_list()
-            
+
             if stock_list.empty:
                 return pd.DataFrame()
-            
+
             # 按名称和代码搜索
             mask = (
                 stock_list['name'].str.contains(keyword, na=False) |
                 stock_list['symbol'].str.contains(keyword, na=False) |
                 stock_list['ts_code'].str.contains(keyword, na=False)
             )
-            
+
             results = stock_list[mask]
             logger.debug(f" 搜索'{keyword}'找到{len(results)}只股票")
-            
+
             return results
-            
+
         except Exception as e:
             logger.error(f" 搜索股票失败: {e}")
+            return pd.DataFrame()
+
+    def get_stock_news(self, src: str = None, start_date: str = None, end_date: str = None, max_news: int = 20) -> pd.DataFrame:
+        """
+        获取新闻数据
+
+        Tushare新闻接口 (news)
+        文档: https://tushare.pro/document/2?doc_id=142
+
+        Args:
+            src: 新闻来源 (sina, wallstreetcn, 10jqka, eastmoney, yuncaijing)
+                 如果为None，则获取所有来源
+            start_date: 开始日期 (YYYY-MM-DD)
+            end_date: 结束日期 (YYYY-MM-DD)
+            max_news: 最大新闻数量，默认20条
+
+        Returns:
+            DataFrame: 新闻数据，包含datetime, content, title, channels列
+        """
+        if not self.connected:
+            logger.error(f" Tushare未连接，无法获取新闻数据")
+            return pd.DataFrame()
+
+        try:
+            logger.info(f"[Tushare新闻] 开始获取新闻数据，来源: {src or '全部'}")
+
+            # 格式化日期
+            if end_date:
+                end_date_fmt = end_date.replace('-', '')
+            else:
+                end_date_fmt = datetime.now().strftime('%Y%m%d')
+
+            if start_date:
+                start_date_fmt = start_date.replace('-', '')
+            else:
+                # 默认获取最近7天的新闻
+                start_date_fmt = (datetime.now() - timedelta(days=7)).strftime('%Y%m%d')
+
+            logger.info(f"[Tushare新闻] 日期范围: {start_date_fmt} 到 {end_date_fmt}")
+
+            # 调用Tushare新闻接口
+            if src:
+                # 指定来源
+                news_df = self.api.news(
+                    src=src,
+                    start_date=start_date_fmt,
+                    end_date=end_date_fmt
+                )
+            else:
+                # 获取多个来源并合并
+                all_news = []
+                sources = ['sina', 'eastmoney', '10jqka']
+
+                for source in sources:
+                    try:
+                        df = self.api.news(
+                            src=source,
+                            start_date=start_date_fmt,
+                            end_date=end_date_fmt
+                        )
+                        if df is not None and not df.empty:
+                            df['source'] = source
+                            all_news.append(df)
+                            logger.info(f"[Tushare新闻] 从 {source} 获取 {len(df)} 条新闻")
+                    except Exception as e:
+                        logger.warning(f"[Tushare新闻] 获取 {source} 新闻失败: {e}")
+                        continue
+
+                if all_news:
+                    news_df = pd.concat(all_news, ignore_index=True)
+                else:
+                    news_df = pd.DataFrame()
+
+            if news_df is not None and not news_df.empty:
+                # 按时间排序（最新的在前）
+                if 'datetime' in news_df.columns:
+                    news_df = news_df.sort_values('datetime', ascending=False)
+
+                # 限制数量
+                if len(news_df) > max_news:
+                    news_df = news_df.head(max_news)
+
+                logger.info(f"[Tushare新闻] 成功获取 {len(news_df)} 条新闻")
+                return news_df
+            else:
+                logger.warning(f"[Tushare新闻] 未获取到新闻数据")
+                return pd.DataFrame()
+
+        except Exception as e:
+            logger.error(f"[Tushare新闻] 获取新闻失败: {e}")
             return pd.DataFrame()
 
 
@@ -650,12 +740,50 @@ def get_china_stock_data_tushare(symbol: str, start_date: str = None, end_date: 
 def get_china_stock_info_tushare(symbol: str) -> Dict:
     """
     获取中国股票信息的便捷函数（Tushare数据源）
-    
+
     Args:
         symbol: 股票代码
-        
+
     Returns:
         Dict: 股票信息
     """
     provider = get_tushare_provider()
     return provider.get_stock_info(symbol)
+
+
+def get_stock_news_tushare(symbol: str = None, start_date: str = None, end_date: str = None, max_news: int = 10) -> pd.DataFrame:
+    """
+    获取股票新闻的便捷函数（Tushare数据源）
+
+    使用Tushare新闻接口获取财经新闻
+    文档: https://tushare.pro/document/2?doc_id=142
+
+    Args:
+        symbol: 股票代码（目前Tushare新闻接口不支持按股票筛选，此参数保留用于未来扩展）
+        start_date: 开始日期 (YYYY-MM-DD)
+        end_date: 结束日期 (YYYY-MM-DD)
+        max_news: 最大新闻数量，默认10条
+
+    Returns:
+        pd.DataFrame: 新闻数据，包含datetime, content, title, channels, source列
+    """
+    provider = get_tushare_provider()
+
+    # 获取新闻（优先使用eastmoney，因为东方财富新闻更丰富）
+    news_df = provider.get_stock_news(
+        src='eastmoney',
+        start_date=start_date,
+        end_date=end_date,
+        max_news=max_news
+    )
+
+    # 如果eastmoney没有数据，尝试其他来源
+    if news_df.empty:
+        news_df = provider.get_stock_news(
+            src=None,  # 获取所有来源
+            start_date=start_date,
+            end_date=end_date,
+            max_news=max_news
+        )
+
+    return news_df
