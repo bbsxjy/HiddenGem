@@ -397,40 +397,21 @@ class RealtimeNewsAggregator:
             except Exception as ts_e:
                 logger.error(f"[中文财经新闻] 获取Tushare新闻失败: {ts_e}")
 
-            # 2. 财联社RSS (如果可用)
-            logger.info(f"[中文财经新闻] 开始获取财联社RSS新闻")
-            rss_start_time = datetime.now()
-            rss_sources = [
-                "https://www.cls.cn/api/sw?app=CailianpressWeb&os=web&sv=7.7.5",
-                # 可以添加更多RSS源
-            ]
+            # 2. 财联社API新闻 (官方API)
+            logger.info(f"[中文财经新闻] 开始获取财联社API新闻")
+            cls_start_time = datetime.now()
 
-            rss_success_count = 0
-            rss_error_count = 0
-            total_rss_items = 0
+            try:
+                cls_news = self._fetch_cls_news(ticker, hours_back)
+                cls_time = (datetime.now() - cls_start_time).total_seconds()
 
-            for rss_url in rss_sources:
-                try:
-                    logger.info(f"[中文财经新闻] 尝试解析RSS源: {rss_url}")
-                    rss_item_start = datetime.now()
-                    items = self._parse_rss_feed(rss_url, ticker, hours_back)
-                    rss_item_time = (datetime.now() - rss_item_start).total_seconds()
-
-                    if items:
-                        logger.info(f"[中文财经新闻] 成功从RSS源获取 {len(items)} 条新闻，耗时: {rss_item_time:.2f}秒")
-                        news_items.extend(items)
-                        total_rss_items += len(items)
-                        rss_success_count += 1
-                    else:
-                        logger.info(f"[中文财经新闻] RSS源未返回相关新闻，耗时: {rss_item_time:.2f}秒")
-                except Exception as rss_e:
-                    logger.error(f"[中文财经新闻] 解析RSS源失败: {rss_e}")
-                    rss_error_count += 1
-                    continue
-
-            # 记录RSS获取总结
-            rss_total_time = (datetime.now() - rss_start_time).total_seconds()
-            logger.info(f"[中文财经新闻] RSS新闻获取完成，成功源: {rss_success_count}个，失败源: {rss_error_count}个，获取新闻: {total_rss_items}条，总耗时: {rss_total_time:.2f}秒")
+                if cls_news:
+                    logger.info(f"[中文财经新闻] 成功从财联社获取 {len(cls_news)} 条新闻，耗时: {cls_time:.2f}秒")
+                    news_items.extend(cls_news)
+                else:
+                    logger.info(f"[中文财经新闻] 财联社未返回相关新闻，耗时: {cls_time:.2f}秒")
+            except Exception as cls_e:
+                logger.error(f"[中文财经新闻] 获取财联社新闻失败: {cls_e}")
 
             # 记录中文财经新闻获取总结
             total_time = (datetime.now() - start_time).total_seconds()
@@ -441,7 +422,144 @@ class RealtimeNewsAggregator:
         except Exception as e:
             logger.error(f"[中文财经新闻] 中文财经新闻获取失败: {e}")
             return []
-    
+
+    def _fetch_cls_news(self, ticker: str, hours_back: int) -> List[NewsItem]:
+        """
+        获取财联社实时新闻（官方API）
+
+        API文档:
+        - URL: https://www.cls.cn/nodeapi/telegraphList
+        - 返回JSON格式的财经快讯数据
+        - 无需API密钥或签名
+
+        Args:
+            ticker: 股票代码
+            hours_back: 回溯小时数
+
+        Returns:
+            List[NewsItem]: 新闻列表
+        """
+        logger.info(f"[财联社] 开始获取财联社新闻，股票: {ticker}，回溯时间: {hours_back}小时")
+        start_time = datetime.now()
+
+        try:
+            import requests
+
+            # 财联社官方API
+            url = "https://www.cls.cn/nodeapi/telegraphList"
+            params = {
+                'app': 'CailianpressWeb',
+                'os': 'web',
+                'sv': '8.4.6',
+                'refresh_type': '1',
+                'rn': '50'  # 获取50条新闻
+            }
+
+            headers = {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                'Referer': 'https://www.cls.cn/',
+                'Accept': 'application/json'
+            }
+
+            logger.info(f"[财联社] 请求API: {url}")
+            response = requests.get(url, params=params, headers=headers, timeout=10)
+
+            if response.status_code != 200:
+                logger.warning(f"[财联社] API返回非200状态码: {response.status_code}")
+                return []
+
+            data = response.json()
+
+            if 'error' in data and data['error']:
+                logger.error(f"[财联社] API返回错误: {data['error']}")
+                return []
+
+            if 'data' not in data or 'roll_data' not in data['data']:
+                logger.warning(f"[财联社] API返回数据格式异常")
+                return []
+
+            news_list = data['data']['roll_data']
+            logger.info(f"[财联社] 成功获取 {len(news_list)} 条原始新闻")
+
+            # 转换为NewsItem格式
+            news_items = []
+            processed_count = 0
+            skipped_count = 0
+
+            # 计算时间阈值
+            time_threshold = datetime.now() - timedelta(hours=hours_back)
+
+            for item in news_list:
+                try:
+                    # 解析时间（Unix时间戳）
+                    ctime = item.get('ctime', 0)
+                    if ctime:
+                        publish_time = datetime.fromtimestamp(ctime)
+                    else:
+                        logger.warning(f"[财联社] 新闻缺少时间戳，跳过")
+                        skipped_count += 1
+                        continue
+
+                    # 检查时效性
+                    if publish_time < time_threshold:
+                        skipped_count += 1
+                        continue
+
+                    # 提取新闻内容
+                    title = item.get('title', '').strip()
+                    brief = item.get('brief', '').strip()
+                    content = item.get('content', '').strip()
+
+                    # 使用brief或content作为内容（title有时为空）
+                    news_content = content if content else brief
+                    news_title = title if title else brief[:50]  # 如果标题为空，用简介前50字作为标题
+
+                    if not news_content:
+                        logger.debug(f"[财联社] 新闻内容为空，跳过")
+                        skipped_count += 1
+                        continue
+
+                    # 检查相关性（可选 - 财联社新闻通常是宏观新闻，不一定包含股票代码）
+                    # 可以根据需求决定是否过滤
+                    relevance_score = self._calculate_relevance(news_title + ' ' + news_content, ticker)
+
+                    # 评估紧急程度
+                    urgency = self._assess_news_urgency(news_title, news_content)
+
+                    # 构建URL（如果有ID）
+                    news_id = item.get('id', '')
+                    news_url = f"https://www.cls.cn/detail/{news_id}" if news_id else ''
+
+                    news_items.append(NewsItem(
+                        title=news_title,
+                        content=news_content,
+                        source='财联社',
+                        publish_time=publish_time,
+                        url=news_url,
+                        urgency=urgency,
+                        relevance_score=relevance_score
+                    ))
+                    processed_count += 1
+
+                except Exception as item_e:
+                    logger.error(f"[财联社] 处理新闻项目失败: {item_e}")
+                    skipped_count += 1
+                    continue
+
+            total_time = (datetime.now() - start_time).total_seconds()
+            logger.info(f"[财联社] 新闻处理完成，成功: {processed_count}条，跳过: {skipped_count}条，耗时: {total_time:.2f}秒")
+
+            return news_items
+
+        except ImportError:
+            logger.error(f"[财联社] requests库未安装，无法获取新闻")
+            return []
+        except Exception as e:
+            logger.error(f"[财联社] 获取新闻失败: {e}")
+            import traceback
+            logger.error(f"[财联社] 异常堆栈: {traceback.format_exc()}")
+            return []
+
     def _parse_rss_feed(self, rss_url: str, ticker: str, hours_back: int) -> List[NewsItem]:
         """解析RSS源"""
         logger.info(f"[RSS解析] 开始解析RSS源: {rss_url}，股票: {ticker}，回溯时间: {hours_back}小时")
