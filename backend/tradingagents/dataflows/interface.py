@@ -6,6 +6,10 @@ from .chinese_finance_utils import get_chinese_social_sentiment
 from .googlenews_utils import *
 from .finnhub_utils import get_data_in_range
 
+# 🆕 导入缓存和超时工具
+from .ttl_cache import ttl_cache
+from tradingagents.utils.timeout_utils import with_timeout
+
 # 导入统一日志系统
 from tradingagents.utils.logging_manager import get_logger
 # 只获取一次 dataflows logger，避免重复初始化
@@ -1221,6 +1225,15 @@ def get_china_stock_info_tushare(
 
 # ==================== 统一数据源接口 ====================
 
+@with_timeout(
+    timeout_seconds=40,  # 🆕 40秒超时（比底层30秒多10秒余量）
+    fallback_factory=lambda ticker, start_date, end_date: (
+        f"⏰ 获取 {ticker} 数据超时（40秒）\n"
+        f"请求时间范围: {start_date} 至 {end_date}\n"
+        f"建议：请检查网络连接或稍后重试"
+    )
+)
+@ttl_cache(ttl=3600)  # 🆕 接口层缓存（1小时）
 def get_china_stock_data_unified(
     ticker: Annotated[str, "中国股票代码，如：000001、600036等"],
     start_date: Annotated[str, "开始日期，格式：YYYY-MM-DD"],
@@ -1410,6 +1423,15 @@ def get_current_china_data_source() -> str:
 
 # ==================== 港股数据接口 ====================
 
+@with_timeout(
+    timeout_seconds=40,  # 🆕 40秒超时
+    fallback_factory=lambda symbol, start_date=None, end_date=None: (
+        f"⏰ 获取港股 {symbol} 数据超时（40秒）\n"
+        f"请求时间范围: {start_date} 至 {end_date}\n"
+        f"建议：请检查网络连接或稍后重试"
+    )
+)
+@ttl_cache(ttl=3600)  # 🆕 接口层缓存（1小时）
 def get_hk_stock_data_unified(symbol: str, start_date: str = None, end_date: str = None) -> str:
     """
     获取港股数据的统一接口
@@ -1530,6 +1552,15 @@ def get_hk_stock_info_unified(symbol: str) -> Dict:
         }
 
 
+@with_timeout(
+    timeout_seconds=45,  # 🆕 45秒超时（需要判断市场类型）
+    fallback_factory=lambda symbol, start_date=None, end_date=None: (
+        f"⏰ 获取 {symbol} 数据超时（45秒）\n"
+        f"请求时间范围: {start_date} 至 {end_date}\n"
+        f"建议：请检查网络连接或稍后重试"
+    )
+)
+@ttl_cache(ttl=3600)  # 🆕 接口层缓存（1小时）
 def get_stock_data_by_market(symbol: str, start_date: str = None, end_date: str = None) -> str:
     """
     根据股票市场类型自动选择数据源获取数据
