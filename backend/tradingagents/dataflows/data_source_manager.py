@@ -14,6 +14,9 @@ import pandas as pd
 # 导入TTL缓存
 from .ttl_cache import ttl_cache
 
+# 🆕 导入超时保护
+from tradingagents.utils.timeout_utils import with_timeout
+
 # 导入日志模块
 from tradingagents.utils.logging_manager import get_logger
 logger = get_logger('agents')
@@ -125,6 +128,13 @@ class DataSourceManager:
             logger.error(f" [Tushare] 搜索股票失败: {e}")
             return f" 搜索股票失败: {e}"
 
+    @with_timeout(
+        timeout_seconds=15,  # 🆕 15秒超时（基本面数据查询较快）
+        fallback_factory=lambda self, symbol: (
+            f"⏰ 获取 {symbol} 基本面数据超时（15秒）\n"
+            f"建议：请检查网络连接或稍后重试"
+        )
+    )
     def get_china_stock_fundamentals_tushare(self, symbol: str) -> str:
         """
         使用Tushare获取中国股票基本面数据
@@ -152,6 +162,13 @@ class DataSourceManager:
             logger.error(f" [Tushare] 获取基本面数据失败: {e}")
             return f" 获取{symbol}基本面数据失败: {e}"
 
+    @with_timeout(
+        timeout_seconds=15,  # 🆕 15秒超时（股票信息查询较快）
+        fallback_factory=lambda self, symbol: (
+            f"⏰ 获取 {symbol} 股票信息超时（15秒）\n"
+            f"建议：请检查网络连接或稍后重试"
+        )
+    )
     def get_china_stock_info_tushare(self, symbol: str) -> str:
         """
         使用Tushare获取中国股票基本信息
@@ -438,7 +455,15 @@ class DataSourceManager:
                             'event_type': 'data_fetch_exception'
                         }, exc_info=True)
             return self._try_fallback_sources(symbol, start_date, end_date)
-    
+
+    @with_timeout(
+        timeout_seconds=30,  # 🆕 30秒超时
+        fallback_factory=lambda self, symbol, start_date, end_date: (
+            f"⏰ 获取 {symbol} 数据超时（30秒）\n"
+            f"请求时间范围: {start_date} 至 {end_date}\n"
+            f"建议：请检查网络连接或稍后重试"
+        )
+    )
     @ttl_cache(ttl=3600)  # 缓存1小时，减少Tushare API调用
     def _get_tushare_data(self, symbol: str, start_date: str, end_date: str) -> str:
         """使用Tushare获取数据 - 直接调用适配器，避免循环调用"""
@@ -531,6 +556,15 @@ class DataSourceManager:
             logger.error(f" [DataSourceManager详细日志] 异常堆栈: {traceback.format_exc()}")
             raise
 
+    @with_timeout(
+        timeout_seconds=30,  # 🆕 30秒超时
+        fallback_factory=lambda self, symbol, start_date, end_date: (
+            f"⏰ 获取 {symbol} 数据超时（30秒）\n"
+            f"请求时间范围: {start_date} 至 {end_date}\n"
+            f"数据源: AKShare\n"
+            f"建议：请检查网络连接或稍后重试"
+        )
+    )
     @ttl_cache(ttl=3600)  # 缓存1小时，减少AKShare API调用
     def _get_akshare_data(self, symbol: str, start_date: str, end_date: str) -> str:
         """使用AKShare获取数据"""
