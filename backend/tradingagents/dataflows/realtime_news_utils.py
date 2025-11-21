@@ -413,6 +413,22 @@ class RealtimeNewsAggregator:
             except Exception as cls_e:
                 logger.error(f"[中文财经新闻] 获取财联社新闻失败: {cls_e}")
 
+            # 3. 华尔街见闻实时快讯
+            logger.info(f"[中文财经新闻] 开始获取华尔街见闻新闻")
+            wsj_start_time = datetime.now()
+
+            try:
+                wsj_news = self._fetch_wallstreet_news(ticker, hours_back)
+                wsj_time = (datetime.now() - wsj_start_time).total_seconds()
+
+                if wsj_news:
+                    logger.info(f"[中文财经新闻] 成功从华尔街见闻获取 {len(wsj_news)} 条新闻，耗时: {wsj_time:.2f}秒")
+                    news_items.extend(wsj_news)
+                else:
+                    logger.info(f"[中文财经新闻] 华尔街见闻未返回相关新闻，耗时: {wsj_time:.2f}秒")
+            except Exception as wsj_e:
+                logger.error(f"[中文财经新闻] 获取华尔街见闻新闻失败: {wsj_e}")
+
             # 记录中文财经新闻获取总结
             total_time = (datetime.now() - start_time).total_seconds()
             logger.info(f"[中文财经新闻] {ticker} 的中文财经新闻获取完成，总共获取 {len(news_items)} 条新闻，总耗时: {total_time:.2f}秒")
@@ -421,6 +437,205 @@ class RealtimeNewsAggregator:
 
         except Exception as e:
             logger.error(f"[中文财经新闻] 中文财经新闻获取失败: {e}")
+            return []
+
+    def _fetch_wallstreet_news(self, ticker: str, hours_back: int) -> List[NewsItem]:
+        """
+        获取华尔街见闻实时快讯
+
+        API文档:
+        - URL: https://api-prod.wallstreetcn.com/apiv1/content/lives
+        - 返回JSON格式的财经快讯数据
+        - 无需API密钥
+
+        Args:
+            ticker: 股票代码
+            hours_back: 回溯小时数
+
+        Returns:
+            List[NewsItem]: 新闻列表
+        """
+        logger.info(f"[华尔街见闻] 开始获取新闻，股票: {ticker}，回溯时间: {hours_back}小时")
+        start_time = datetime.now()
+
+        try:
+            import requests
+            import re
+            from html import unescape
+
+            # 华尔街见闻API
+            url = "https://api-prod.wallstreetcn.com/apiv1/content/lives"
+            params = {
+                'channel': 'global-channel',
+                'client': 'pc',
+                'cursor': '',
+                'limit': 50  # 获取50条新闻
+            }
+
+            headers = {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                'Accept': 'application/json, text/plain, */*',
+                'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
+                'Referer': 'https://wallstreetcn.com/',
+                'Origin': 'https://wallstreetcn.com'
+            }
+
+            logger.info(f"[华尔街见闻] 请求API: {url}")
+            response = requests.get(url, params=params, headers=headers, timeout=10)
+
+            if response.status_code != 200:
+                logger.warning(f"[华尔街见闻] API返回非200状态码: {response.status_code}")
+                return []
+
+            data = response.json()
+
+            # 提取新闻列表
+            news_list = []
+            if data.get('code') == 20000 and 'data' in data:
+                news_list = data['data'].get('items', [])
+            elif 'items' in data:
+                news_list = data['items']
+            elif isinstance(data, list):
+                news_list = data
+
+            if not news_list:
+                logger.warning(f"[华尔街见闻] API返回数据格式异常或无数据")
+                return []
+
+            logger.info(f"[华尔街见闻] 成功获取 {len(news_list)} 条原始新闻")
+
+            # 转换为NewsItem格式
+            news_items = []
+            processed_count = 0
+            skipped_count = 0
+
+            # 计算时间阈值
+            time_threshold = datetime.now() - timedelta(hours=hours_back)
+
+            # HTML清理函数
+            def clean_html(text: str) -> str:
+                if not text:
+                    return text
+                # 移除HTML标签
+                text = re.sub(r'<[^>]+>', '', text)
+                # 解码HTML实体
+                text = unescape(text)
+                # 移除多余的空白
+                text = re.sub(r'\s+', ' ', text).strip()
+                return text
+
+            for item in news_list:
+                try:
+                    # 解析时间（尝试多种可能的时间字段）
+                    time_fields = ['display_time', 'created_at', 'publish_time', 'updated_at', 'time', 'datetime']
+                    publish_time = None
+
+                    for field in time_fields:
+                        if field in item and item[field]:
+                            time_value = item[field]
+                            try:
+                                if isinstance(time_value, (int, float)):
+                                    # Unix时间戳
+                                    if time_value > 1e10:  # 毫秒时间戳
+                                        time_value = time_value / 1000
+                                    publish_time = datetime.fromtimestamp(time_value)
+                                elif isinstance(time_value, str):
+                                    # ISO格式时间字符串
+                                    if 'T' in time_value:
+                                        publish_time = datetime.fromisoformat(time_value.replace('Z', '+00:00'))
+                                    else:
+                                        publish_time = datetime.strptime(time_value, '%Y-%m-%d %H:%M:%S')
+                                break
+                            except:
+                                continue
+
+                    if not publish_time:
+                        logger.warning(f"[华尔街见闻] 新闻缺少有效时间戳，跳过")
+                        skipped_count += 1
+                        continue
+
+                    # 检查时效性
+                    if publish_time < time_threshold:
+                        skipped_count += 1
+                        continue
+
+                    # 提取内容，尝试多种字段
+                    content_fields = ['content_text', 'content', 'text', 'summary', 'description']
+                    content = ''
+                    for field in content_fields:
+                        if field in item and item[field]:
+                            content = str(item[field])
+                            break
+
+                    if not content:
+                        logger.debug(f"[华尔街见闻] 新闻内容为空，跳过")
+                        skipped_count += 1
+                        continue
+
+                    # 清理HTML标签
+                    content = clean_html(content)
+
+                    # 提取标题
+                    title = item.get('title', '').strip()
+                    if not title:
+                        # 如果没有标题，从内容中提取（取第一句话或前50字）
+                        sentences = re.split(r'[。！？．]', content)
+                        if sentences and len(sentences[0]) <= 50:
+                            title = sentences[0].strip()
+                        else:
+                            title = content[:50].strip() + "..."
+                    else:
+                        title = clean_html(title)
+
+                    # 提取作者
+                    author = ''
+                    if item.get('author') and isinstance(item['author'], dict):
+                        author = item['author'].get('display_name', '')
+
+                    # 检查相关性
+                    relevance_score = self._calculate_relevance(title + ' ' + content, ticker)
+
+                    # 过滤低相关性新闻（相关性 < 0.5 则跳过）
+                    if ticker and relevance_score < 0.5:
+                        logger.debug(f"[华尔街见闻] 新闻相关性过低 ({relevance_score:.2f})，跳过: {title[:30]}...")
+                        skipped_count += 1
+                        continue
+
+                    # 评估紧急程度
+                    urgency = self._assess_news_urgency(title, content)
+
+                    # 构建URL（如果有ID）
+                    news_id = item.get('id', item.get('_id', ''))
+                    news_url = f"https://wallstreetcn.com/live/{news_id}" if news_id else ''
+
+                    news_items.append(NewsItem(
+                        title=title,
+                        content=content,
+                        source='华尔街见闻' + (f' - {author}' if author else ''),
+                        publish_time=publish_time,
+                        url=news_url,
+                        urgency=urgency,
+                        relevance_score=relevance_score
+                    ))
+                    processed_count += 1
+
+                except Exception as item_e:
+                    logger.error(f"[华尔街见闻] 处理新闻项目失败: {item_e}")
+                    skipped_count += 1
+                    continue
+
+            total_time = (datetime.now() - start_time).total_seconds()
+            logger.info(f"[华尔街见闻] 新闻处理完成，成功: {processed_count}条，跳过: {skipped_count}条，耗时: {total_time:.2f}秒")
+
+            return news_items
+
+        except ImportError:
+            logger.error(f"[华尔街见闻] requests库未安装，无法获取新闻")
+            return []
+        except Exception as e:
+            logger.error(f"[华尔街见闻] 获取新闻失败: {e}")
+            import traceback
+            logger.error(f"[华尔街见闻] 异常堆栈: {traceback.format_exc()}")
             return []
 
     def _fetch_cls_news(self, ticker: str, hours_back: int) -> List[NewsItem]:
