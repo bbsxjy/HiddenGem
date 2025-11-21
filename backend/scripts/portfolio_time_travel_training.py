@@ -53,6 +53,9 @@ except ImportError:
 # Import data interface
 from tradingagents.dataflows.tushare_utils import get_china_stock_data_tushare
 
+# Import TaskMonitor for checkpoint support
+from tradingagents.utils.task_monitor import get_task_monitor
+
 # Setup logging
 logging.basicConfig(
     level=logging.INFO,
@@ -151,6 +154,10 @@ class PortfolioTimeTravelTrainer:
         # Initialize TradingAgentsGraph
         logger.info("Initializing TradingAgents system...")
         self.trading_graph = TradingAgentsGraph(config=self.config)
+
+        # TaskMonitor for checkpoint support
+        self.task_monitor = get_task_monitor()
+        self.task_id = f"portfolio_tt_{start_date}_{end_date}"
 
         # Initialize Memory Bank
         self.memory_manager = None
@@ -661,15 +668,70 @@ class PortfolioTimeTravelTrainer:
         logger.info(f"   Trainable days: {len(training_days)}")
         logger.info(f"   Buffer reserve: {buffer_days} days\n")
 
-        # Train each day
-        for i, current_date in enumerate(training_days, 1):
-            logger.info(f"[{i}/{len(training_days)}] Progress: {i/len(training_days):.1%}")
+        # Check for existing checkpoint (resume support)
+        start_idx = 0
+        checkpoint = self.task_monitor.get_checkpoint(self.task_id)
+
+        if checkpoint and checkpoint.status in ["RUNNING", "PAUSED"]:
+            completed_steps = checkpoint.completed_steps
+            logger.info(f"\n⏮️  发现检查点: {checkpoint.task_id}")
+            logger.info(f"   上次进度: {checkpoint.progress:.1%} ({completed_steps}/{len(training_days)} days)")
+            logger.info(f"   恢复训练从第 {completed_steps + 1} 天...\n")
+            start_idx = completed_steps
+            self.task_monitor.resume_task(self.task_id)
+        else:
+            # Start new task
+            self.task_monitor.start_task(
+                task_id=self.task_id,
+                task_type="PORTFOLIO_TIME_TRAVEL",
+                total_steps=len(training_days),
+                metadata={
+                    'start_date': self.start_date.strftime("%Y-%m-%d"),
+                    'end_date': self.end_date.strftime("%Y-%m-%d"),
+                    'holding_days': self.holding_days,
+                    'max_positions': self.max_positions,
+                    'stock_pool': list(STOCK_POOL.values())
+                }
+            )
+            logger.info(f"🆕 创建新训练任务: {self.task_id}\n")
+
+        # Train each day (resume from start_idx if needed)
+        for i in range(start_idx, len(training_days)):
+            current_date = training_days[i]
+            day_num = i + 1
+
+            logger.info(f"[{day_num}/{len(training_days)}] Progress: {day_num/len(training_days):.1%}")
 
             self.train_one_day(current_date)
 
+            # Update checkpoint progress
+            self.task_monitor.update_progress(
+                task_id=self.task_id,
+                current_step=f"Training day {current_date}",
+                completed_steps=day_num,
+                metadata_update={
+                    'current_date': current_date,
+                    'total_episodes': self.total_episodes,
+                    'successful_episodes': self.successful_episodes,
+                    'portfolio_value': self.portfolio.total_value
+                }
+            )
+
             # Print statistics every 10 episodes
-            if i % 10 == 0:
+            if day_num % 10 == 0:
                 self.print_statistics()
+
+        # Mark task as complete
+        self.task_monitor.complete_task(
+            self.task_id,
+            final_metadata={
+                'total_episodes': self.total_episodes,
+                'successful_episodes': self.successful_episodes,
+                'failed_episodes': self.failed_episodes,
+                'final_portfolio_value': self.portfolio.total_value,
+                'total_return_pct': (self.portfolio.total_value - self.initial_cash) / self.initial_cash
+            }
+        )
 
         # Final statistics
         logger.info(f"\n{'='*60}")
