@@ -6,7 +6,7 @@
 """
 
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 import re
 
 logger = logging.getLogger(__name__)
@@ -22,19 +22,28 @@ class UnifiedNewsAnalyzer:
         """
         self.toolkit = toolkit
         
-    def get_stock_news_unified(self, stock_code: str, max_news: int = 10, model_info: str = "") -> str:
+    def get_stock_news_unified(
+        self,
+        stock_code: str,
+        max_news: int = 10,
+        model_info: str = "",
+        company_name: str = "",
+        search_keywords: str = "",
+    ) -> str:
         """
-        统一新闻获取接口
-        根据股票代码自动识别股票类型并获取相应新闻
+        ?????????????????????
 
         Args:
-            stock_code: 股票代码
-            max_news: 最大新闻数量
-            model_info: 当前使用的模型信息，用于特殊处理
+            stock_code: ????
+            max_news: ??????
+            model_info: ??????????????
+            company_name: ?????????
+            search_keywords: ????????/?????
 
         Returns:
-            str: 格式化的新闻内容
+            str: ?????????
         """
+
         logger.info(f"[统一新闻工具] 开始获取 {stock_code} 的新闻，模型: {model_info}")
         logger.info(f"[统一新闻工具]  当前模型信息: {model_info}")
 
@@ -51,20 +60,39 @@ class UnifiedNewsAnalyzer:
         logger.info(f"[工具调用] 识别的股票类型: {stock_type}")  # 新增
 
         # 根据股票类型调用相应的获取方法
-        if stock_type == "A股":
-            result = self._get_a_share_news(stock_code, max_news, model_info)
-        elif stock_type == "港股":
-            result = self._get_hk_share_news(stock_code, max_news, model_info)
-        elif stock_type == "美股":
-            result = self._get_us_share_news(stock_code, max_news, model_info)
+        if stock_type == "A?":
+            result = self._get_a_share_news(
+                stock_code,
+                max_news,
+                model_info,
+                company_name=company_name,
+                search_keywords=search_keywords,
+            )
+        elif stock_type == "??":
+            result = self._get_hk_share_news(
+                stock_code,
+                max_news,
+                model_info,
+                company_name=company_name,
+                search_keywords=search_keywords,
+            )
+        elif stock_type == "??":
+            result = self._get_us_share_news(
+                stock_code,
+                max_news,
+                model_info,
+                company_name=company_name,
+                search_keywords=search_keywords,
+            )
         else:
-            # 默认使用A股逻辑
-            result = self._get_a_share_news(stock_code, max_news, model_info)
-
-        #  添加详细的结果调试日志
-        logger.info(f"[统一新闻工具]  新闻获取完成，结果长度: {len(result)} 字符")
-        logger.info(f"[统一新闻工具]  返回结果预览 (前1000字符): {result[:1000]}")
-
+            # ????A???
+            result = self._get_a_share_news(
+                stock_code,
+                max_news,
+                model_info,
+                company_name=company_name,
+                search_keywords=search_keywords,
+            )
         # ====== 新增：工具返回结果日志 ======
         logger.info(f"[工具调用] ========== 统一新闻工具调用结束 ==========")
         logger.info(f"[工具调用] 返回结果长度: {len(result)} 字符")
@@ -106,7 +134,14 @@ class UnifiedNewsAnalyzer:
         else:
             return "A股"
     
-    def _get_a_share_news(self, stock_code: str, max_news: int, model_info: str = "") -> str:
+    def _get_a_share_news(
+        self,
+        stock_code: str,
+        max_news: int,
+        model_info: str = "",
+        company_name: str = "",
+        search_keywords: str = "",
+    ) -> str:
         """获取A股新闻"""
         logger.info(f"[统一新闻工具] 获取A股 {stock_code} 新闻")
         
@@ -163,6 +198,15 @@ class UnifiedNewsAnalyzer:
                     return self._format_news_result(result, "OpenAI全球新闻", model_info)
         except Exception as e:
             logger.warning(f"[统一新闻工具] OpenAI新闻获取失败: {e}")
+        try:
+            keywords = self._build_keyword_list(stock_code, company_name, search_keywords)
+            tushare_news = self._get_tushare_keyword_news(stock_code, keywords, max_news)
+            if tushare_news:
+                logger.info(f"[??????]  Tushare????????: {len(tushare_news)}")
+                return self._format_news_result(tushare_news, "Tushare????", model_info)
+        except Exception as e:
+            logger.warning(f"[??????] Tushare??????: {e}")
+
         
         return """
 === NO_VALID_NEWS_DATA_AVAILABLE ===
@@ -183,7 +227,14 @@ class UnifiedNewsAnalyzer:
 === NO_VALID_NEWS_DATA_AVAILABLE ===
 """
     
-    def _get_hk_share_news(self, stock_code: str, max_news: int, model_info: str = "") -> str:
+    def _get_hk_share_news(
+        self,
+        stock_code: str,
+        max_news: int,
+        model_info: str = "",
+        company_name: str = "",
+        search_keywords: str = "",
+    ) -> str:
         """获取港股新闻"""
         logger.info(f"[统一新闻工具] 获取港股 {stock_code} 新闻")
         
@@ -246,7 +297,14 @@ class UnifiedNewsAnalyzer:
 === NO_VALID_NEWS_DATA_AVAILABLE ===
 """
     
-    def _get_us_share_news(self, stock_code: str, max_news: int, model_info: str = "") -> str:
+    def _get_us_share_news(
+        self,
+        stock_code: str,
+        max_news: int,
+        model_info: str = "",
+        company_name: str = "",
+        search_keywords: str = "",
+    ) -> str:
         """获取美股新闻"""
         logger.info(f"[统一新闻工具] 获取美股 {stock_code} 新闻")
         
@@ -402,11 +460,106 @@ class UnifiedNewsAnalyzer:
         return formatted_result.strip()
 
 
+
+    def _build_keyword_list(self, stock_code: str, company_name: str, extra_keywords: str) -> list:
+        """??????????Tushare??"""
+        keywords = []
+        seen = set()
+
+        def _add(token: str):
+            token = (token or '').strip()
+            if not token:
+                return
+            if token not in seen and len(token) >= 2:
+                seen.add(token)
+                keywords.append(token)
+
+        _add(stock_code.upper())
+        _add(stock_code.lower())
+        if '.' in stock_code:
+            _add(stock_code.split('.')[0])
+        if company_name:
+            cleaned = company_name.replace('??????', '').replace('????', '').strip()
+            _add(company_name.strip())
+            if cleaned:
+                _add(cleaned)
+        if extra_keywords:
+            import re as _re
+            for token in _re.split(r'[?,?;\s]+', extra_keywords):
+                _add(token)
+        return keywords[:12]
+
+    def _get_tushare_keyword_news(self, stock_code: str, keywords: list, max_news: int) -> str:
+        """??Tushare????????????"""
+        if not keywords:
+            return ''
+        try:
+            from tradingagents.dataflows.tushare_utils import get_stock_news_tushare
+        except Exception as exc:
+            logger.warning(f"[??????] ??Tushare????: {exc}")
+            return ''
+
+        end_date = datetime.now()
+        start_date = end_date - timedelta(days=30)
+        news_df = get_stock_news_tushare(
+            symbol=stock_code,
+            start_date=start_date.strftime('%Y-%m-%d'),
+            end_date=end_date.strftime('%Y-%m-%d'),
+            max_news=max(max_news * 4, 120),
+        )
+
+        if news_df is None or getattr(news_df, 'empty', True):
+            return ''
+
+        try:
+            records = news_df.to_dict('records')
+        except Exception:
+            records = []
+
+        filtered = []
+        for row in records:
+            text_blob = ' '.join([str(row.get('title', '')), str(row.get('content', '')), str(row.get('channels', ''))])
+            if any(keyword in text_blob for keyword in keywords):
+                filtered.append(row)
+
+        if not filtered:
+            return ''
+
+        def _pick_time(item: dict) -> str:
+            for key in ('datetime', 'publish_time', 'pub_time', 'time'):
+                if item.get(key):
+                    return str(item[key])
+            return datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+
+        filtered.sort(key=lambda x: _pick_time(x), reverse=True)
+        filtered = filtered[:max_news]
+
+        lines = ['### 近30天Tushare重点新闻']
+        for item in filtered:
+            pub_time = _pick_time(item)
+            title = item.get('title') or '未命名资讯'
+            source = item.get('source') or item.get('channels') or '未知来源'
+            content = (item.get('content') or '').strip()
+            if len(content) > 200:
+                content = content[:200] + '...'
+            url = item.get('url') or item.get('link') or ''
+            entry = f"- [{pub_time}] {title}（{source}）\n  {content or '（内容略）'}"
+            if url:
+                entry += f"\n  链接: {url}"
+            lines.append(entry)
+
+        return "\n".join(lines)
 def create_unified_news_tool(toolkit):
     """创建统一新闻工具函数"""
     analyzer = UnifiedNewsAnalyzer(toolkit)
     
-    def get_stock_news_unified(stock_code: str, max_news: int = 100, model_info: str = ""):
+    def get_stock_news_unified(
+        stock_code: str,
+        max_news: int = 100,
+        model_info: str = "",
+        company_name: str = "",
+        search_keywords: str = "",
+    ):
         """
         统一新闻获取工具
         
